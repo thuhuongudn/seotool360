@@ -1,4 +1,6 @@
-import { type User, type InsertUser, type SeoTool, type InsertSeoTool } from "@shared/schema";
+import { type User, type InsertUser, type SeoTool, type InsertSeoTool, type ToolExecution, type InsertToolExecution, users, seoTools, toolExecutions } from "@shared/schema";
+import { db } from "./db";
+import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
@@ -9,19 +11,26 @@ export interface IStorage {
   getSeoTool(id: string): Promise<SeoTool | undefined>;
   createSeoTool(tool: InsertSeoTool): Promise<SeoTool>;
   updateSeoTool(id: string, tool: Partial<InsertSeoTool>): Promise<SeoTool | undefined>;
+  // Tool execution methods
+  createToolExecution(execution: InsertToolExecution): Promise<ToolExecution>;
+  updateToolExecution(id: string, update: Partial<InsertToolExecution>): Promise<ToolExecution | undefined>;
+  getToolExecution(id: string): Promise<ToolExecution | undefined>;
+  getToolExecutions(limit?: number): Promise<ToolExecution[]>;
+  getToolExecutionsByTool(toolId: string, limit?: number): Promise<ToolExecution[]>;
 }
 
-export class MemStorage implements IStorage {
-  private users: Map<string, User>;
-  private seoTools: Map<string, SeoTool>;
-
+export class DatabaseStorage implements IStorage {
   constructor() {
-    this.users = new Map();
-    this.seoTools = new Map();
     this.initializeDefaultTools();
   }
 
-  private initializeDefaultTools() {
+  private async initializeDefaultTools() {
+    // Check if tools already exist
+    const existingTools = await db.select().from(seoTools).limit(1);
+    if (existingTools.length > 0) {
+      return; // Tools already initialized
+    }
+
     const defaultTools: Omit<SeoTool, 'id'>[] = [
       {
         name: 'topical-map',
@@ -157,52 +166,78 @@ export class MemStorage implements IStorage {
       }
     ];
 
-    defaultTools.forEach(tool => {
-      const id = randomUUID();
-      this.seoTools.set(id, { ...tool, id });
-    });
+    // Insert tools into database
+    await db.insert(seoTools).values(defaultTools);
   }
 
   async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user || undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
+    const [user] = await db.insert(users).values(insertUser).returning();
     return user;
   }
 
   async getAllSeoTools(): Promise<SeoTool[]> {
-    return Array.from(this.seoTools.values()).filter(tool => tool.isActive);
+    return await db.select().from(seoTools).where(eq(seoTools.isActive, true));
   }
 
   async getSeoTool(id: string): Promise<SeoTool | undefined> {
-    return this.seoTools.get(id);
+    const [tool] = await db.select().from(seoTools).where(eq(seoTools.id, id));
+    return tool || undefined;
   }
 
   async createSeoTool(insertTool: InsertSeoTool): Promise<SeoTool> {
-    const id = randomUUID();
-    const tool: SeoTool = { ...insertTool, id };
-    this.seoTools.set(id, tool);
+    const [tool] = await db.insert(seoTools).values(insertTool).returning();
     return tool;
   }
 
   async updateSeoTool(id: string, updateData: Partial<InsertSeoTool>): Promise<SeoTool | undefined> {
-    const existing = this.seoTools.get(id);
-    if (!existing) return undefined;
-    
-    const updated = { ...existing, ...updateData };
-    this.seoTools.set(id, updated);
-    return updated;
+    const [updated] = await db.update(seoTools)
+      .set(updateData)
+      .where(eq(seoTools.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  // Tool execution methods
+  async createToolExecution(execution: InsertToolExecution): Promise<ToolExecution> {
+    const [created] = await db.insert(toolExecutions).values(execution).returning();
+    return created;
+  }
+
+  async updateToolExecution(id: string, update: Partial<InsertToolExecution>): Promise<ToolExecution | undefined> {
+    const [updated] = await db.update(toolExecutions)
+      .set(update)
+      .where(eq(toolExecutions.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async getToolExecution(id: string): Promise<ToolExecution | undefined> {
+    const [execution] = await db.select().from(toolExecutions).where(eq(toolExecutions.id, id));
+    return execution || undefined;
+  }
+
+  async getToolExecutions(limit: number = 50): Promise<ToolExecution[]> {
+    return await db.select().from(toolExecutions)
+      .orderBy(sql`${toolExecutions.startedAt} DESC`)
+      .limit(limit);
+  }
+
+  async getToolExecutionsByTool(toolId: string, limit: number = 50): Promise<ToolExecution[]> {
+    return await db.select().from(toolExecutions)
+      .where(eq(toolExecutions.toolId, toolId))
+      .orderBy(sql`${toolExecutions.startedAt} DESC`)
+      .limit(limit);
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
