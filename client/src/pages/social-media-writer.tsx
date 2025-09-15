@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Share2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 
 // Form schema matching the requirements
 const socialMediaFormSchema = z.object({
@@ -110,6 +111,23 @@ export default function SocialMediaWriter() {
         JSON.stringify(webhookResponse, null, 2);
 
       setResult(content);
+
+      // Save form data and result to database
+      try {
+        await apiRequest("POST", "/api/social-media-posts", {
+          postType: data.postType,
+          title: data.title,
+          framework: data.framework || "",
+          writingStyle: data.writingStyle || "",
+          structure: data.structure || "",
+          maxWords: data.maxWords || "",
+          hashtags: data.hashtags || "",
+          result: content,
+        });
+      } catch (dbError) {
+        console.warn("Failed to save post to database:", dbError);
+        // Don't show error to user as the main functionality worked
+      }
 
       toast({
         title: "Thành công!",

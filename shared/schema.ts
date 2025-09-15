@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, boolean, timestamp, jsonb, serial } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -35,6 +35,19 @@ export const toolExecutions = pgTable("tool_executions", {
   duration: text("duration"), // human readable duration like "2.5s"
 });
 
+export const socialMediaPosts = pgTable("social_media_posts", {
+  id: serial("id").primaryKey(),
+  postType: text("post_type").notNull(), // Loại bài viết
+  title: text("title").notNull(), // Tiêu đề (tên sản phẩm hoặc bài blog)
+  framework: text("framework"), // Framework
+  writingStyle: text("writing_style"), // Phong cách viết  
+  structure: text("structure"), // Cấu trúc bài viết
+  maxWords: text("max_words"), // Số từ tối đa
+  hashtags: text("hashtags"), // Hashtag bài viết
+  result: text("result"), // Kết quả từ response
+  createdAt: timestamp("created_at").notNull().defaultNow(), // Thời gian
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -42,6 +55,11 @@ export const insertUserSchema = createInsertSchema(users).pick({
 
 export const insertSeoToolSchema = createInsertSchema(seoTools).omit({
   id: true,
+});
+
+export const insertSocialMediaPostSchema = createInsertSchema(socialMediaPosts).omit({
+  id: true,
+  createdAt: true,
 });
 
 // Relations
@@ -74,4 +92,6 @@ export type SeoTool = typeof seoTools.$inferSelect;
 export type InsertSeoTool = z.infer<typeof insertSeoToolSchema>;
 export type ToolExecution = typeof toolExecutions.$inferSelect;
 export type InsertToolExecution = z.infer<typeof insertToolExecutionSchema>;
+export type SocialMediaPost = typeof socialMediaPosts.$inferSelect;
+export type InsertSocialMediaPost = z.infer<typeof insertSocialMediaPostSchema>;
 export type ActivateToolRequest = z.infer<typeof activateToolSchema>;

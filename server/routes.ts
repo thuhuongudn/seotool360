@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { activateToolSchema } from "@shared/schema";
+import { activateToolSchema, insertSocialMediaPostSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get all SEO tools
@@ -82,6 +82,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error activating SEO tool:", error);
       res.status(500).json({ message: "Failed to activate SEO tool" });
+    }
+  });
+
+  // Create social media post
+  app.post("/api/social-media-posts", async (req: Request, res: Response) => {
+    try {
+      const validation = insertSocialMediaPostSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          message: "Invalid request data", 
+          errors: validation.error.issues
+        });
+      }
+
+      const socialMediaPost = await storage.createSocialMediaPost(validation.data);
+      res.json(socialMediaPost);
+    } catch (error) {
+      console.error("Error creating social media post:", error);
+      res.status(500).json({ message: "Failed to save social media post" });
+    }
+  });
+
+  // Get all social media posts
+  app.get("/api/social-media-posts", async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const posts = await storage.getAllSocialMediaPosts(limit);
+      res.json(posts);
+    } catch (error) {
+      console.error("Error fetching social media posts:", error);
+      res.status(500).json({ message: "Failed to fetch social media posts" });
     }
   });
 

@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type SeoTool, type InsertSeoTool, type ToolExecution, type InsertToolExecution, users, seoTools, toolExecutions } from "@shared/schema";
+import { type User, type InsertUser, type SeoTool, type InsertSeoTool, type ToolExecution, type InsertToolExecution, type SocialMediaPost, type InsertSocialMediaPost, users, seoTools, toolExecutions, socialMediaPosts } from "@shared/schema";
 import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -17,6 +17,10 @@ export interface IStorage {
   getToolExecution(id: string): Promise<ToolExecution | undefined>;
   getToolExecutions(limit?: number): Promise<ToolExecution[]>;
   getToolExecutionsByTool(toolId: string, limit?: number): Promise<ToolExecution[]>;
+  // Social media post methods
+  createSocialMediaPost(post: InsertSocialMediaPost): Promise<SocialMediaPost>;
+  getSocialMediaPost(id: number): Promise<SocialMediaPost | undefined>;
+  getAllSocialMediaPosts(limit?: number): Promise<SocialMediaPost[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -236,6 +240,23 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(toolExecutions)
       .where(eq(toolExecutions.toolId, toolId))
       .orderBy(sql`${toolExecutions.startedAt} DESC`)
+      .limit(limit);
+  }
+
+  // Social media post methods
+  async createSocialMediaPost(post: InsertSocialMediaPost): Promise<SocialMediaPost> {
+    const [created] = await db.insert(socialMediaPosts).values(post).returning();
+    return created;
+  }
+
+  async getSocialMediaPost(id: number): Promise<SocialMediaPost | undefined> {
+    const [post] = await db.select().from(socialMediaPosts).where(eq(socialMediaPosts.id, id));
+    return post || undefined;
+  }
+
+  async getAllSocialMediaPosts(limit: number = 50): Promise<SocialMediaPost[]> {
+    return await db.select().from(socialMediaPosts)
+      .orderBy(sql`${socialMediaPosts.createdAt} DESC`)
       .limit(limit);
   }
 }
