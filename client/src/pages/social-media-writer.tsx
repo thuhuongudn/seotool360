@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,9 +28,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Share2, Loader2 } from "lucide-react";
+import { Share2, Loader2, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest } from "@/lib/queryClient";
+import { Link } from "wouter";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import type { SocialMediaPost } from "@shared/schema";
 
 // Form schema matching the requirements
 const socialMediaFormSchema = z.object({
@@ -54,7 +57,24 @@ interface WebhookResponse {
 export default function SocialMediaWriter() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<string>("");
+  const [expandedPosts, setExpandedPosts] = useState<Set<number>>(new Set());
   const { toast } = useToast();
+
+  // Fetch recent posts
+  const { data: recentPosts, isLoading: postsLoading } = useQuery({
+    queryKey: ['/api/social-media-posts', { limit: 5 }],
+    queryFn: () => fetch('/api/social-media-posts?limit=5').then(res => res.json()) as Promise<SocialMediaPost[]>
+  });
+
+  const togglePostExpansion = (postId: number) => {
+    const newExpanded = new Set(expandedPosts);
+    if (newExpanded.has(postId)) {
+      newExpanded.delete(postId);
+    } else {
+      newExpanded.add(postId);
+    }
+    setExpandedPosts(newExpanded);
+  };
 
   const form = useForm<SocialMediaFormData>({
     resolver: zodResolver(socialMediaFormSchema),
@@ -124,6 +144,10 @@ export default function SocialMediaWriter() {
           hashtags: data.hashtags || "",
           result: content,
         });
+        
+        // Invalidate React Query caches to update UI
+        await queryClient.invalidateQueries({ queryKey: ['/api/social-media-posts'] });
+        await queryClient.invalidateQueries({ queryKey: ['/api/social-media-posts', { limit: 5 }] });
       } catch (dbError) {
         console.warn("Failed to save post to database:", dbError);
         // Don't show error to user as the main functionality worked
@@ -500,6 +524,87 @@ export default function SocialMediaWriter() {
               )}
             </CardContent>
           </Card>
+        </div>
+
+        {/* Recent Posts Section */}
+        <div className="mt-12">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white" data-testid="heading-recent-posts">
+              Bài đăng gần đây
+            </h2>
+            <Link href="/all-social-media-posts">
+              <Button variant="outline" className="flex items-center gap-2" data-testid="link-view-all-posts">
+                <ExternalLink className="h-4 w-4" />
+                Xem tất cả bài đăng
+              </Button>
+            </Link>
+          </div>
+
+          {postsLoading ? (
+            <div className="text-center py-8" data-testid="loading-recent-posts">
+              <Loader2 className="mx-auto h-8 w-8 animate-spin text-blue-600" />
+              <p className="mt-2 text-gray-500 dark:text-gray-400">Đang tải bài đăng...</p>
+            </div>
+          ) : recentPosts && recentPosts.length > 0 ? (
+            <div className="space-y-4">
+              {recentPosts.map((post) => (
+                <Card key={post.id} className="bg-white dark:bg-gray-800 shadow-sm">
+                  <CardContent className="p-6">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <h3 
+                          className="font-semibold text-lg text-gray-900 dark:text-white mb-2"
+                          data-testid={`title-post-${post.id}`}
+                        >
+                          {post.title}
+                        </h3>
+                        <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400 mb-3">
+                          <span data-testid={`post-type-${post.id}`}>
+                            📝 {post.postType === 'product' ? 'Giới thiệu sản phẩm' : 'Giới thiệu blog'}
+                          </span>
+                          <span data-testid={`created-at-${post.id}`}>
+                            📅 {new Date(post.createdAt).toLocaleDateString('vi-VN')}
+                          </span>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => togglePostExpansion(post.id)}
+                        data-testid={`button-toggle-${post.id}`}
+                      >
+                        {expandedPosts.has(post.id) ? (
+                          <ChevronDown className="h-4 w-4" />
+                        ) : (
+                          <ChevronRight className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                    
+                    {expandedPosts.has(post.id) && (
+                      <div 
+                        className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border"
+                        data-testid={`content-${post.id}`}
+                      >
+                        <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
+                          {post.result}
+                        </pre>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div 
+              className="text-center py-12 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 rounded-lg"
+              data-testid="empty-recent-posts"
+            >
+              <Share2 className="mx-auto h-12 w-12 mb-4 opacity-50" />
+              <p className="text-lg font-medium mb-2">Chưa có bài đăng nào</p>
+              <p className="text-sm">Tạo bài đăng đầu tiên của bạn để thấy danh sách ở đây.</p>
+            </div>
+          )}
         </div>
       </div>
     </div>
