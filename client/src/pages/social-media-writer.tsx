@@ -3,11 +3,30 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Share2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -66,33 +85,36 @@ export default function SocialMediaWriter() {
       };
 
       // Send request to n8n webhook
-      const response = await fetch("https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-product-social", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      const response = await fetch(
+        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-product-social",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
         },
-        body: JSON.stringify(payload),
-      });
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const webhookResponse: WebhookResponse = await response.json();
-      
+
       // Parse the response - try different possible fields
-      const content = webhookResponse.output || 
-                     webhookResponse.content || 
-                     webhookResponse.result || 
-                     JSON.stringify(webhookResponse, null, 2);
+      const content =
+        webhookResponse.output ||
+        webhookResponse.content ||
+        webhookResponse.result ||
+        JSON.stringify(webhookResponse, null, 2);
 
       setResult(content);
-      
+
       toast({
         title: "Thành công!",
         description: "Bài đăng MXH đã được tạo thành công.",
       });
-
     } catch (error) {
       console.error("Webhook error:", error);
       toast({
@@ -110,17 +132,18 @@ export default function SocialMediaWriter() {
       <div className="container mx-auto px-4 max-w-6xl">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 
+          <h1
             className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4"
             data-testid="heading-social-writer-title"
           >
             Viết bài Mạng Xã Hội <span className="text-blue-600">bằng AI</span>
           </h1>
-          <p 
+          <p
             className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto"
             data-testid="text-social-writer-description"
           >
-            Tạo ra các bài đăng mạng xã hội hấp dẫn, sáng tạo và thu hút chỉ trong vài giây!
+            Tạo ra các bài đăng mạng xã hội hấp dẫn, sáng tạo và thu hút chỉ
+            trong vài giây!
           </p>
         </div>
 
@@ -128,7 +151,7 @@ export default function SocialMediaWriter() {
           {/* Form Section */}
           <Card className="bg-white dark:bg-gray-800 shadow-sm">
             <CardHeader>
-              <CardTitle 
+              <CardTitle
                 className="text-xl font-bold text-gray-900 dark:text-white"
                 data-testid="heading-form-section"
               >
@@ -137,29 +160,39 @@ export default function SocialMediaWriter() {
             </CardHeader>
             <CardContent>
               <Form {...form}>
-                <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+                <form
+                  onSubmit={form.handleSubmit(handleSubmit)}
+                  className="space-y-6"
+                >
                   {/* Field 1: Loại bài viết */}
                   <FormField
                     control={form.control}
                     name="postType"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel 
+                        <FormLabel
                           className="text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2"
                           data-testid="label-post-type"
                         >
                           <span className="text-blue-600">📝</span>
                           Dạng bài viết
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger data-testid="select-post-type">
                               <SelectValue placeholder="Chia sẻ thông tin" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="product">Giới thiệu sản phẩm</SelectItem>
-                            <SelectItem value="blog">Giới thiệu blog (article)</SelectItem>
+                            <SelectItem value="product">
+                              Giới thiệu sản phẩm
+                            </SelectItem>
+                            <SelectItem value="blog">
+                              Giới thiệu blog (article)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -173,7 +206,7 @@ export default function SocialMediaWriter() {
                     name="title"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel 
+                        <FormLabel
                           className="text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2"
                           data-testid="label-title"
                         >
@@ -181,8 +214,8 @@ export default function SocialMediaWriter() {
                           Chủ đề chính của bài viết
                         </FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="VD: Lợi ích của việc chạy bộ buổi sáng"
+                          <Input
+                            placeholder="VD: V Platinum 5-MTHF: Giải Pháp Toàn Diện Cho Sức Khỏe Mẹ Và Bé Trước, Trong và Sau Thai Kỳ"
                             {...field}
                             data-testid="input-title"
                           />
@@ -198,25 +231,40 @@ export default function SocialMediaWriter() {
                     name="framework"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel 
+                        <FormLabel
                           className="text-sm font-medium text-gray-700 dark:text-gray-200"
                           data-testid="label-framework"
                         >
                           Framework
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger data-testid="select-framework">
                               <SelectValue placeholder="Chọn framework" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="4C (Clear, Concise, Compelling, Credible)">4C (Clear, Concise, Compelling, Credible)</SelectItem>
-                            <SelectItem value="AIDA (Attention – Interest – Desire – Action)">AIDA (Attention – Interest – Desire – Action)</SelectItem>
-                            <SelectItem value="PAS (Problem – Agitate – Solution)">PAS (Problem – Agitate – Solution)</SelectItem>
-                            <SelectItem value="FAB (Features – Advantages – Benefits)">FAB (Features – Advantages – Benefits)</SelectItem>
-                            <SelectItem value="BAB (Before – After – Bridge)">BAB (Before – After – Bridge)</SelectItem>
-                            <SelectItem value="Storytelling">Storytelling</SelectItem>
+                            <SelectItem value="4C (Clear, Concise, Compelling, Credible)">
+                              4C (Clear, Concise, Compelling, Credible)
+                            </SelectItem>
+                            <SelectItem value="AIDA (Attention – Interest – Desire – Action)">
+                              AIDA (Attention – Interest – Desire – Action)
+                            </SelectItem>
+                            <SelectItem value="PAS (Problem – Agitate – Solution)">
+                              PAS (Problem – Agitate – Solution)
+                            </SelectItem>
+                            <SelectItem value="FAB (Features – Advantages – Benefits)">
+                              FAB (Features – Advantages – Benefits)
+                            </SelectItem>
+                            <SelectItem value="BAB (Before – After – Bridge)">
+                              BAB (Before – After – Bridge)
+                            </SelectItem>
+                            <SelectItem value="Storytelling">
+                              Storytelling
+                            </SelectItem>
                             <SelectItem value="Listicle">Listicle</SelectItem>
                           </SelectContent>
                         </Select>
@@ -231,24 +279,35 @@ export default function SocialMediaWriter() {
                     name="writingStyle"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel 
+                        <FormLabel
                           className="text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2"
                           data-testid="label-writing-style"
                         >
                           <span className="text-red-500">🖋️</span>
                           Phong Cách Viết
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger data-testid="select-writing-style">
                               <SelectValue placeholder="Thân thiện" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="Thân thiện">Thân thiện</SelectItem>
-                            <SelectItem value="Chuyên nghiệp">Chuyên nghiệp</SelectItem>
-                            <SelectItem value="Thuyết phục">Thuyết phục</SelectItem>
-                            <SelectItem value="Truyền cảm hứng">Truyền cảm hứng</SelectItem>
+                            <SelectItem value="Thân thiện">
+                              Thân thiện
+                            </SelectItem>
+                            <SelectItem value="Chuyên nghiệp">
+                              Chuyên nghiệp
+                            </SelectItem>
+                            <SelectItem value="Thuyết phục">
+                              Thuyết phục
+                            </SelectItem>
+                            <SelectItem value="Truyền cảm hứng">
+                              Truyền cảm hứng
+                            </SelectItem>
                             <SelectItem value="Thông tin">Thông tin</SelectItem>
                           </SelectContent>
                         </Select>
@@ -263,25 +322,38 @@ export default function SocialMediaWriter() {
                     name="structure"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel 
+                        <FormLabel
                           className="text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2"
                           data-testid="label-structure"
                         >
                           <span className="text-purple-500">🏗️</span>
                           Cấu Trúc Bài Viết
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger data-testid="select-structure">
                               <SelectValue placeholder="Bài viết chuẩn" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="Bài viết chuẩn">Bài viết chuẩn</SelectItem>
-                            <SelectItem value="Dạng danh sách (Listicle)">Dạng danh sách (Listicle)</SelectItem>
-                            <SelectItem value="Dạng hướng dẫn (How-to)">Dạng hướng dẫn (How-to)</SelectItem>
-                            <SelectItem value="Dạng kể chuyện (Storytelling)">Dạng kể chuyện (Storytelling)</SelectItem>
-                            <SelectItem value="Dạng Hỏi – Đáp (Q&A)">Dạng Hỏi – Đáp (Q&A)</SelectItem>
+                            <SelectItem value="Bài viết chuẩn">
+                              Bài viết chuẩn
+                            </SelectItem>
+                            <SelectItem value="Dạng danh sách (Listicle)">
+                              Dạng danh sách (Listicle)
+                            </SelectItem>
+                            <SelectItem value="Dạng hướng dẫn (How-to)">
+                              Dạng hướng dẫn (How-to)
+                            </SelectItem>
+                            <SelectItem value="Dạng kể chuyện (Storytelling)">
+                              Dạng kể chuyện (Storytelling)
+                            </SelectItem>
+                            <SelectItem value="Dạng Hỏi – Đáp (Q&A)">
+                              Dạng Hỏi – Đáp (Q&A)
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -295,14 +367,17 @@ export default function SocialMediaWriter() {
                     name="maxWords"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel 
+                        <FormLabel
                           className="text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2"
                           data-testid="label-max-words"
                         >
                           <span className="text-purple-500">📊</span>
                           Số từ tối đa
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select
+                          onValueChange={field.onChange}
+                          defaultValue={field.value}
+                        >
                           <FormControl>
                             <SelectTrigger data-testid="select-max-words">
                               <SelectValue placeholder="300 từ (Mặc định)" />
@@ -325,7 +400,7 @@ export default function SocialMediaWriter() {
                     name="hashtags"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel 
+                        <FormLabel
                           className="text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2"
                           data-testid="label-hashtags"
                         >
@@ -333,7 +408,7 @@ export default function SocialMediaWriter() {
                           Hashtag bài viết
                         </FormLabel>
                         <FormControl>
-                          <Textarea 
+                          <Textarea
                             placeholder="#chaybo, #suckhoe, #nangluong"
                             className="min-h-[100px]"
                             {...field}
@@ -371,7 +446,7 @@ export default function SocialMediaWriter() {
           {/* Results Section */}
           <Card className="bg-white dark:bg-gray-800 shadow-sm">
             <CardHeader>
-              <CardTitle 
+              <CardTitle
                 className="text-xl font-bold text-gray-900 dark:text-white"
                 data-testid="heading-results-section"
               >
@@ -383,7 +458,7 @@ export default function SocialMediaWriter() {
             </CardHeader>
             <CardContent>
               {result ? (
-                <div 
+                <div
                   className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border"
                   data-testid="results-content"
                 >
@@ -392,13 +467,17 @@ export default function SocialMediaWriter() {
                   </pre>
                 </div>
               ) : (
-                <div 
+                <div
                   className="text-center py-12 text-gray-500 dark:text-gray-400"
                   data-testid="results-empty"
                 >
                   <Share2 className="mx-auto h-12 w-12 mb-4 opacity-50" />
-                  <p className="text-lg font-medium mb-2">Bài đăng MXH của bạn sẽ xuất hiện ở đây</p>
-                  <p className="text-sm">Hãy điền thông tin vào form bên trái và để AI sáng tạo nhé.</p>
+                  <p className="text-lg font-medium mb-2">
+                    Bài đăng MXH của bạn sẽ xuất hiện ở đây
+                  </p>
+                  <p className="text-sm">
+                    Hãy điền thông tin vào form bên trái và để AI sáng tạo nhé.
+                  </p>
                 </div>
               )}
             </CardContent>
