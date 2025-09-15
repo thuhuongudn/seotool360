@@ -5,6 +5,7 @@ import { ArrowRight, Loader2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 import type { SeoTool } from "@shared/schema";
 import * as Icons from "lucide-react";
 
@@ -15,6 +16,7 @@ interface ToolCardProps {
 export default function ToolCard({ tool }: ToolCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   // Dynamically get the icon component
   const IconComponent = (Icons as any)[tool.icon] || Icons.Wrench;
@@ -45,6 +47,13 @@ export default function ToolCard({ tool }: ToolCardProps) {
   });
 
   const handleActivate = () => {
+    // Special case: Navigate to dedicated converter page for markdown-html tool
+    if (tool.name === 'markdown-html') {
+      setLocation('/markdown-converter');
+      return;
+    }
+    
+    // Default behavior: activate the tool via API
     activateToolMutation.mutate(tool.id);
   };
 
