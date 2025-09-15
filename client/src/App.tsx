@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Home from "@/pages/home";
 import MarkdownConverter from "@/pages/markdown-converter";
+import SocialMediaWriter from "@/pages/social-media-writer";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -12,6 +13,7 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/markdown-converter" component={MarkdownConverter} />
+      <Route path="/social-media-writer" component={SocialMediaWriter} />
       <Route component={NotFound} />
     </Switch>
   );

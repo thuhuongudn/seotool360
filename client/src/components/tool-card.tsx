@@ -47,9 +47,14 @@ export default function ToolCard({ tool }: ToolCardProps) {
   });
 
   const handleActivate = () => {
-    // Special case: Navigate to dedicated converter page for markdown-html tool
+    // Special cases: Navigate to dedicated pages for specific tools
     if (tool.name === 'markdown-html') {
       setLocation('/markdown-converter');
+      return;
+    }
+    
+    if (tool.name === 'social-media') {
+      setLocation('/social-media-writer');
       return;
     }
     
