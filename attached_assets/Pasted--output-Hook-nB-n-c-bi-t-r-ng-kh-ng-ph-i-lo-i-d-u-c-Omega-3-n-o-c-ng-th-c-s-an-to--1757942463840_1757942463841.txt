@@ -1,0 +1,181 @@
+[
+  {
+    "output": "Hook: \nBạn có biết rằng không phải loại dầu cá Omega 3 nào cũng thực sự an toàn và chất lượng? 🧐\n\nTeaser ngắn:\n1. Bạn từng nghe về chứng nhận IFOS, GOED, FOS trên dầu cá Omega 3 mà chưa hiểu rõ? Đọc ngay để biết cách chọn sản phẩm chuẩn quốc tế! 👉 https://nhathuocvietnhat.vn/blogs/bang-tin-suc-khoe/tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\n2. IFOS, GOED, FOS – Bộ ba “lá chắn” bảo đảm dầu cá tinh khiết, an toàn. Tìm hiểu lý do chuyên gia luôn nhắc đến chúng khi chọn Omega 3! 🌊 Khám phá ngay tại: https://nhathuocvietnhat.vn/blogs/bang-tin-suc-khoe/tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\n3. Băn khoăn chọn dầu cá Omega 3 chuẩn quốc tế? Xem ngay sự thật về các tiêu chuẩn IFOS, GOED, FOS để có quyết định sáng suốt! ✅ Đọc bài tại: https://nhathuocvietnhat.vn/blogs/bang-tin-suc-khoe/tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\n\nTeaser dài hơn:\nTrên thị trường hiện nay, dầu cá Omega 3 là sản phẩm bổ sung sức khỏe phổ biến nhưng đi kèm đó là vô vàn tiêu chuẩn, chứng nhận khiến bạn bối rối khi chọn lựa. Vậy IFOS 5-Star có thực sự là “tiêu chuẩn vàng”? GOED và FOS có ưu điểm gì khác biệt? Làm sao để nhận diện một sản phẩm Omega 3 thực sự tinh khiết, an toàn và bền vững cho môi trường? Tất cả sẽ được giải đáp chi tiết trong bài viết này – một bí kíp giúp bạn chủ động bảo vệ sức khỏe khi mua Omega 3. Đừng bỏ lỡ! 📝\n\nCTA:\nKhám phá thông tin đầy đủ và cập nhật nhất về các tiêu chuẩn chất lượng quốc tế cho dầu cá Omega 3 ngay bây giờ!\n\nURL bài viết: https://nhathuocvietnhat.vn/blogs/bang-tin-suc-khoe/tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te",
+    "intermediateSteps": [
+      {
+        "action": {
+          "tool": "thinking_tool",
+          "toolInput": {
+            "input": "blog IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế - xác định đây là bài viết, cần tạo các teaser Facebook ngắn và dài, hook, CTA, lấy nội dung chính từ bài viết."
+          },
+          "toolCallId": "call_FueTOf4IL0mb7WYIbr4HF4pj",
+          "log": "Invoking \"thinking_tool\" with {\"input\":\"blog IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế - xác định đây là bài viết, cần tạo các teaser Facebook ngắn và dài, hook, CTA, lấy nội dung chính từ bài viết.\"}\n",
+          "messageLog": [
+            {
+              "lc": 1,
+              "type": "constructor",
+              "id": [
+                "langchain_core",
+                "messages",
+                "AIMessage"
+              ],
+              "kwargs": {
+                "content": "",
+                "additional_kwargs": {
+                  "tool_calls": [
+                    {
+                      "id": "call_FueTOf4IL0mb7WYIbr4HF4pj",
+                      "type": "function",
+                      "function": {
+                        "name": "thinking_tool",
+                        "arguments": "{\"input\":\"blog IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế - xác định đây là bài viết, cần tạo các teaser Facebook ngắn và dài, hook, CTA, lấy nội dung chính từ bài viết.\"}"
+                      }
+                    }
+                  ]
+                },
+                "response_metadata": {
+                  "tokenUsage": {
+                    "promptTokens": 737,
+                    "completionTokens": 73,
+                    "totalTokens": 810
+                  },
+                  "finish_reason": "tool_calls",
+                  "model_name": "gpt-4.1-2025-04-14",
+                  "usage": {
+                    "prompt_tokens": 737,
+                    "completion_tokens": 73,
+                    "total_tokens": 810,
+                    "prompt_tokens_details": {
+                      "cached_tokens": 0,
+                      "audio_tokens": 0
+                    },
+                    "completion_tokens_details": {
+                      "reasoning_tokens": 0,
+                      "audio_tokens": 0,
+                      "accepted_prediction_tokens": 0,
+                      "rejected_prediction_tokens": 0
+                    }
+                  },
+                  "system_fingerprint": "fp_3502f4eb73"
+                },
+                "id": "chatcmpl-CG31iRKMSqREuJ4EMFfU40h8URmR3",
+                "tool_calls": [
+                  {
+                    "name": "thinking_tool",
+                    "args": {
+                      "input": "blog IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế - xác định đây là bài viết, cần tạo các teaser Facebook ngắn và dài, hook, CTA, lấy nội dung chính từ bài viết."
+                    },
+                    "type": "tool_call",
+                    "id": "call_FueTOf4IL0mb7WYIbr4HF4pj"
+                  }
+                ],
+                "invalid_tool_calls": [],
+                "usage_metadata": {
+                  "output_tokens": 73,
+                  "input_tokens": 737,
+                  "total_tokens": 810,
+                  "input_token_details": {
+                    "audio": 0,
+                    "cache_read": 0
+                  },
+                  "output_token_details": {
+                    "audio": 0,
+                    "reasoning": 0
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "observation": "blog IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế - xác định đây là bài viết, cần tạo các teaser Facebook ngắn và dài, hook, CTA, lấy nội dung chính từ bài viết."
+      },
+      {
+        "action": {
+          "tool": "articles_embeddings",
+          "toolInput": {
+            "input": "IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế"
+          },
+          "toolCallId": "call_g2nQK7W5qycJafU2A69U1Fez",
+          "log": "Invoking \"articles_embeddings\" with {\"input\":\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\"}\n",
+          "messageLog": [
+            {
+              "lc": 1,
+              "type": "constructor",
+              "id": [
+                "langchain_core",
+                "messages",
+                "AIMessage"
+              ],
+              "kwargs": {
+                "content": "",
+                "additional_kwargs": {
+                  "tool_calls": [
+                    {
+                      "id": "call_g2nQK7W5qycJafU2A69U1Fez",
+                      "type": "function",
+                      "function": {
+                        "name": "articles_embeddings",
+                        "arguments": "{\"input\":\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\"}"
+                      }
+                    }
+                  ]
+                },
+                "response_metadata": {
+                  "tokenUsage": {
+                    "promptTokens": 877,
+                    "completionTokens": 42,
+                    "totalTokens": 919
+                  },
+                  "finish_reason": "tool_calls",
+                  "model_name": "gpt-4.1-2025-04-14",
+                  "usage": {
+                    "prompt_tokens": 877,
+                    "completion_tokens": 42,
+                    "total_tokens": 919,
+                    "prompt_tokens_details": {
+                      "cached_tokens": 0,
+                      "audio_tokens": 0
+                    },
+                    "completion_tokens_details": {
+                      "reasoning_tokens": 0,
+                      "audio_tokens": 0,
+                      "accepted_prediction_tokens": 0,
+                      "rejected_prediction_tokens": 0
+                    }
+                  },
+                  "system_fingerprint": "fp_3502f4eb73"
+                },
+                "id": "chatcmpl-CG31jsjGhbpyOMod0a35XV1t9dkCe",
+                "tool_calls": [
+                  {
+                    "name": "articles_embeddings",
+                    "args": {
+                      "input": "IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế"
+                    },
+                    "type": "tool_call",
+                    "id": "call_g2nQK7W5qycJafU2A69U1Fez"
+                  }
+                ],
+                "invalid_tool_calls": [],
+                "usage_metadata": {
+                  "output_tokens": 42,
+                  "input_tokens": 877,
+                  "total_tokens": 919,
+                  "input_token_details": {
+                    "audio": 0,
+                    "cache_read": 0
+                  },
+                  "output_token_details": {
+                    "audio": 0,
+                    "reasoning": 0
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "observation": "[{\"type\":\"text\",\"text\":\"{\\\"pageContent\\\":\\\"Tiêu đề: IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\\nTác giả: Ánh Nhàn\\\",\\\"metadata\\\":{\\\"loc\\\":{\\\"lines\\\":{\\\"to\\\":2,\\\"from\\\":1}},\\\"tags\\\":null,\\\"title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"author\\\":\\\"Ánh Nhàn\\\",\\\"source\\\":\\\"blob\\\",\\\"blog_id\\\":1000829318,\\\"blobType\\\":\\\"text/plain\\\",\\\"seo_title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"handle_url\\\":\\\"tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\\\",\\\"haravan_article_id\\\":1002753896}}\"},{\"type\":\"text\",\"text\":\"{\\\"pageContent\\\":\\\"Tags: \\\\nMô tả SEO: Tìm hiểu IFOS 5-Star, GOED, FOS - các chứng nhận dầu cá Omega 3 uy tín nhất thế giới. Hướng dẫn chi tiết cách chọn sản phẩm chất lượng, an toàn cho sức khỏe.\\\",\\\"metadata\\\":{\\\"loc\\\":{\\\"lines\\\":{\\\"to\\\":5,\\\"from\\\":4}},\\\"tags\\\":null,\\\"title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"author\\\":\\\"Ánh Nhàn\\\",\\\"source\\\":\\\"blob\\\",\\\"blog_id\\\":1000829318,\\\"blobType\\\":\\\"text/plain\\\",\\\"seo_title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"handle_url\\\":\\\"tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\\\",\\\"haravan_article_id\\\":1002753896}}\"},{\"type\":\"text\",\"text\":\"{\\\"pageContent\\\":\\\"EPA, DHA đúng theo công bố và phải đạt ngưỡng tối thiểu do IFOS quy định. Độ tinh khiết và an toàn: Nếu Omega 3 chiết xuất từ các loại cá nhiễm độc (PCBs, hóa chất, dioxin) cũng sẽ có nguy cơ nhiễm độc gây ảnh hưởng đến sức khỏe. Bởi vậy, IFOS kiểm tra rất kỹ các chỉ số này để đảm bảo sản phẩm sạch, tinh khiết và an toàn. Chỉ số kim loại nặng: Nhiễm độc kim loại nặng như thủy ngân, chì, arsen có thể gây ra tổn thương ảnh hưởng sức khỏe… Bởi vậy, IFOS kiểm tra và đánh giá các chỉ số này hết sức nghiêm ngặt. Độ ổn định về chất lượng và tình trạng oxy hóa: Omega 3 dễ bị oxy hóa dẫn tới giảm chất lượng. IFOS đánh giá và đảm bảo sản phẩm có khả năng giữ nguyên chất lượng, không bị oxy hóa nhanh trong quá trình sử dụng. 4.2. Tính minh bạch của IFOS Điểm độc đáo của IFOS là tính minh bạch tuyệt đối. Người tiêu dùng có thể tra cứu kết quả kiểm định của từng lô sản phẩm trên trang web IFOS hoàn toàn miễn phí. Đây là điều mà không chương trình chứng nhận nào khác trên thế giới làm được [5]. 5.\\\",\\\"metadata\\\":{\\\"loc\\\":{\\\"lines\\\":{\\\"to\\\":3,\\\"from\\\":3}},\\\"tags\\\":null,\\\"title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"author\\\":\\\"Ánh Nhàn\\\",\\\"source\\\":\\\"blob\\\",\\\"blog_id\\\":1000829318,\\\"blobType\\\":\\\"text/plain\\\",\\\"seo_title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"handle_url\\\":\\\"tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\\\",\\\"haravan_article_id\\\":1002753896}}\"},{\"type\":\"text\",\"text\":\"{\\\"pageContent\\\":\\\"Việt Nam Mặc dù không phải là chứng nhận mà người tiêu dùng thường thấy trên nhãn, Codex đóng vai trò quan trọng trong việc xây dựng khung pháp lý cho các cơ quan quản lý nhà nước Việt Nam. Các nhà sản xuất uy tín thường tuân thủ tiêu chuẩn này như một yêu cầu tối thiểu. 4. IFOS 5-Star: Tiêu chuẩn vàng của ngành dầu cá IFOS (International Fish Oil Standards) là chương trình chứng nhận bên thứ ba độc lập dành riêng cho dầu cá, được điều hành bởi Nutrasource tại Canada. Từ khi ra đời năm 2004, IFOS đã trở thành \\\\\\\"tiêu chuẩn vàng\\\\\\\" cho chứng nhận omega-3, với hơn 200 thương hiệu được chứng nhận trên toàn thế giới [4]. 4.1. Hệ thống đánh giá 5 sao của IFOS Chứng nhận IFOS 5-Star đại diện cho cấp độ cao nhất, yêu cầu sản phẩm vượt qua các tiêu chí nghiêm ngặt: Hàm lượng EPA, DHA : Đánh giá hàm lượng EPA, DHA đúng theo công bố và phải đạt ngưỡng tối thiểu do IFOS quy định. Độ tinh khiết và an toàn: Nếu Omega 3 chiết xuất từ các loại cá nhiễm độc (PCBs, hóa chất, dioxin) cũng sẽ có nguy cơ\\\",\\\"metadata\\\":{\\\"loc\\\":{\\\"lines\\\":{\\\"to\\\":3,\\\"from\\\":3}},\\\"tags\\\":null,\\\"title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"author\\\":\\\"Ánh Nhàn\\\",\\\"source\\\":\\\"blob\\\",\\\"blog_id\\\":1000829318,\\\"blobType\\\":\\\"text/plain\\\",\\\"seo_title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"handle_url\\\":\\\"tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\\\",\\\"haravan_article_id\\\":1002753896}}\"},{\"type\":\"text\",\"text\":\"{\\\"pageContent\\\":\\\"lượng phân tử, loại bỏ hiệu quả kim loại nặng, dioxin, PCB và các chất độc khác mà vẫn giữ nguyên cấu trúc của EPA và DHA. 1.4. Chứng nhận bên thứ ba Để đảm bảo những gì ghi trên nhãn sản phẩm là chính xác, việc kiểm định bởi các tổ chức độc lập uy tín là điều không thể thiếu. IFOS (International Fish Oil Standards) được coi là tiêu chuẩn nghiêm ngặt nhất thế giới về dầu cá. Chứng nhận IFOS 5 sao đảm bảo sản phẩm đạt các tiêu chí khắt khe về độ tinh khiết, không chứa kim loại nặng, có hàm lượng EPA và DHA đúng như công bố, và đạt tiêu chuẩn về độ tươi. GOED (Global Organization for EPA and DHA Omega-3s) là tổ chức toàn cầu thiết lập các tiêu chuẩn về chất lượng và độ tinh khiết cho ngành công nghiệp Omega-3. Hoặc các chứng nhận kiểm nghiệm từ các tổ chức thứ 3 độc lập khác như AOAC, AOCS,... cũng mang lại sự tin cậy bổ sung. Những chứng nhận này không chỉ xác nhận chất lượng mà còn đảm bảo quy trình sản xuất tuân thủ các tiêu chuẩn quốc tế về an toàn thực phẩm và bảo vệ môi trường. Ưu\\\",\\\"metadata\\\":{\\\"loc\\\":{\\\"lines\\\":{\\\"to\\\":3,\\\"from\\\":3}},\\\"tags\\\":null,\\\"title\\\":\\\"Cách Chọn Dầu Cá Omega 3? Top 5 Omega 3 Trên Thị Trường!\\\",\\\"author\\\":\\\"Ánh Nhàn\\\",\\\"source\\\":\\\"blob\\\",\\\"blog_id\\\":1000829318,\\\"blobType\\\":\\\"text/plain\\\",\\\"seo_title\\\":\\\"Cách Chọn Dầu Cá Omega 3? Top 5 Omega 3 Trên Thị Trường!\\\",\\\"handle_url\\\":\\\"cach-chon-dau-ca-omega-3\\\",\\\"haravan_article_id\\\":1002721390}}\"},{\"type\":\"text\",\"text\":\"{\\\"pageContent\\\":\\\"Tuân thủ tiêu chuẩn GOED: Nordic Naturals là thành viên chính thức của GOED (Tổ chức Toàn cầu về EPA và DHA Omega-3). Điều này đảm bảo mọi sản phẩm đều đáp ứng các tiêu chuẩn nghiêm ngặt về độ tinh khiết (giới hạn kim loại nặng, PCBs, dioxin) và độ tươi (chỉ số oxy hóa cực thấp), mang lại sản phẩm an toàn và hiệu quả. Kiểm định bởi bên thứ ba (tương đương IFOS): &nbsp;Mỗi sản phẩm của Nordic Naturals đều được các phòng thí nghiệm độc lập kiểm tra, đồng thời công khai Giấy chứng nhận Phân tích (Certificate of Analysis - COA) cho từng sản phẩm, cho phép người tiêu dùng tự kiểm tra các chỉ số về độ tinh khiết, độ tươi và hàm lượng omega 3 (https://nhathuocvietnhat.vn/collections/omega-3-chat-chong-oxy-hoa-ho-tro-phat-trien-nao-bo-vong-mac-va-cai-thien-suc-khoe-tim-mach). Sự minh bạch này thể hiện triết lý tương đồng với tiêu chuẩn IFOS. Chứng nhận bền vững FOS (Friend of the Sea): Toàn bộ nguồn cá của Nordic Naturals đều được đánh bắt tự nhiên từ những ngư trường bền vững nhất thế giới và\\\",\\\"metadata\\\":{\\\"loc\\\":{\\\"lines\\\":{\\\"to\\\":3,\\\"from\\\":3}},\\\"tags\\\":null,\\\"title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"author\\\":\\\"Ánh Nhàn\\\",\\\"source\\\":\\\"blob\\\",\\\"blog_id\\\":1000829318,\\\"blobType\\\":\\\"text/plain\\\",\\\"seo_title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"handle_url\\\":\\\"tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\\\",\\\"haravan_article_id\\\":1002753896}}\"},{\"type\":\"text\",\"text\":\"{\\\"pageContent\\\":\\\"tiêu dùng có thể tra cứu kết quả kiểm định của từng lô sản phẩm trên trang web IFOS hoàn toàn miễn phí. Đây là điều mà không chương trình chứng nhận nào khác trên thế giới làm được [5]. 5. FOS (Friend of the Sea): Chứng nhận bền vững FOS là tổ chức phi lợi nhuận quốc tế chuyên về chứng nhận bền vững cho ngành thủy sản. Khác với các chứng nhận tập trung vào chất lượng sản phẩm, FOS đảm bảo rằng dầu cá được sản xuất theo cách có trách nhiệm với môi trường biển và cộng đồng ngư dân. Friend of the Sea (FOS) là một trong những tổ chức hàng đầu thế giới,&nbsp;chứng nhận sản phẩm có nguồn gốc từ biển một cách bền vững và có trách nhiệm 5.1. Tiêu chí bền vững của FOS Nguồn gốc bền vững : Dầu cá phải được khai thác từ các nguồn cá không bị đánh bắt quá mức, đảm bảo tính bền vững lâu dài của hệ sinh thái biển. Phương pháp đánh bắt chọn lọc : Giảm thiểu việc đánh bắt không chủ đích các loài sinh vật biển khác (bycatch), bảo vệ đa dạng sinh học biển. Bảo vệ hệ sinh thái : Không sử dụng các phương\\\",\\\"metadata\\\":{\\\"loc\\\":{\\\"lines\\\":{\\\"to\\\":3,\\\"from\\\":3}},\\\"tags\\\":null,\\\"title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"author\\\":\\\"Ánh Nhàn\\\",\\\"source\\\":\\\"blob\\\",\\\"blog_id\\\":1000829318,\\\"blobType\\\":\\\"text/plain\\\",\\\"seo_title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"handle_url\\\":\\\"tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\\\",\\\"haravan_article_id\\\":1002753896}}\"},{\"type\":\"text\",\"text\":\"{\\\"pageContent\\\":\\\"omega 3 là một trong những thực phẩm chức năng dễ bị oxy hóa và nhiễm bẩn nhất. Theo IFOS (International Fish Oil Standards), chương trình chứng nhận ra đời từ năm 2004, đã kiểm định hơn 15.000 sản phẩm toàn cầu và phát hiện nhiều vấn đề nghiêm trọng về chất lượng [3]. Vấn đề ô nhiễm kim loại nặng, PCBs (polychlorinated biphenyls), và dioxin trong dầu cá không chỉ làm giảm hiệu quả mà còn có thể gây hại cho sức khỏe. Đây là lý do các chứng nhận quốc tế trở thành \\\\\\\"lá chắn\\\\\\\" bảo vệ người tiêu dùng khỏi những rủi ro tiềm ẩn. Nếu bạn đang tìm hiểu về các loại Omega 3 khác, đọc ngay bài viết \\\\\\\"Omega 3 krill là gì? Khác gì với Omega 3 từ cá?\\\\\\\" (https://nhathuocvietnhat.vn/blogs/bang-tin-suc-khoe/omega-3-krill-la-gi-khac-gi-voi-omega-3-tu-ca) để có cái nhìn toàn diện hơn. 2. GOED: Tiêu chuẩn toàn cầu cho ngành công nghiệp dầu cá GOED (Global Organization for EPA and DHA Omega-3s) là tổ chức phi lợi nhuận đại diện cho toàn ngành công nghiệp EPA và DHA omega 3 toàn cầu. Được thành lập với sứ mệnh\\\",\\\"metadata\\\":{\\\"loc\\\":{\\\"lines\\\":{\\\"to\\\":3,\\\"from\\\":3}},\\\"tags\\\":null,\\\"title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"author\\\":\\\"Ánh Nhàn\\\",\\\"source\\\":\\\"blob\\\",\\\"blog_id\\\":1000829318,\\\"blobType\\\":\\\"text/plain\\\",\\\"seo_title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"handle_url\\\":\\\"tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\\\",\\\"haravan_article_id\\\":1002753896}}\"},{\"type\":\"text\",\"text\":\"{\\\"pageContent\\\":\\\"tương đồng với tiêu chuẩn IFOS. Chứng nhận bền vững FOS (Friend of the Sea): Toàn bộ nguồn cá của Nordic Naturals đều được đánh bắt tự nhiên từ những ngư trường bền vững nhất thế giới và được chứng nhận bởi FOS. Điều này cam kết rằng sản phẩm không chỉ tốt cho sức khỏe mà còn góp phần bảo vệ hệ sinh thái biển cho các thế hệ tương lai. Mỗi lô sản phẩm Nordic Naturals đều được kiểm định chất lượng bởi bên thứ ba, đảm bảo độ tinh khiết và hiệu quả theo tiêu chuẩn quốc tế 6.2. Những yếu tố tạo nên sự khác biệt Ngoài việc đáp ứng các tiêu chuẩn quốc tế, Nordic Naturals còn tạo ra sự khác biệt nhờ: Nguồn nguyên liệu tự nhiên, chất lượng : Thay vì sử dụng cá lớn có nguy cơ tích tụ độc tố cao, Nordic Naturals chọn lọc 100% cá đánh bắt tự nhiên như cá tuyết Bắc Cực, cá cơm và cá mòi. Đây là những loài cá nhỏ ở tầng mặt với vòng đời ngắn, do đó ít tích tụ kim loại nặng và chất ô nhiễm. Sự lựa chọn thông minh này không chỉ đảm bảo an toàn mà còn mang lại hàm lượng omega-3 tự nhiên cao. Dạng\\\",\\\"metadata\\\":{\\\"loc\\\":{\\\"lines\\\":{\\\"to\\\":3,\\\"from\\\":3}},\\\"tags\\\":null,\\\"title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"author\\\":\\\"Ánh Nhàn\\\",\\\"source\\\":\\\"blob\\\",\\\"blog_id\\\":1000829318,\\\"blobType\\\":\\\"text/plain\\\",\\\"seo_title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"handle_url\\\":\\\"tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\\\",\\\"haravan_article_id\\\":1002753896}}\"},{\"type\":\"text\",\"text\":\"{\\\"pageContent\\\":\\\"Tài liệu tham khảo: [1] Harvard Health Publishing. (2021). Omega-3 fatty acids and the heart: New evidence, more questions. [2] ConsumerLab.com. (2010). Fish Oil Supplements Review. [3] Nutrasource. (2024). International Fish Oil Standards (IFOS). [4] IFOS Certification Program. (2024). About IFOS Testing and Certification. [5] Bare Biology. (2023). What does it mean if a fish oil is IFOS tested and why does it matter? [6] WHC Hong Kong. (2025). Fish Oil Selection Guide: What is IFOS Certification? [7] NORSAN International. (2021). Certifications. [8] eClinicalMedicine. (2021). Effect of omega-3 fatty acids on cardiovascular outcomes: A systematic review and meta-analysis. [9] National Center for Complementary and Integrative Health. (2024). Omega-3 Supplements: What You Need To Know. Dược sĩ Đại học Hải Quỳnh Đã kiểm duyệt nội dung Tốt nghiệp chuyên ngành Dược lâm sàng, Đại học Y Dược Tp Hồ Chí Minh, có nhiều kinh nghiệm trong lĩnh vực dược phẩm.\\\",\\\"metadata\\\":{\\\"loc\\\":{\\\"lines\\\":{\\\"to\\\":3,\\\"from\\\":3}},\\\"tags\\\":null,\\\"title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"author\\\":\\\"Ánh Nhàn\\\",\\\"source\\\":\\\"blob\\\",\\\"blog_id\\\":1000829318,\\\"blobType\\\":\\\"text/plain\\\",\\\"seo_title\\\":\\\"IFOS, GOED, FOS là gì? Tiêu Chuẩn Chất Lượng Dầu Cá Omega 3 Quốc Tế\\\",\\\"handle_url\\\":\\\"tieu-chuan-chat-luong-dau-ca-omega-3-quoc-te\\\",\\\"haravan_article_id\\\":1002753896}}\"}]"
+      }
+    ]
+  }
+]
