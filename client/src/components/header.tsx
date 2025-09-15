@@ -101,13 +101,13 @@ export default function Header() {
             >
               SEO Ảnh
             </a>
-            <a 
-              href="#markdown-html" 
+            <Link 
+              href="/markdown-converter" 
               className="text-muted-foreground hover:text-foreground transition-colors"
               data-testid="nav-markdown-html"
             >
               Markdown to HTML
-            </a>
+            </Link>
             <a 
               href="#qr-code" 
               className="text-muted-foreground hover:text-foreground transition-colors"
