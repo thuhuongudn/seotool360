@@ -211,11 +211,11 @@ export default function SocialMediaWriter() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="4C">4C (Clear, Concise, Compelling, Credible)</SelectItem>
-                            <SelectItem value="AIDA">AIDA (Attention – Interest – Desire – Action)</SelectItem>
-                            <SelectItem value="PAS">PAS (Problem – Agitate – Solution)</SelectItem>
-                            <SelectItem value="FAB">FAB (Features – Advantages – Benefits)</SelectItem>
-                            <SelectItem value="BAB">BAB (Before – After – Bridge)</SelectItem>
+                            <SelectItem value="4C (Clear, Concise, Compelling, Credible)">4C (Clear, Concise, Compelling, Credible)</SelectItem>
+                            <SelectItem value="AIDA (Attention – Interest – Desire – Action)">AIDA (Attention – Interest – Desire – Action)</SelectItem>
+                            <SelectItem value="PAS (Problem – Agitate – Solution)">PAS (Problem – Agitate – Solution)</SelectItem>
+                            <SelectItem value="FAB (Features – Advantages – Benefits)">FAB (Features – Advantages – Benefits)</SelectItem>
+                            <SelectItem value="BAB (Before – After – Bridge)">BAB (Before – After – Bridge)</SelectItem>
                             <SelectItem value="Storytelling">Storytelling</SelectItem>
                             <SelectItem value="Listicle">Listicle</SelectItem>
                           </SelectContent>
@@ -245,11 +245,11 @@ export default function SocialMediaWriter() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="friendly">Thân thiện</SelectItem>
-                            <SelectItem value="professional">Chuyên nghiệp</SelectItem>
-                            <SelectItem value="persuasive">Thuyết phục</SelectItem>
-                            <SelectItem value="inspiring">Truyền cảm hứng</SelectItem>
-                            <SelectItem value="informative">Thông tin</SelectItem>
+                            <SelectItem value="Thân thiện">Thân thiện</SelectItem>
+                            <SelectItem value="Chuyên nghiệp">Chuyên nghiệp</SelectItem>
+                            <SelectItem value="Thuyết phục">Thuyết phục</SelectItem>
+                            <SelectItem value="Truyền cảm hứng">Truyền cảm hứng</SelectItem>
+                            <SelectItem value="Thông tin">Thông tin</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -277,11 +277,11 @@ export default function SocialMediaWriter() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="standard">Bài viết chuẩn</SelectItem>
-                            <SelectItem value="listicle">Dạng danh sách (Listicle)</SelectItem>
-                            <SelectItem value="howto">Dạng hướng dẫn (How-to)</SelectItem>
-                            <SelectItem value="storytelling">Dạng kể chuyện (Storytelling)</SelectItem>
-                            <SelectItem value="qa">Dạng Hỏi – Đáp (Q&A)</SelectItem>
+                            <SelectItem value="Bài viết chuẩn">Bài viết chuẩn</SelectItem>
+                            <SelectItem value="Dạng danh sách (Listicle)">Dạng danh sách (Listicle)</SelectItem>
+                            <SelectItem value="Dạng hướng dẫn (How-to)">Dạng hướng dẫn (How-to)</SelectItem>
+                            <SelectItem value="Dạng kể chuyện (Storytelling)">Dạng kể chuyện (Storytelling)</SelectItem>
+                            <SelectItem value="Dạng Hỏi – Đáp (Q&A)">Dạng Hỏi – Đáp (Q&A)</SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
