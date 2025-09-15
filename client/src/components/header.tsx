@@ -115,10 +115,8 @@ export default function Header() {
             >
               QR Code
             </a>
-            <Link href="/blog">
-              <a className="text-muted-foreground hover:text-foreground transition-colors" data-testid="nav-blog">
-                Blog
-              </a>
+            <Link href="/blog" className="text-muted-foreground hover:text-foreground transition-colors" data-testid="nav-blog">
+              Blog
             </Link>
           </nav>
 
