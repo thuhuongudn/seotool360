@@ -12,6 +12,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Copy, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import Header from "@/components/header";
+import PageNavigation from "@/components/page-navigation";
 
 const defaultMarkdown = `# Chào mừng bạn đến với Trình chuyển đổi Markdown sang HTML!
 
@@ -77,23 +79,33 @@ export default function MarkdownConverter() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-      <div className="container mx-auto px-4 max-w-7xl">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 
-            className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4"
-            data-testid="heading-converter-title"
-          >
-            Chuyển đổi Markdown sang HTML miễn phí
-          </h1>
-          <p 
-            className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto"
-            data-testid="text-converter-description"
-          >
-            Công cụ chuyển đổi Markdown sang HTML tức thì, mạnh mẽ, bảo mật và hoàn toàn miễn phí.
-          </p>
-        </div>
+    <div className="min-h-screen bg-background">
+      <Header />
+      
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <PageNavigation 
+          breadcrumbItems={[
+            { label: "Markdown to HTML" }
+          ]}
+          backLink="/"
+        />
+
+        <div className="container mx-auto px-4 max-w-7xl">
+          {/* Header */}
+          <div className="text-center mb-8">
+            <h1 
+              className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4"
+              data-testid="heading-converter-title"
+            >
+              Chuyển đổi Markdown sang HTML miễn phí
+            </h1>
+            <p 
+              className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto"
+              data-testid="text-converter-description"
+            >
+              Công cụ chuyển đổi Markdown sang HTML tức thì, mạnh mẽ, bảo mật và hoàn toàn miễn phí.
+            </p>
+          </div>
 
         {/* Main Content */}
         <div className="grid lg:grid-cols-2 gap-6">
@@ -200,6 +212,7 @@ export default function MarkdownConverter() {
           </Card>
         </div>
       </div>
+      </main>
     </div>
   );
 }
