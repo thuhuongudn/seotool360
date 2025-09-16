@@ -133,36 +133,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Fix tool: Replace ai-writing with internal-link-helper (temporary endpoint)
-  app.post("/api/seo-tools/fix-internal-link", async (req: Request, res: Response) => {
-    try {
-      // Get all tools to find ai-writing
-      const tools = await storage.getAllSeoTools();
-      const aiWritingTool = tools.find(tool => tool.name === 'ai-writing');
-      
-      if (aiWritingTool) {
-        // Update the ai-writing tool to be internal-link-helper
-        const updatedTool = await storage.updateSeoTool(aiWritingTool.id, {
-          name: 'internal-link-helper',
-          title: 'Gợi ý internal link',
-          description: 'Tạo gợi ý liên kết nội bộ thông minh cho bài viết để cải thiện SEO và trải nghiệm người dùng.',
-          icon: 'Link',
-          iconBgColor: 'bg-green-100',
-          iconColor: 'text-green-600',
-          category: 'content-seo',
-          n8nEndpoint: '/n8n/internal-link-helper',
-          isActive: true
-        });
-        
-        res.json({ success: true, tool: updatedTool });
-      } else {
-        res.json({ success: false, message: "ai-writing tool not found" });
-      }
-    } catch (error) {
-      console.error("Error fixing internal link tool:", error);
-      res.status(500).json({ message: "Failed to fix internal link tool" });
-    }
-  });
 
   // Get tools by category
   app.get("/api/seo-tools/category/:category", async (req: Request, res: Response) => {

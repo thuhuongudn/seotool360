@@ -56,11 +56,42 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  private async migrateAiWritingToInternalLink() {
+    try {
+      // Find the ai-writing tool
+      const tools = await db.select().from(seoTools).where(eq(seoTools.name, 'ai-writing'));
+      
+      if (tools.length > 0) {
+        const aiWritingTool = tools[0];
+        console.log('Migrating ai-writing tool to internal-link-helper...');
+        
+        // Update the tool to internal-link-helper
+        await db.update(seoTools)
+          .set({
+            name: 'internal-link-helper',
+            title: 'Gợi ý internal link',
+            description: 'Tạo gợi ý liên kết nội bộ thông minh cho bài viết để cải thiện SEO và trải nghiệm người dùng.',
+            icon: 'Link',
+            iconBgColor: 'bg-green-100',
+            iconColor: 'text-green-600',
+            n8nEndpoint: '/n8n/internal-link-helper'
+          })
+          .where(eq(seoTools.id, aiWritingTool.id));
+        
+        console.log('Successfully migrated ai-writing to internal-link-helper');
+      }
+    } catch (error) {
+      console.error('Error migrating ai-writing tool:', error);
+    }
+  }
+
   private async initializeDefaultTools() {
     // Check if tools already exist
     const existingTools = await db.select().from(seoTools).limit(1);
     if (existingTools.length > 0) {
-      return; // Tools already initialized
+      // Tools exist, but check for migration needs
+      await this.migrateAiWritingToInternalLink();
+      return;
     }
 
     const defaultTools: Omit<SeoTool, 'id'>[] = [
