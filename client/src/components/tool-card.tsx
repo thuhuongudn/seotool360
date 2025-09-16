@@ -47,14 +47,26 @@ export default function ToolCard({ tool }: ToolCardProps) {
   });
 
   const handleActivate = () => {
-    // Special cases: Navigate to dedicated pages for specific tools
-    if (tool.name === 'markdown-html') {
-      setLocation('/markdown-converter');
-      return;
-    }
+    // Navigate to dedicated pages for tools that have their own pages
+    const toolRoutes: { [key: string]: string } = {
+      'markdown-html': '/markdown-converter',
+      'social-media': '/social-media-writer',
+      'topical-map': '/topical-map',
+      'search-intent': '/search-intent',
+      'internal-link-helper': '/internal-link-helper',
+      'ai-writing': '/internal-link-helper', // redirect old ai-writing to internal-link-helper
+      'article-rewriter': '/article-rewriter',
+      'bing-indexing': '/bing-indexing',
+      'google-indexing': '/google-indexing',
+      'google-checker': '/google-checker',
+      'schema-markup': '/schema-markup',
+      'image-seo': '/image-seo',
+      'qr-code': '/qr-code'
+    };
     
-    if (tool.name === 'social-media') {
-      setLocation('/social-media-writer');
+    const route = toolRoutes[tool.name];
+    if (route) {
+      setLocation(route);
       return;
     }
     

@@ -87,14 +87,14 @@ export class DatabaseStorage implements IStorage {
         isActive: true
       },
       {
-        name: 'ai-writing',
-        title: 'Viết bài AI',
-        description: 'Tạo bài viết chuẩn SEO chất lượng cao chỉ trong vài phút với sức mạnh của trí tuệ nhân tạo.',
-        icon: 'PenTool',
+        name: 'internal-link-helper',
+        title: 'Gợi ý internal link',
+        description: 'Tạo gợi ý liên kết nội bộ thông minh cho bài viết để cải thiện SEO và trải nghiệm người dùng.',
+        icon: 'Link',
         iconBgColor: 'bg-green-100',
         iconColor: 'text-green-600',
         category: 'content-seo',
-        n8nEndpoint: '/n8n/ai-writing',
+        n8nEndpoint: '/n8n/internal-link-helper',
         isActive: true
       },
       {
