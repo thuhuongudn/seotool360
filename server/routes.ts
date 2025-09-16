@@ -1,7 +1,7 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { activateToolSchema, insertSocialMediaPostSchema } from "@shared/schema";
+import { activateToolSchema, insertSocialMediaPostSchema, insertInternalLinkSuggestionSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get all SEO tools
@@ -126,6 +126,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching tools by category:", error);
       res.status(500).json({ message: "Failed to fetch tools by category" });
+    }
+  });
+
+  // Create internal link suggestion
+  app.post("/api/internal-link-suggestions", async (req: Request, res: Response) => {
+    try {
+      const validation = insertInternalLinkSuggestionSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          message: "Invalid request data", 
+          errors: validation.error.issues
+        });
+      }
+
+      const suggestion = await storage.createInternalLinkSuggestion(validation.data);
+      res.json(suggestion);
+    } catch (error) {
+      console.error("Error creating internal link suggestion:", error);
+      res.status(500).json({ message: "Failed to save internal link suggestion" });
+    }
+  });
+
+  // Get all internal link suggestions
+  app.get("/api/internal-link-suggestions", async (req: Request, res: Response) => {
+    try {
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
+      const suggestions = await storage.getAllInternalLinkSuggestions(limit);
+      res.json(suggestions);
+    } catch (error) {
+      console.error("Error fetching internal link suggestions:", error);
+      res.status(500).json({ message: "Failed to fetch internal link suggestions" });
     }
   });
 

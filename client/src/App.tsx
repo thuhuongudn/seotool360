@@ -7,6 +7,7 @@ import Home from "@/pages/home";
 import MarkdownConverter from "@/pages/markdown-converter";
 import SocialMediaWriter from "@/pages/social-media-writer";
 import AllSocialMediaPosts from "@/pages/all-social-media-posts";
+import AllInternalLinkSuggestions from "@/pages/all-internal-link-suggestions";
 // Content SEO Tools
 import TopicalMap from "@/pages/topical-map";
 import SearchIntent from "@/pages/search-intent";
@@ -30,6 +31,7 @@ function Router() {
       <Route path="/markdown-converter" component={MarkdownConverter} />
       <Route path="/social-media-writer" component={SocialMediaWriter} />
       <Route path="/all-social-media-posts" component={AllSocialMediaPosts} />
+      <Route path="/all-internal-link-suggestions" component={AllInternalLinkSuggestions} />
       {/* Content SEO Routes */}
       <Route path="/topical-map" component={TopicalMap} />
       <Route path="/search-intent" component={SearchIntent} />

@@ -1,4 +1,4 @@
-import { type User, type InsertUser, type SeoTool, type InsertSeoTool, type ToolExecution, type InsertToolExecution, type SocialMediaPost, type InsertSocialMediaPost, users, seoTools, toolExecutions, socialMediaPosts } from "@shared/schema";
+import { type User, type InsertUser, type SeoTool, type InsertSeoTool, type ToolExecution, type InsertToolExecution, type SocialMediaPost, type InsertSocialMediaPost, type InternalLinkSuggestion, type InsertInternalLinkSuggestion, users, seoTools, toolExecutions, socialMediaPosts, internalLinkSuggestions } from "@shared/schema";
 import { supabaseDb as db } from "./supabase";
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
@@ -21,6 +21,10 @@ export interface IStorage {
   createSocialMediaPost(post: InsertSocialMediaPost): Promise<SocialMediaPost>;
   getSocialMediaPost(id: number): Promise<SocialMediaPost | undefined>;
   getAllSocialMediaPosts(limit?: number): Promise<SocialMediaPost[]>;
+  // Internal link suggestion methods
+  createInternalLinkSuggestion(suggestion: InsertInternalLinkSuggestion): Promise<InternalLinkSuggestion>;
+  getInternalLinkSuggestion(id: number): Promise<InternalLinkSuggestion | undefined>;
+  getAllInternalLinkSuggestions(limit?: number): Promise<InternalLinkSuggestion[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -257,6 +261,23 @@ export class DatabaseStorage implements IStorage {
   async getAllSocialMediaPosts(limit: number = 50): Promise<SocialMediaPost[]> {
     return await db.select().from(socialMediaPosts)
       .orderBy(sql`${socialMediaPosts.createdAt} DESC`)
+      .limit(limit);
+  }
+
+  // Internal link suggestion methods
+  async createInternalLinkSuggestion(suggestion: InsertInternalLinkSuggestion): Promise<InternalLinkSuggestion> {
+    const [created] = await db.insert(internalLinkSuggestions).values(suggestion).returning();
+    return created;
+  }
+
+  async getInternalLinkSuggestion(id: number): Promise<InternalLinkSuggestion | undefined> {
+    const [suggestion] = await db.select().from(internalLinkSuggestions).where(eq(internalLinkSuggestions.id, id));
+    return suggestion || undefined;
+  }
+
+  async getAllInternalLinkSuggestions(limit: number = 50): Promise<InternalLinkSuggestion[]> {
+    return await db.select().from(internalLinkSuggestions)
+      .orderBy(sql`${internalLinkSuggestions.createdAt} DESC`)
       .limit(limit);
   }
 }
