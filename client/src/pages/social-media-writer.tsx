@@ -178,7 +178,7 @@ export default function SocialMediaWriter() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PageNavigation 
           breadcrumbItems={[
-            { label: "Content SEO" },
+            { label: "Content SEO", href: "/#content-seo" },
             { label: "Viết bài MXH" }
           ]}
           backLink="/"

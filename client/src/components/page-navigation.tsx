@@ -61,14 +61,20 @@ export default function PageNavigation({
             <div key={index} className="flex items-center">
               <BreadcrumbSeparator />
               <BreadcrumbItem>
-                {item.href && index < breadcrumbItems.length - 1 ? (
+                {item.href ? (
                   <BreadcrumbLink asChild>
-                    <Link href={item.href} data-testid={`breadcrumb-${index}`}>
+                    <Link href={item.href} data-testid={`breadcrumb-link-${index}`}>
                       {item.label}
                     </Link>
                   </BreadcrumbLink>
+                ) : index < breadcrumbItems.length - 1 ? (
+                  <BreadcrumbLink asChild>
+                    <span className="cursor-default" data-testid={`breadcrumb-item-${index}`}>
+                      {item.label}
+                    </span>
+                  </BreadcrumbLink>
                 ) : (
-                  <BreadcrumbPage data-testid={`breadcrumb-current`}>
+                  <BreadcrumbPage data-testid={`breadcrumb-current-${index}`}>
                     {item.label}
                   </BreadcrumbPage>
                 )}
