@@ -7,6 +7,20 @@ import Home from "@/pages/home";
 import MarkdownConverter from "@/pages/markdown-converter";
 import SocialMediaWriter from "@/pages/social-media-writer";
 import AllSocialMediaPosts from "@/pages/all-social-media-posts";
+// Content SEO Tools
+import TopicalMap from "@/pages/topical-map";
+import SearchIntent from "@/pages/search-intent";
+import AiWriting from "@/pages/ai-writing";
+import ArticleRewriter from "@/pages/article-rewriter";
+import SchemaMarkup from "@/pages/schema-markup";
+// Index Tools
+import BingIndexing from "@/pages/bing-indexing";
+import GoogleIndexing from "@/pages/google-indexing";
+import GoogleChecker from "@/pages/google-checker";
+// Other Tools
+import ImageSeo from "@/pages/image-seo";
+import QrCode from "@/pages/qr-code";
+import Blog from "@/pages/blog";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -16,6 +30,20 @@ function Router() {
       <Route path="/markdown-converter" component={MarkdownConverter} />
       <Route path="/social-media-writer" component={SocialMediaWriter} />
       <Route path="/all-social-media-posts" component={AllSocialMediaPosts} />
+      {/* Content SEO Routes */}
+      <Route path="/topical-map" component={TopicalMap} />
+      <Route path="/search-intent" component={SearchIntent} />
+      <Route path="/ai-writing" component={AiWriting} />
+      <Route path="/article-rewriter" component={ArticleRewriter} />
+      <Route path="/schema-markup" component={SchemaMarkup} />
+      {/* Index Routes */}
+      <Route path="/bing-indexing" component={BingIndexing} />
+      <Route path="/google-indexing" component={GoogleIndexing} />
+      <Route path="/google-checker" component={GoogleChecker} />
+      {/* Other Tool Routes */}
+      <Route path="/image-seo" component={ImageSeo} />
+      <Route path="/qr-code" component={QrCode} />
+      <Route path="/blog" component={Blog} />
       <Route component={NotFound} />
     </Switch>
   );

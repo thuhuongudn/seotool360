@@ -10,18 +10,18 @@ import { ChevronDown, Bot, Menu } from "lucide-react";
 import { Link } from "wouter";
 
 const contentSeoItems = [
-  { label: "Topical Map", href: "#topical-map" },
-  { label: "Search Intent", href: "#search-intent" },
-  { label: "Viết Bài AI", href: "#ai-writing" },
-  { label: "Viết Lại Bài", href: "#article-rewriter" },
-  { label: "Viết bài MXH", href: "#social-media" },
-  { label: "Schema Markup", href: "#schema-markup" },
+  { label: "Topical Map", href: "/topical-map" },
+  { label: "Search Intent", href: "/search-intent" },
+  { label: "Viết Bài AI", href: "/ai-writing" },
+  { label: "Viết Lại Bài", href: "/article-rewriter" },
+  { label: "Viết bài MXH", href: "/social-media-writer" },
+  { label: "Schema Markup", href: "/schema-markup" },
 ];
 
 const indexItems = [
-  { label: "Gửi Index Bing", href: "#bing-indexing" },
-  { label: "Gửi Index Google", href: "#google-indexing" },
-  { label: "Kiểm tra Google Index", href: "#google-checker" },
+  { label: "Gửi Index Bing", href: "/bing-indexing" },
+  { label: "Gửi Index Google", href: "/google-indexing" },
+  { label: "Kiểm tra Google Index", href: "/google-checker" },
 ];
 
 export default function Header() {
@@ -58,13 +58,13 @@ export default function Header() {
               <DropdownMenuContent className="w-48">
                 {contentSeoItems.map((item) => (
                   <DropdownMenuItem key={item.href} asChild>
-                    <a 
+                    <Link 
                       href={item.href}
                       className="block px-4 py-2 text-sm"
                       data-testid={`menu-item-${item.href.slice(1)}`}
                     >
                       {item.label}
-                    </a>
+                    </Link>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
@@ -82,25 +82,25 @@ export default function Header() {
               <DropdownMenuContent className="w-48">
                 {indexItems.map((item) => (
                   <DropdownMenuItem key={item.href} asChild>
-                    <a 
+                    <Link 
                       href={item.href}
                       className="block px-4 py-2 text-sm"
                       data-testid={`menu-item-${item.href.slice(1)}`}
                     >
                       {item.label}
-                    </a>
+                    </Link>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <a 
-              href="#image-seo" 
+            <Link 
+              href="/image-seo" 
               className="text-muted-foreground hover:text-foreground transition-colors"
               data-testid="nav-seo-image"
             >
               SEO Ảnh
-            </a>
+            </Link>
             <Link 
               href="/markdown-converter" 
               className="text-muted-foreground hover:text-foreground transition-colors"
@@ -108,13 +108,13 @@ export default function Header() {
             >
               Markdown to HTML
             </Link>
-            <a 
-              href="#qr-code" 
+            <Link 
+              href="/qr-code" 
               className="text-muted-foreground hover:text-foreground transition-colors"
               data-testid="nav-qr-code"
             >
               QR Code
-            </a>
+            </Link>
             <Link href="/blog" className="text-muted-foreground hover:text-foreground transition-colors" data-testid="nav-blog">
               Blog
             </Link>
