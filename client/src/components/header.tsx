@@ -6,7 +6,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Bot, Menu } from "lucide-react";
+import { ChevronDown, Bot, Menu, X, MessageCircle, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 
 const contentSeoItems = [
@@ -120,15 +120,6 @@ export default function Header() {
             </Link>
           </nav>
 
-          {/* CTA Button */}
-          <Button 
-            onClick={handleSupport}
-            className="bg-primary hover:bg-primary/90 text-primary-foreground"
-            data-testid="button-support"
-          >
-            Hỗ Trợ
-          </Button>
-
           {/* Mobile Menu Button */}
           <Button
             variant="ghost"
@@ -137,10 +128,112 @@ export default function Header() {
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             data-testid="button-mobile-menu"
           >
-            <Menu className="h-5 w-5" />
+            {isMobileMenuOpen ? (
+              <X className="h-5 w-5" />
+            ) : (
+              <Menu className="h-5 w-5" />
+            )}
           </Button>
         </div>
       </div>
+
+      {/* Mobile Menu Overlay */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden bg-card border-b border-border">
+          <div className="px-4 py-3 space-y-3">
+            {/* Content SEO Section */}
+            <div className="space-y-2">
+              <div className="font-semibold text-foreground text-sm uppercase tracking-wide">
+                Content SEO
+              </div>
+              <div className="space-y-1 ml-4">
+                {contentSeoItems.map((item) => (
+                  <Link key={item.href} href={item.href}>
+                    <div 
+                      className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      data-testid={`mobile-menu-item-${item.href.slice(1)}`}
+                    >
+                      <span>{item.label}</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* Index Section */}
+            <div className="space-y-2">
+              <div className="font-semibold text-foreground text-sm uppercase tracking-wide">
+                Index
+              </div>
+              <div className="space-y-1 ml-4">
+                {indexItems.map((item) => (
+                  <Link key={item.href} href={item.href}>
+                    <div 
+                      className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      data-testid={`mobile-menu-item-${item.href.slice(1)}`}
+                    >
+                      <span>{item.label}</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* Other Tools */}
+            <div className="space-y-2">
+              <div className="font-semibold text-foreground text-sm uppercase tracking-wide">
+                Tools khác
+              </div>
+              <div className="space-y-1 ml-4">
+                <Link href="/image-seo">
+                  <div 
+                    className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    data-testid="mobile-menu-item-image-seo"
+                  >
+                    <span>SEO Ảnh</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </div>
+                </Link>
+                <Link href="/markdown-converter">
+                  <div 
+                    className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    data-testid="mobile-menu-item-markdown-converter"
+                  >
+                    <span>Markdown to HTML</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </div>
+                </Link>
+                <Link href="/qr-code">
+                  <div 
+                    className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    data-testid="mobile-menu-item-qr-code"
+                  >
+                    <span>QR Code</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </div>
+                </Link>
+                <Link href="/blog">
+                  <div 
+                    className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    data-testid="mobile-menu-item-blog"
+                  >
+                    <span>Blog</span>
+                    <ChevronRight className="h-4 w-4" />
+                  </div>
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
