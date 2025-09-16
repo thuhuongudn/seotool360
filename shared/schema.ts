@@ -48,6 +48,17 @@ export const socialMediaPosts = pgTable("social_media_posts", {
   createdAt: timestamp("created_at").notNull().defaultNow(), // Thời gian
 });
 
+export const internalLinkSuggestions = pgTable("internal_link_suggestions", {
+  id: serial("id").primaryKey(),
+  postType: text("post_type").notNull(), // Loại bài viết (product | article)
+  title: text("title").notNull(), // Tiêu đề
+  primaryKeywords: text("primary_keywords"), // Từ khóa chính (phân cách bằng dấu phẩy)
+  secondaryKeywords: text("secondary_keywords"), // Từ khóa phụ (phân cách bằng dấu phẩy)
+  draftContent: text("draft_content"), // Nội dung mẫu
+  result: text("result"), // Kết quả từ response
+  createdAt: timestamp("created_at").notNull().defaultNow(), // Ngày tạo
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -58,6 +69,11 @@ export const insertSeoToolSchema = createInsertSchema(seoTools).omit({
 });
 
 export const insertSocialMediaPostSchema = createInsertSchema(socialMediaPosts).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertInternalLinkSuggestionSchema = createInsertSchema(internalLinkSuggestions).omit({
   id: true,
   createdAt: true,
 });
@@ -94,4 +110,6 @@ export type ToolExecution = typeof toolExecutions.$inferSelect;
 export type InsertToolExecution = z.infer<typeof insertToolExecutionSchema>;
 export type SocialMediaPost = typeof socialMediaPosts.$inferSelect;
 export type InsertSocialMediaPost = z.infer<typeof insertSocialMediaPostSchema>;
+export type InternalLinkSuggestion = typeof internalLinkSuggestions.$inferSelect;
+export type InsertInternalLinkSuggestion = z.infer<typeof insertInternalLinkSuggestionSchema>;
 export type ActivateToolRequest = z.infer<typeof activateToolSchema>;

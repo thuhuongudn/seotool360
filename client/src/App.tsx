@@ -10,7 +10,7 @@ import AllSocialMediaPosts from "@/pages/all-social-media-posts";
 // Content SEO Tools
 import TopicalMap from "@/pages/topical-map";
 import SearchIntent from "@/pages/search-intent";
-import AiWriting from "@/pages/ai-writing";
+import InternalLinkHelper from "@/pages/internal-link-helper";
 import ArticleRewriter from "@/pages/article-rewriter";
 import SchemaMarkup from "@/pages/schema-markup";
 // Index Tools
@@ -33,7 +33,7 @@ function Router() {
       {/* Content SEO Routes */}
       <Route path="/topical-map" component={TopicalMap} />
       <Route path="/search-intent" component={SearchIntent} />
-      <Route path="/ai-writing" component={AiWriting} />
+      <Route path="/internal-link-helper" component={InternalLinkHelper} />
       <Route path="/article-rewriter" component={ArticleRewriter} />
       <Route path="/schema-markup" component={SchemaMarkup} />
       {/* Index Routes */}

@@ -12,7 +12,7 @@ import { Link } from "wouter";
 const contentSeoItems = [
   { label: "Topical Map", href: "/topical-map" },
   { label: "Search Intent", href: "/search-intent" },
-  { label: "Viết Bài AI", href: "/ai-writing" },
+  { label: "Gợi ý internal link", href: "/internal-link-helper" },
   { label: "Viết Lại Bài", href: "/article-rewriter" },
   { label: "Viết bài MXH", href: "/social-media-writer" },
   { label: "Schema Markup", href: "/schema-markup" },
