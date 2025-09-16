@@ -1,5 +1,5 @@
 import { type User, type InsertUser, type SeoTool, type InsertSeoTool, type ToolExecution, type InsertToolExecution, type SocialMediaPost, type InsertSocialMediaPost, users, seoTools, toolExecutions, socialMediaPosts } from "@shared/schema";
-import { db } from "./db";
+import { supabaseDb as db } from "./supabase";
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
