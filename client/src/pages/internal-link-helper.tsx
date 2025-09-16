@@ -35,6 +35,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import MarkdownRenderer from "@/components/markdown-renderer";
+import CopyMarkdownButton from "@/components/copy-markdown-button";
 import type { InternalLinkSuggestion } from "@shared/schema";
 
 // Form schema matching the requirements
@@ -373,15 +374,27 @@ export default function InternalLinkHelper() {
           {/* Results Section */}
           <Card className="bg-white dark:bg-gray-800 shadow-sm">
             <CardHeader>
-              <CardTitle
-                className="text-xl font-bold text-gray-900 dark:text-white"
-                data-testid="heading-results-section"
-              >
-                Kết quả
-              </CardTitle>
-              <CardDescription>
-                Gợi ý internal link của bạn sẽ xuất hiện ở đây...
-              </CardDescription>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle
+                    className="text-xl font-bold text-gray-900 dark:text-white"
+                    data-testid="heading-results-section"
+                  >
+                    Kết quả
+                  </CardTitle>
+                  <CardDescription>
+                    Gợi ý internal link của bạn sẽ xuất hiện ở đây...
+                  </CardDescription>
+                </div>
+                {result && (
+                  <CopyMarkdownButton 
+                    content={result} 
+                    className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300" 
+                    size="sm"
+                    variant="outline"
+                  />
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               {result ? (
@@ -468,6 +481,15 @@ export default function InternalLinkHelper() {
                     {expandedSuggestions.has(suggestion.id) && (
                       <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-600">
                         <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <h4 className="font-medium text-gray-900 dark:text-white">Gợi ý Internal Link:</h4>
+                            <CopyMarkdownButton 
+                              content={suggestion.result || ''} 
+                              className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300" 
+                              size="sm"
+                              variant="outline"
+                            />
+                          </div>
                           <MarkdownRenderer 
                             content={suggestion.result || 'Không có nội dung'} 
                             className="text-sm" 

@@ -22,6 +22,7 @@ import { Link } from "wouter";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import MarkdownRenderer from "@/components/markdown-renderer";
+import CopyMarkdownButton from "@/components/copy-markdown-button";
 import type { InternalLinkSuggestion } from "@shared/schema";
 
 export default function AllInternalLinkSuggestions() {
@@ -342,7 +343,15 @@ export default function AllInternalLinkSuggestions() {
                         className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border"
                         data-testid={`content-${suggestion.id}`}
                       >
-                        <h4 className="font-medium text-gray-900 dark:text-white mb-2">Gợi ý Internal Link:</h4>
+                        <div className="flex items-center justify-between mb-3">
+                          <h4 className="font-medium text-gray-900 dark:text-white">Gợi ý Internal Link:</h4>
+                          <CopyMarkdownButton 
+                            content={suggestion.result || ''} 
+                            className="text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300" 
+                            size="sm"
+                            variant="outline"
+                          />
+                        </div>
                         <MarkdownRenderer 
                           content={suggestion.result || 'Không có nội dung'} 
                           className="text-sm"
