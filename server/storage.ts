@@ -30,6 +30,30 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   constructor() {
     this.initializeDefaultTools();
+    this.ensureInternalLinkSuggestionsTable();
+  }
+
+  private async ensureInternalLinkSuggestionsTable() {
+    try {
+      // Try to query the table to check if it exists
+      await db.select().from(internalLinkSuggestions).limit(1);
+    } catch (error) {
+      // Table doesn't exist, create it using raw SQL
+      console.log('Creating internal_link_suggestions table...');
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS internal_link_suggestions (
+          id SERIAL PRIMARY KEY,
+          post_type TEXT NOT NULL,
+          title TEXT NOT NULL,
+          primary_keywords TEXT,
+          secondary_keywords TEXT,
+          draft_content TEXT,
+          result TEXT,
+          created_at TIMESTAMP NOT NULL DEFAULT NOW()
+        );
+      `);
+      console.log('internal_link_suggestions table created successfully');
+    }
   }
 
   private async initializeDefaultTools() {
