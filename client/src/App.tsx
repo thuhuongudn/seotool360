@@ -6,7 +6,10 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import FloatingSupportButton from "@/components/floating-support-button";
 import { AuthProvider } from "@/contexts/auth-context";
 import ProtectedAdminRoute from "@/components/protected-admin-route";
+import ProtectedRoute from "@/components/protected-route";
 import Home from "@/pages/home";
+import Dashboard from "@/pages/dashboard";
+import Settings from "@/pages/settings";
 import MarkdownConverter from "@/pages/markdown-converter";
 import SocialMediaWriter from "@/pages/social-media-writer";
 import AllSocialMediaPosts from "@/pages/all-social-media-posts";
@@ -36,6 +39,16 @@ function Router() {
       <Route path="/social-media-writer" component={SocialMediaWriter} />
       <Route path="/all-social-media-posts" component={AllSocialMediaPosts} />
       <Route path="/all-internal-link-suggestions" component={AllInternalLinkSuggestions} />
+      <Route path="/dashboard">
+        <ProtectedRoute>
+          <Dashboard />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/settings">
+        <ProtectedRoute>
+          <Settings />
+        </ProtectedRoute>
+      </Route>
       <Route path="/admin">
         <ProtectedAdminRoute>
           <AdminPage />
