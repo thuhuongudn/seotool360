@@ -32,6 +32,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const unsubscribeRef = useRef<(() => void) | null>(null);
   const hadSessionRef = useRef(false);
+  const authInProgressRef = useRef(false);
 
   // Check for existing session on mount
   useEffect(() => {
@@ -92,8 +93,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Prevent concurrent auth requests
+      if (authInProgressRef.current) {
+        console.log('Auth already in progress, skipping duplicate call');
+        return;
+      }
+      authInProgressRef.current = true;
+
       // Get user profile from our API
-      const response = await fetch(`/api/admin/users/${supabaseUser.id}`, {
+      const response = await fetch(`/api/users/me`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
@@ -137,6 +145,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         variant: "destructive"
       });
       await supabase.auth.signOut();
+    } finally {
+      authInProgressRef.current = false;
     }
   };
 

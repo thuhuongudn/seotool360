@@ -3,13 +3,16 @@ import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing required Supabase environment variables: SUPABASE_URL, SUPABASE_ANON_KEY');
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing required Supabase environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
 }
 
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Use service role key for server-side authentication
+const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  auth: { autoRefreshToken: false, persistSession: false }
+});
 
 // Extended Request interface to include authenticated user
 export interface AuthenticatedRequest extends Request {
@@ -49,9 +52,27 @@ export async function authMiddleware(
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
     // Verify the JWT token with Supabase
+    console.log('Auth middleware - verifying token:', {
+      tokenLength: token.length,
+      tokenStart: token.substring(0, 20),
+      supabaseUrl: supabaseUrl
+    });
+    
     const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    console.log('Auth middleware - token verification result:', {
+      hasUser: !!user,
+      userId: user?.id,
+      error: error?.message,
+      errorCode: error?.code
+    });
 
     if (error || !user) {
+      console.error('Auth middleware - token validation failed:', error);
+      // Handle specific Supabase auth errors
+      if (error?.code === 'session_not_found' || error?.message?.includes('AuthSessionMissingError')) {
+        return res.status(401).json({ message: 'Session expired, please log in again' });
+      }
       return res.status(401).json({ message: 'Invalid or expired token' });
     }
 

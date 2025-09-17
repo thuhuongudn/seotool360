@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { activateToolSchema, insertSocialMediaPostSchema, insertInternalLinkSuggestionSchema, insertUserToolAccessSchema, insertAdminAuditLogSchema } from "@shared/schema";
 import { createClient } from "@supabase/supabase-js";
-import { requireAdmin, type AuthenticatedRequest } from "./auth-middleware";
+import { authMiddleware, requireAdmin, type AuthenticatedRequest } from "./auth-middleware";
 
 // Validate required environment variables at startup
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -233,7 +233,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ============================================
-  // USER MANAGEMENT ROUTES
+  // USER PROFILE ROUTES
+  // ============================================
+  
+  // Get current user profile (authenticated users only)
+  app.get("/api/users/me", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+      
+      const profile = await storage.getProfile(req.user.id);
+      
+      if (!profile) {
+        return res.status(404).json({ message: "Profile not found" });
+      }
+      
+      // Return profile with email from Supabase user
+      res.json({
+        ...profile,
+        email: req.user.email
+      });
+    } catch (error) {
+      console.error("Error fetching current user profile:", error);
+      res.status(500).json({ message: "Failed to fetch profile" });
+    }
+  });
+
+  // ============================================
+  // ADMIN USER MANAGEMENT ROUTES
   // ============================================
 
   // Get all users with pagination
