@@ -26,7 +26,7 @@ export default function Home() {
         </div>
 
         {/* Tool Grid */}
-        <ToolGrid />
+        <ToolGrid showAllTools={true} showFilters={true} />
 
         {/* CTA Section */}
         <div className="mt-16 text-center" data-testid="section-cta">

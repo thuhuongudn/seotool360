@@ -11,9 +11,10 @@ import * as Icons from "lucide-react";
 
 interface ToolCardProps {
   tool: SeoTool;
+  showStatusIndicator?: boolean; // If true, shows status indicator dot
 }
 
-export default function ToolCard({ tool }: ToolCardProps) {
+export default function ToolCard({ tool, showStatusIndicator = false }: ToolCardProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
@@ -81,8 +82,21 @@ export default function ToolCard({ tool }: ToolCardProps) {
       data-testid={`card-tool-${tool.name}`}
     >
       <CardContent className="p-6">
-        <div className={`flex items-center justify-center w-12 h-12 ${tool.iconBgColor} rounded-lg mb-4`}>
-          <IconComponent className={`${tool.iconColor} w-6 h-6`} />
+        <div className="relative">
+          <div className={`flex items-center justify-center w-12 h-12 ${tool.iconBgColor} rounded-lg mb-4`}>
+            <IconComponent className={`${tool.iconColor} w-6 h-6`} />
+          </div>
+          
+          {/* Status Indicator */}
+          {showStatusIndicator && (
+            <div 
+              className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                tool.status === 'active' ? 'bg-green-500' : 'bg-orange-500'
+              }`}
+              data-testid={`status-indicator-${tool.name}`}
+              title={tool.status === 'active' ? 'Active' : 'Pending'}
+            />
+          )}
         </div>
         
         <h3 
