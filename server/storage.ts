@@ -38,7 +38,8 @@ export class DatabaseStorage implements IStorage {
       // Try to query the table to check if it exists
       await db.select().from(internalLinkSuggestions).limit(1);
     } catch (error) {
-      // Table doesn't exist, create it using raw SQL
+      // Table doesn't exist, create it using raw SQL 
+      // Security policies will be applied via migration script
       console.log('Creating internal_link_suggestions table...');
       await db.execute(sql`
         CREATE TABLE IF NOT EXISTS internal_link_suggestions (
@@ -54,7 +55,8 @@ export class DatabaseStorage implements IStorage {
           created_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
       `);
-      console.log('internal_link_suggestions table created successfully');
+      console.log('internal_link_suggestions table created');
+      console.log('⚠️  SECURITY: Run setup-rls-policies.sql to enable RLS and create security policies');
     }
   }
 
