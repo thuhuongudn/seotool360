@@ -34,6 +34,7 @@ import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
+import CopyMarkdownButton from "@/components/copy-markdown-button";
 import type { SocialMediaPost } from "@shared/schema";
 
 // Form schema matching the requirements
@@ -512,13 +513,23 @@ export default function SocialMediaWriter() {
             </CardHeader>
             <CardContent>
               {result ? (
-                <div
-                  className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border"
-                  data-testid="results-content"
-                >
-                  <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
-                    {result}
-                  </pre>
+                <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <CopyMarkdownButton 
+                      content={result}
+                      size="sm"
+                      variant="outline"
+                      className=""
+                    />
+                  </div>
+                  <div
+                    className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border"
+                    data-testid="results-content"
+                  >
+                    <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
+                      {result}
+                    </pre>
+                  </div>
                 </div>
               ) : (
                 <div
@@ -594,13 +605,23 @@ export default function SocialMediaWriter() {
                     </div>
                     
                     {expandedPosts.has(post.id) && (
-                      <div 
-                        className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border"
-                        data-testid={`content-${post.id}`}
-                      >
-                        <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
-                          {post.result}
-                        </pre>
+                      <div className="mt-4 space-y-3">
+                        <div className="flex justify-end">
+                          <CopyMarkdownButton 
+                            content={post.result || ""}
+                            size="sm"
+                            variant="outline"
+                            className=""
+                          />
+                        </div>
+                        <div 
+                          className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border"
+                          data-testid={`content-${post.id}`}
+                        >
+                          <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
+                            {post.result}
+                          </pre>
+                        </div>
                       </div>
                     )}
                   </CardContent>

@@ -21,6 +21,7 @@ import {
 import { Link } from "wouter";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
+import CopyMarkdownButton from "@/components/copy-markdown-button";
 import type { SocialMediaPost } from "@shared/schema";
 
 export default function AllSocialMediaPosts() {
@@ -314,14 +315,24 @@ export default function AllSocialMediaPosts() {
                     </div>
                     
                     {expandedPosts.has(post.id) && (
-                      <div 
-                        className="mt-4 p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border"
-                        data-testid={`content-${post.id}`}
-                      >
-                        <h4 className="font-medium text-gray-900 dark:text-white mb-2">Nội dung bài đăng:</h4>
-                        <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
-                          {post.result || 'Không có nội dung'}
-                        </pre>
+                      <div className="mt-4 space-y-3">
+                        <div className="flex justify-end">
+                          <CopyMarkdownButton 
+                            content={post.result || ""}
+                            size="sm"
+                            variant="outline"
+                            className=""
+                          />
+                        </div>
+                        <div 
+                          className="p-4 bg-gray-50 dark:bg-gray-900 rounded-lg border"
+                          data-testid={`content-${post.id}`}
+                        >
+                          <h4 className="font-medium text-gray-900 dark:text-white mb-2">Nội dung bài đăng:</h4>
+                          <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200">
+                            {post.result || 'Không có nội dung'}
+                          </pre>
+                        </div>
                       </div>
                     )}
                   </CardContent>
