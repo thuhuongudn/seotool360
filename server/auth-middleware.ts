@@ -35,8 +35,14 @@ export async function authMiddleware(
 ) {
   try {
     const authHeader = req.headers.authorization;
+    console.log('Auth middleware - headers:', { 
+      authorization: authHeader ? `Bearer ${authHeader.substring(7, 20)}...` : 'missing',
+      path: req.path,
+      method: req.method
+    });
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      console.log('Auth middleware - rejected: missing or invalid header');
       return res.status(401).json({ message: 'Missing or invalid authorization header' });
     }
 

@@ -13,6 +13,7 @@ import {
 import { AlertCircle, Search } from "lucide-react";
 import ToolCard from "./tool-card";
 import type { SeoTool } from "@shared/schema";
+import { useAuth } from "@/contexts/auth-context";
 
 interface ToolGridProps {
   showAllTools?: boolean; // If true, shows all tools (including pending), if false shows only active tools
@@ -22,20 +23,18 @@ interface ToolGridProps {
 export default function ToolGrid({ showAllTools = false, showFilters = false }: ToolGridProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("active");
+  const { user, isAdmin } = useAuth();
 
   // Choose the appropriate API endpoint based on showAllTools prop
   const apiEndpoint = showAllTools ? "/api/admin/seo-tools" : "/api/seo-tools";
   
+  // For admin endpoints, only run query when user is authenticated and is admin
+  const shouldEnableQuery = showAllTools ? (!!user && isAdmin()) : true;
+  
   const { data: tools, isLoading, error } = useQuery<SeoTool[]>({
     queryKey: [apiEndpoint],
-    queryFn: async () => {
-      const res = await fetch(apiEndpoint);
-      if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`);
-      }
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
-    }
+    // Use default queryFn which includes auth headers for admin routes
+    enabled: shouldEnableQuery,
   });
 
   // Filter tools based on search and status (only if filters are enabled)

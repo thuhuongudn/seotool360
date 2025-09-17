@@ -1,4 +1,5 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
+import supabase from "@/lib/supabase";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
@@ -7,14 +8,39 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
+// Helper function to get auth token from Supabase session
+async function getAccessToken(): Promise<string | null> {
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+    console.log('getAccessToken - session:', { hasSession: !!session, hasToken: !!session?.access_token, error });
+    return session?.access_token || null;
+  } catch (error) {
+    console.error('Error getting access token:', error);
+    return null;
+  }
+}
+
 export async function apiRequest(
   method: string,
   url: string,
   data?: unknown | undefined,
 ): Promise<Response> {
+  const headers: Record<string, string> = {
+    ...(data ? { "Content-Type": "application/json" } : {}),
+  };
+
+  // Add auth header for admin routes
+  if (url.includes('/api/admin/')) {
+    const token = await getAccessToken();
+    console.log('apiRequest - admin route:', { url, hasToken: !!token, tokenPrefix: token?.substring(0, 20) });
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+  }
+
   const res = await fetch(url, {
     method,
-    headers: data ? { "Content-Type": "application/json" } : {},
+    headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
@@ -29,7 +55,20 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const url = queryKey.join("/") as string;
+    const headers: Record<string, string> = {};
+
+    // Add auth header for admin routes
+    if (url.includes('/api/admin/')) {
+      const token = await getAccessToken();
+      console.log('getQueryFn - admin route:', { url, hasToken: !!token, tokenPrefix: token?.substring(0, 20) });
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+    }
+
+    const res = await fetch(url, {
+      headers,
       credentials: "include",
     });
 

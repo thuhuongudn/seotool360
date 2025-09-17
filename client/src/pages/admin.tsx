@@ -24,23 +24,19 @@ import PageNavigation from "@/components/page-navigation";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { SeoTool } from "@shared/schema";
+import { useAuth } from "@/contexts/auth-context";
 
 export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const { toast } = useToast();
+  const { user, isAdmin } = useAuth();
 
-  // Fetch all tools for admin (including pending)
+  // Fetch all tools for admin (including pending) - only when user is authenticated
   const { data: allTools, isLoading, error } = useQuery({
     queryKey: ['/api/admin/seo-tools'],
-    queryFn: async () => {
-      const res = await fetch('/api/admin/seo-tools');
-      if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`);
-      }
-      const data = await res.json();
-      return Array.isArray(data) ? data : [];
-    }
+    // Use default queryFn which includes auth headers
+    enabled: !!user && isAdmin(), // Only run query when user is authenticated and is admin
   });
 
   // Mutation for updating tool status

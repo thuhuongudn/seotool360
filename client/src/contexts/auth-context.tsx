@@ -1,0 +1,229 @@
+import { createContext, useContext, useState, useEffect, useRef } from "react";
+import { useToast } from "@/hooks/use-toast";
+import supabase from "@/lib/supabase";
+
+interface User {
+  id: string;
+  email?: string;
+  profile?: {
+    userId: string;
+    username: string;
+    role: string;
+    isActive: boolean;
+  };
+}
+
+interface AuthContextType {
+  user: User | null;
+  token: string | null;
+  isLoading: boolean;
+  login: (email: string, password: string) => Promise<boolean>;
+  logout: () => void;
+  isAdmin: () => boolean;
+}
+
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+  const hadSessionRef = useRef(false);
+
+  // Check for existing session on mount
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        // Get session from Supabase
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session?.user) {
+          hadSessionRef.current = true;
+          await handleAuthSuccess(session.user, session.access_token);
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    initAuth();
+
+    // Unsubscribe previous listener if exists
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+    }
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
+      console.log('Auth state change:', event, 'session:', !!session);
+      
+      if (event === 'SIGNED_IN' && session?.user) {
+        hadSessionRef.current = true;
+        await handleAuthSuccess(session.user, session.access_token);
+      } else if (event === 'SIGNED_OUT' && hadSessionRef.current) {
+        // Only handle SIGNED_OUT if we actually had a session before
+        hadSessionRef.current = false;
+        handleLogout();
+      }
+      // Ignore INITIAL_SESSION and other events to prevent clearing auth state during HMR
+    });
+
+    unsubscribeRef.current = subscription.unsubscribe;
+
+    return () => {
+      if (unsubscribeRef.current) {
+        unsubscribeRef.current();
+      }
+    };
+  }, []);
+
+  const handleAuthSuccess = async (supabaseUser: any, accessToken: string) => {
+    try {
+      console.log('Auth success:', { userId: supabaseUser.id, hasToken: !!accessToken });
+      
+      // Prevent duplicate auth success calls
+      if (user?.id === supabaseUser.id && token === accessToken) {
+        console.log('Already authenticated, skipping duplicate auth success');
+        return;
+      }
+
+      // Get user profile from our API
+      const response = await fetch(`/api/admin/users/${supabaseUser.id}`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const profile = await response.json();
+        
+        // Check if user is admin
+        if (profile.role !== 'admin') {
+          toast({
+            title: "Truy cập bị từ chối",
+            description: "Bạn không có quyền truy cập trang quản trị.",
+            variant: "destructive"
+          });
+          await supabase.auth.signOut();
+          return;
+        }
+
+        // Set user and token
+        setUser({
+          id: supabaseUser.id,
+          email: supabaseUser.email,
+          profile
+        });
+        setToken(accessToken);
+
+        toast({
+          title: "Đăng nhập thành công!",
+          description: `Chào mừng ${profile.username || supabaseUser.email}`,
+        });
+      } else {
+        throw new Error('Không thể tải thông tin profile');
+      }
+    } catch (error) {
+      console.error('Error fetching profile:', error);
+      toast({
+        title: "Lỗi đăng nhập",
+        description: "Không thể xác thực thông tin người dùng.",
+        variant: "destructive"
+      });
+      await supabase.auth.signOut();
+    }
+  };
+
+  const handleLogout = () => {
+    console.log('Handling logout');
+    setUser(null);
+    setToken(null);
+    toast({
+      title: "Đăng xuất thành công",
+      description: "Bạn đã đăng xuất khỏi hệ thống.",
+    });
+  };
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      setIsLoading(true);
+      
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
+
+      if (error) {
+        toast({
+          title: "Lỗi đăng nhập",
+          description: error.message === 'Invalid login credentials' 
+            ? "Email hoặc mật khẩu không chính xác"
+            : error.message,
+          variant: "destructive"
+        });
+        return false;
+      }
+
+      if (data.user && data.session) {
+        await handleAuthSuccess(data.user, data.session.access_token);
+        return true;
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      toast({
+        title: "Lỗi kết nối",
+        description: "Không thể kết nối đến máy chủ. Vui lòng thử lại.",
+        variant: "destructive"
+      });
+      return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      console.log('Initiating logout');
+      await supabase.auth.signOut();
+      handleLogout();
+    } catch (error) {
+      console.error('Logout error:', error);
+      handleLogout(); // Force logout even if API call fails
+    }
+  };
+
+  const isAdmin = (): boolean => {
+    return user?.profile?.role === 'admin' && user?.profile?.isActive === true;
+  };
+
+  const value: AuthContextType = {
+    user,
+    token,
+    isLoading,
+    login,
+    logout,
+    isAdmin
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+}
+
+export function useAuth(): AuthContextType {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+}
