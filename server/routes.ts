@@ -50,7 +50,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "SEO tool not found" });
       }
 
-      if (!tool.isActive) {
+      if (tool.status !== "active") {
         return res.status(400).json({ message: "SEO tool is not active" });
       }
 
@@ -175,6 +175,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching internal link suggestions:", error);
       res.status(500).json({ message: "Failed to fetch internal link suggestions" });
+    }
+  });
+
+  // Admin routes
+  // Get all SEO tools for admin (including pending ones)
+  app.get("/api/admin/seo-tools", async (req: Request, res: Response) => {
+    try {
+      const tools = await storage.getAllSeoToolsForAdmin();
+      res.json(tools);
+    } catch (error) {
+      console.error("Error fetching SEO tools for admin:", error);
+      res.status(500).json({ message: "Failed to fetch SEO tools" });
+    }
+  });
+
+  // Update SEO tool status
+  app.patch("/api/admin/seo-tools/:id/status", async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+      
+      if (!status || !['active', 'pending'].includes(status)) {
+        return res.status(400).json({ message: "Invalid status. Must be 'active' or 'pending'" });
+      }
+      
+      const updatedTool = await storage.updateSeoToolStatus(id, status);
+      
+      if (!updatedTool) {
+        return res.status(404).json({ message: "SEO tool not found" });
+      }
+      
+      res.json(updatedTool);
+    } catch (error) {
+      console.error("Error updating SEO tool status:", error);
+      res.status(500).json({ message: "Failed to update SEO tool status" });
     }
   });
 

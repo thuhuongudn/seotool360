@@ -20,7 +20,7 @@ export const seoTools = pgTable("seo_tools", {
   iconColor: text("icon_color").notNull(),
   category: text("category").notNull(),
   n8nEndpoint: text("n8n_endpoint"),
-  isActive: boolean("is_active").default(true),
+  status: text("status").notNull().default("active"), // active | pending
 });
 
 export const toolExecutions = pgTable("tool_executions", {

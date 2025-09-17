@@ -120,6 +120,16 @@ export default function Header() {
             </Link>
           </nav>
 
+          {/* Admin Button */}
+          <Link href="/admin">
+            <Button 
+              className="bg-blue-600 hover:bg-blue-700 text-white hidden md:inline-flex"
+              data-testid="button-admin-page"
+            >
+              Đến trang Admin
+            </Button>
+          </Link>
+
           {/* Mobile Menu Button */}
           <Button
             variant="ghost"
@@ -230,6 +240,20 @@ export default function Header() {
                   </div>
                 </Link>
               </div>
+            </div>
+
+            {/* Admin Link */}
+            <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
+              <Link href="/admin">
+                <div 
+                  className="flex items-center justify-between py-3 text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-4 transition-colors"
+                  onClick={() => setIsMobileMenuOpen(false)}
+                  data-testid="mobile-admin-link"
+                >
+                  <span className="font-medium">Đến trang Admin</span>
+                  <ChevronRight className="h-4 w-4" />
+                </div>
+              </Link>
             </div>
           </div>
         </div>

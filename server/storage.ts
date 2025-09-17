@@ -8,9 +8,11 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   getAllSeoTools(): Promise<SeoTool[]>;
+  getAllSeoToolsForAdmin(): Promise<SeoTool[]>;
   getSeoTool(id: string): Promise<SeoTool | undefined>;
   createSeoTool(tool: InsertSeoTool): Promise<SeoTool>;
   updateSeoTool(id: string, tool: Partial<InsertSeoTool>): Promise<SeoTool | undefined>;
+  updateSeoToolStatus(id: string, status: 'active' | 'pending'): Promise<SeoTool | undefined>;
   // Tool execution methods
   createToolExecution(execution: InsertToolExecution): Promise<ToolExecution>;
   updateToolExecution(id: string, update: Partial<InsertToolExecution>): Promise<ToolExecution | undefined>;
@@ -104,7 +106,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-purple-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/topical-map',
-        isActive: true
+        status: "active"
       },
       {
         name: 'search-intent',
@@ -115,7 +117,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-blue-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/search-intent',
-        isActive: true
+        status: "active"
       },
       {
         name: 'internal-link-helper',
@@ -126,7 +128,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-green-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/internal-link-helper',
-        isActive: true
+        status: "active"
       },
       {
         name: 'article-rewriter',
@@ -137,7 +139,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-red-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/article-rewriter',
-        isActive: true
+        status: "active"
       },
       {
         name: 'social-media',
@@ -148,7 +150,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-cyan-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/social-media',
-        isActive: true
+        status: "active"
       },
       {
         name: 'bing-indexing',
@@ -159,7 +161,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-blue-600',
         category: 'index',
         n8nEndpoint: '/n8n/bing-indexing',
-        isActive: true
+        status: "active"
       },
       {
         name: 'google-indexing',
@@ -170,7 +172,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-green-600',
         category: 'index',
         n8nEndpoint: '/n8n/google-indexing',
-        isActive: true
+        status: "active"
       },
       {
         name: 'google-checker',
@@ -181,7 +183,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-indigo-600',
         category: 'index',
         n8nEndpoint: '/n8n/google-checker',
-        isActive: true
+        status: "active"
       },
       {
         name: 'schema-markup',
@@ -192,7 +194,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-yellow-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/schema-markup',
-        isActive: true
+        status: "active"
       },
       {
         name: 'image-seo',
@@ -203,7 +205,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-pink-600',
         category: 'seo',
         n8nEndpoint: '/n8n/image-seo',
-        isActive: true
+        status: "active"
       },
       {
         name: 'markdown-html',
@@ -214,7 +216,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-orange-600',
         category: 'tools',
         n8nEndpoint: '/n8n/markdown-html',
-        isActive: true
+        status: "active"
       },
       {
         name: 'qr-code',
@@ -225,7 +227,7 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-teal-600',
         category: 'tools',
         n8nEndpoint: '/n8n/qr-code',
-        isActive: true
+        status: "active"
       }
     ];
 
@@ -249,7 +251,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllSeoTools(): Promise<SeoTool[]> {
-    return await db.select().from(seoTools).where(eq(seoTools.isActive, true));
+    return await db.select().from(seoTools).where(eq(seoTools.status, "active"));
   }
 
   async getSeoTool(id: string): Promise<SeoTool | undefined> {
@@ -262,9 +264,21 @@ export class DatabaseStorage implements IStorage {
     return tool;
   }
 
+  async getAllSeoToolsForAdmin(): Promise<SeoTool[]> {
+    return await db.select().from(seoTools);
+  }
+
   async updateSeoTool(id: string, updateData: Partial<InsertSeoTool>): Promise<SeoTool | undefined> {
     const [updated] = await db.update(seoTools)
       .set(updateData)
+      .where(eq(seoTools.id, id))
+      .returning();
+    return updated || undefined;
+  }
+
+  async updateSeoToolStatus(id: string, status: 'active' | 'pending'): Promise<SeoTool | undefined> {
+    const [updated] = await db.update(seoTools)
+      .set({ status })
       .where(eq(seoTools.id, id))
       .returning();
     return updated || undefined;
