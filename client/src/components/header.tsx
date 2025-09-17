@@ -6,7 +6,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Bot, Menu, X, MessageCircle, ChevronRight } from "lucide-react";
+import { ChevronDown, Menu, X, MessageCircle, ChevronRight } from "lucide-react";
+import logoUrl from "@assets/logo-seotool-360-transparent_1758077866087.png";
 import { Link } from "wouter";
 
 const contentSeoItems = [
@@ -38,10 +39,12 @@ export default function Header() {
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
           <Link href="/" className="flex items-center space-x-3" data-testid="logo-link">
-            <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-              <Bot className="text-primary-foreground w-4 h-4" />
-            </div>
-            <span className="text-xl font-bold text-foreground">SEO AI</span>
+            <img 
+              src={logoUrl} 
+              alt="SEOTOOL360 Logo" 
+              className="w-8 h-8 object-contain"
+            />
+            <span className="text-xl font-bold text-foreground">SEOTOOL360</span>
           </Link>
 
           {/* Desktop Navigation */}

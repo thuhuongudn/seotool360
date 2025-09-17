@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/header";
 import ToolGrid from "@/components/tool-grid";
+import logoUrl from "@assets/logo-seotool-360-transparent_1758077866087.png";
 
 export default function Home() {
   const handleContactSupport = () => {
@@ -55,13 +56,15 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center">
             <div className="flex items-center justify-center space-x-3 mb-4">
-              <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                <span className="text-primary-foreground text-xs">AI</span>
-              </div>
-              <span className="text-lg font-semibold text-foreground">SEO AI</span>
+              <img 
+                src={logoUrl} 
+                alt="SEOTOOL360 Logo" 
+                className="w-6 h-6 object-contain"
+              />
+              <span className="text-lg font-semibold text-foreground">SEOTOOL360</span>
             </div>
             <p className="text-muted-foreground text-sm" data-testid="text-copyright">
-              © 2024 SEO AI. Tất cả quyền được bảo lưu.
+              © 2024 SEOTOOL360. Tất cả quyền được bảo lưu.
             </p>
           </div>
         </div>
