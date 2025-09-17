@@ -1,12 +1,14 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ArrowRight, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ArrowRight, Loader2, Lock } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import type { SeoTool } from "@shared/schema";
+import { useAuth } from "@/contexts/auth-context";
 import * as Icons from "lucide-react";
 
 interface ToolCardProps {
@@ -18,6 +20,16 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
+  
+  // Define which tools are free to use without authentication
+  const freeTools = new Set([
+    'markdown-html',
+    'qr-code'
+  ]);
+  
+  const isFreeTool = freeTools.has(tool.name);
+  const requiresAuth = !isFreeTool;
 
   // Dynamically get the icon component
   const IconComponent = (Icons as any)[tool.icon] || Icons.Wrench;
@@ -48,6 +60,17 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
   });
 
   const handleActivate = () => {
+    // Check if tool requires authentication and user is not logged in
+    if (requiresAuth && !user) {
+      toast({
+        title: "Yêu cầu đăng nhập",
+        description: "Vui lòng đăng nhập để sử dụng công cụ này.",
+        variant: "default",
+      });
+      setLocation('/admin'); // Redirect to login page
+      return;
+    }
+    
     // Navigate to dedicated pages for tools that have their own pages
     const toolRoutes: { [key: string]: string } = {
       'markdown-html': '/markdown-converter',
@@ -71,7 +94,7 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
       return;
     }
     
-    // Default behavior: activate the tool via API
+    // Default behavior: activate the tool via API (for authenticated users)
     activateToolMutation.mutate(tool.id);
   };
 
@@ -113,24 +136,51 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
           {tool.description}
         </p>
         
-        <Button
-          onClick={handleActivate}
-          disabled={activateToolMutation.isPending}
-          className="w-full bg-secondary hover:bg-secondary/80 text-secondary-foreground"
-          data-testid={`button-activate-${tool.name}`}
-        >
-          {activateToolMutation.isPending ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Đang xử lý...
-            </>
-          ) : (
-            <>
-              <span>Sử dụng công cụ</span>
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </>
+        <div className="space-y-2">
+          {/* Free/Premium indicator */}
+          {!user && (
+            <div className="flex items-center justify-center">
+              {isFreeTool ? (
+                <Badge variant="secondary" className="text-xs">
+                  Miễn phí
+                </Badge>
+              ) : (
+                <Badge variant="outline" className="text-xs flex items-center space-x-1">
+                  <Lock className="w-3 h-3" />
+                  <span>Yêu cầu đăng nhập</span>
+                </Badge>
+              )}
+            </div>
           )}
-        </Button>
+          
+          <Button
+            onClick={handleActivate}
+            disabled={activateToolMutation.isPending}
+            className={`w-full ${
+              requiresAuth && !user 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'bg-secondary hover:bg-secondary/80 text-secondary-foreground'
+            }`}
+            data-testid={`button-activate-${tool.name}`}
+          >
+            {activateToolMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Đang xử lý...
+              </>
+            ) : requiresAuth && !user ? (
+              <>
+                <Lock className="mr-2 h-4 w-4" />
+                <span>Đăng nhập để sử dụng</span>
+              </>
+            ) : (
+              <>
+                <span>Sử dụng công cụ</span>
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            )}
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

@@ -25,11 +25,11 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
   const [filterStatus, setFilterStatus] = useState("active");
   const { user, isAdmin } = useAuth();
 
-  // Choose the appropriate API endpoint based on showAllTools prop
-  const apiEndpoint = showAllTools ? "/api/admin/seo-tools" : "/api/seo-tools";
+  // Choose the appropriate API endpoint based on showAllTools and user role
+  const apiEndpoint = (showAllTools && user && isAdmin()) ? "/api/admin/seo-tools" : "/api/seo-tools";
   
-  // For admin endpoints, only run query when user is authenticated and is admin
-  const shouldEnableQuery = showAllTools ? (!!user && isAdmin()) : true;
+  // Everyone can see the public tools list, admins see admin-specific list when showAllTools is true
+  const shouldEnableQuery = true;
   
   const { data: tools, isLoading, error } = useQuery<SeoTool[]>({
     queryKey: [apiEndpoint],
