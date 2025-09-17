@@ -1,7 +1,24 @@
 import type { Express, Request, Response } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { activateToolSchema, insertSocialMediaPostSchema, insertInternalLinkSuggestionSchema } from "@shared/schema";
+import { activateToolSchema, insertSocialMediaPostSchema, insertInternalLinkSuggestionSchema, insertUserToolAccessSchema, insertAdminAuditLogSchema } from "@shared/schema";
+import { createClient } from "@supabase/supabase-js";
+import { requireAdmin, type AuthenticatedRequest } from "./auth-middleware";
+
+// Validate required environment variables at startup
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceRoleKey) {
+  console.error('❌ CRITICAL: Missing required environment variables');
+  console.error('Required: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
+  process.exit(1);
+}
+
+// Initialize Supabase admin client
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  auth: { autoRefreshToken: false, persistSession: false }
+});
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get all SEO tools
@@ -178,9 +195,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Admin routes
-  // Get all SEO tools for admin (including pending ones)
-  app.get("/api/admin/seo-tools", async (req: Request, res: Response) => {
+  // ============================================
+  // ADMIN ROUTES
+  // ============================================
+
+  // SEO Tools Management (existing)
+  app.get("/api/admin/seo-tools", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const tools = await storage.getAllSeoToolsForAdmin();
       res.json(tools);
@@ -190,8 +210,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update SEO tool status
-  app.patch("/api/admin/seo-tools/:id/status", async (req: Request, res: Response) => {
+  app.patch("/api/admin/seo-tools/:id/status", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
       const { status } = req.body;
@@ -210,6 +229,339 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating SEO tool status:", error);
       res.status(500).json({ message: "Failed to update SEO tool status" });
+    }
+  });
+
+  // ============================================
+  // USER MANAGEMENT ROUTES
+  // ============================================
+
+  // Get all users with pagination
+  app.get("/api/admin/users", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      
+      const result = await storage.getAllProfiles(limit, offset);
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  // Get specific user details
+  app.get("/api/admin/users/:userId", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const profile = await storage.getProfile(userId);
+      
+      if (!profile) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Get user's tool access and settings
+      const toolAccess = await storage.getUserToolAccess(userId);
+      const toolSettings = await storage.getUserToolSettings(userId);
+      
+      res.json({
+        ...profile,
+        toolAccess,
+        toolSettings
+      });
+    } catch (error) {
+      console.error("Error fetching user details:", error);
+      res.status(500).json({ message: "Failed to fetch user details" });
+    }
+  });
+
+  // Update user profile
+  app.patch("/api/admin/users/:userId", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const { username, role } = req.body;
+      
+      if (role && !['admin', 'member'].includes(role)) {
+        return res.status(400).json({ message: "Invalid role. Must be 'admin' or 'member'" });
+      }
+      
+      const updatedProfile = await storage.updateProfile(userId, { username, role });
+      
+      if (!updatedProfile) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Create audit log
+      await storage.createAuditLog({
+        actorId: req.user!.id, // Use authenticated admin ID
+        action: 'update_user',
+        subjectUserId: userId,
+        metadata: { changes: { username, role } }
+      });
+      
+      res.json(updatedProfile);
+    } catch (error) {
+      console.error("Error updating user profile:", error);
+      res.status(500).json({ message: "Failed to update user profile" });
+    }
+  });
+
+  // Toggle user status (activate/deactivate)
+  app.patch("/api/admin/users/:userId/status", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const { isActive } = req.body;
+      
+      if (typeof isActive !== 'boolean') {
+        return res.status(400).json({ message: "isActive must be a boolean" });
+      }
+      
+      const updatedProfile = await storage.toggleUserStatus(userId, isActive);
+      
+      if (!updatedProfile) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Create audit log
+      await storage.createAuditLog({
+        actorId: req.user!.id, // Use authenticated admin ID
+        action: isActive ? 'activate_user' : 'deactivate_user',
+        subjectUserId: userId,
+        metadata: { isActive }
+      });
+      
+      res.json(updatedProfile);
+    } catch (error) {
+      console.error("Error updating user status:", error);
+      res.status(500).json({ message: "Failed to update user status" });
+    }
+  });
+
+  // Reset user password
+  app.post("/api/admin/users/:userId/reset-password", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const { newPassword } = req.body;
+      
+      if (!newPassword || newPassword.length < 8) {
+        return res.status(400).json({ message: "Password must be at least 8 characters long" });
+      }
+      
+      // Use Supabase Admin API to update password
+      const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+        password: newPassword
+      });
+      
+      if (error) {
+        console.error("Supabase password reset error:", error);
+        return res.status(500).json({ message: "Failed to reset password" });
+      }
+      
+      // Create audit log
+      await storage.createAuditLog({
+        actorId: req.user!.id, // Use authenticated admin ID
+        action: 'reset_password',
+        subjectUserId: userId,
+        metadata: { timestamp: new Date().toISOString() }
+      });
+      
+      res.json({ message: "Password reset successfully" });
+    } catch (error) {
+      console.error("Error resetting password:", error);
+      res.status(500).json({ message: "Failed to reset password" });
+    }
+  });
+
+  // ============================================
+  // PERMISSION MANAGEMENT ROUTES
+  // ============================================
+
+  // Get all user tool access records
+  app.get("/api/admin/permissions", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const permissions = await storage.getAllUserToolAccess(limit);
+      res.json(permissions);
+    } catch (error) {
+      console.error("Error fetching permissions:", error);
+      res.status(500).json({ message: "Failed to fetch permissions" });
+    }
+  });
+
+  // Grant tool access to user
+  app.post("/api/admin/permissions/grant", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const validation = insertUserToolAccessSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          errors: validation.error.issues
+        });
+      }
+
+      const access = await storage.grantToolAccess(validation.data);
+      
+      // Create audit log
+      await storage.createAuditLog({
+        actorId: req.user!.id, // Use authenticated admin ID
+        action: 'grant_tool_access',
+        subjectUserId: validation.data.userId,
+        metadata: { 
+          toolId: validation.data.toolId,
+          permission: validation.data.permission 
+        }
+      });
+      
+      res.json(access);
+    } catch (error) {
+      console.error("Error granting tool access:", error);
+      res.status(500).json({ message: "Failed to grant tool access" });
+    }
+  });
+
+  // Revoke tool access from user
+  app.delete("/api/admin/permissions/:userId/:toolId", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId, toolId } = req.params;
+      
+      const success = await storage.revokeToolAccess(userId, toolId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Permission not found" });
+      }
+      
+      // Create audit log
+      await storage.createAuditLog({
+        actorId: req.user!.id, // Use authenticated admin ID
+        action: 'revoke_tool_access',
+        subjectUserId: userId,
+        metadata: { toolId }
+      });
+      
+      res.json({ message: "Tool access revoked successfully" });
+    } catch (error) {
+      console.error("Error revoking tool access:", error);
+      res.status(500).json({ message: "Failed to revoke tool access" });
+    }
+  });
+
+  // ============================================
+  // SETTINGS MANAGEMENT ROUTES
+  // ============================================
+
+  // Get user tool settings
+  app.get("/api/admin/users/:userId/settings", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const toolId = req.query.toolId as string;
+      
+      const settings = await storage.getUserToolSettings(userId, toolId);
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching user settings:", error);
+      res.status(500).json({ message: "Failed to fetch user settings" });
+    }
+  });
+
+  // Update user tool settings
+  app.patch("/api/admin/users/:userId/settings/:toolId", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId, toolId } = req.params;
+      const { settings } = req.body;
+      
+      const updatedSettings = await storage.updateToolSettings(userId, toolId, settings);
+      
+      if (!updatedSettings) {
+        return res.status(500).json({ message: "Failed to update settings" });
+      }
+      
+      // Create audit log
+      await storage.createAuditLog({
+        actorId: req.user!.id, // Use authenticated admin ID
+        action: 'update_user_settings',
+        subjectUserId: userId,
+        metadata: { toolId, settings }
+      });
+      
+      res.json(updatedSettings);
+    } catch (error) {
+      console.error("Error updating user settings:", error);
+      res.status(500).json({ message: "Failed to update user settings" });
+    }
+  });
+
+  // ============================================
+  // AUDIT LOG ROUTES
+  // ============================================
+
+  // Get admin audit logs with pagination
+  app.get("/api/admin/audit-logs", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      
+      const result = await storage.getAuditLogs(limit, offset);
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching audit logs:", error);
+      res.status(500).json({ message: "Failed to fetch audit logs" });
+    }
+  });
+
+  // ============================================
+  // SESSION MANAGEMENT ROUTES
+  // ============================================
+
+  // Get user sessions (via Supabase Auth)
+  app.get("/api/admin/users/:userId/sessions", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId } = req.params;
+      
+      // Get user sessions from Supabase Auth
+      const { data: user, error } = await supabaseAdmin.auth.admin.getUserById(userId);
+      
+      if (error) {
+        return res.status(500).json({ message: "Failed to fetch user sessions" });
+      }
+      
+      res.json({
+        userId: user.user?.id,
+        email: user.user?.email,
+        lastSignInAt: user.user?.last_sign_in_at,
+        emailConfirmedAt: user.user?.email_confirmed_at,
+        createdAt: user.user?.created_at,
+        updatedAt: user.user?.updated_at
+      });
+    } catch (error) {
+      console.error("Error fetching user sessions:", error);
+      res.status(500).json({ message: "Failed to fetch user sessions" });
+    }
+  });
+
+  // Force user logout (revoke sessions)
+  app.post("/api/admin/users/:userId/logout", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId } = req.params;
+      
+      // Sign out user sessions via Supabase Auth Admin
+      const { error } = await supabaseAdmin.auth.admin.signOut(userId);
+      
+      if (error) {
+        return res.status(500).json({ message: "Failed to logout user" });
+      }
+      
+      // Create audit log
+      await storage.createAuditLog({
+        actorId: req.user!.id, // Use authenticated admin ID
+        action: 'force_logout',
+        subjectUserId: userId,
+        metadata: { timestamp: new Date().toISOString() }
+      });
+      
+      res.json({ message: "User logged out successfully" });
+    } catch (error) {
+      console.error("Error logging out user:", error);
+      res.status(500).json({ message: "Failed to logout user" });
     }
   });
 

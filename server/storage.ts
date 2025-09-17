@@ -1,26 +1,49 @@
-import { type SeoTool, type InsertSeoTool, type ToolExecution, type InsertToolExecution, type SocialMediaPost, type InsertSocialMediaPost, type InternalLinkSuggestion, type InsertInternalLinkSuggestion, seoTools, toolExecutions, socialMediaPosts, internalLinkSuggestions } from "@shared/schema";
+import { type SeoTool, type InsertSeoTool, type ToolExecution, type InsertToolExecution, type SocialMediaPost, type InsertSocialMediaPost, type InternalLinkSuggestion, type InsertInternalLinkSuggestion, type Profile, type InsertProfile, type UserToolAccess, type InsertUserToolAccess, type AdminAuditLog, type InsertAdminAuditLog, type ToolSettings, type InsertToolSettings, seoTools, toolExecutions, socialMediaPosts, internalLinkSuggestions, profiles, userToolAccess, adminAuditLog, toolSettings } from "@shared/schema";
 import { supabaseDb as db } from "./supabase";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, desc, and, like, count } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
-  // User management now handled by Supabase Auth + profiles table
+  // SEO Tools Management
   getAllSeoTools(): Promise<SeoTool[]>;
   getAllSeoToolsForAdmin(): Promise<SeoTool[]>;
   getSeoTool(id: string): Promise<SeoTool | undefined>;
   createSeoTool(tool: InsertSeoTool): Promise<SeoTool>;
   updateSeoTool(id: string, tool: Partial<InsertSeoTool>): Promise<SeoTool | undefined>;
   updateSeoToolStatus(id: string, status: 'active' | 'pending'): Promise<SeoTool | undefined>;
+  
+  // User Management (Admin Operations)
+  getAllProfiles(limit?: number, offset?: number): Promise<{ profiles: Profile[], total: number }>;
+  getProfile(userId: string): Promise<Profile | undefined>;
+  updateProfile(userId: string, update: Partial<InsertProfile>): Promise<Profile | undefined>;
+  toggleUserStatus(userId: string, isActive: boolean): Promise<Profile | undefined>;
+  
+  // User Tool Access Management
+  getUserToolAccess(userId: string): Promise<UserToolAccess[]>;
+  getAllUserToolAccess(limit?: number): Promise<UserToolAccess[]>;
+  grantToolAccess(access: InsertUserToolAccess): Promise<UserToolAccess>;
+  revokeToolAccess(userId: string, toolId: string): Promise<boolean>;
+  
+  // Tool Settings Management
+  getUserToolSettings(userId: string, toolId?: string): Promise<ToolSettings[]>;
+  updateToolSettings(userId: string, toolId: string, settings: any): Promise<ToolSettings | undefined>;
+  
+  // Admin Audit Log
+  getAuditLogs(limit?: number, offset?: number): Promise<{ logs: AdminAuditLog[], total: number }>;
+  createAuditLog(log: InsertAdminAuditLog): Promise<AdminAuditLog>;
+  
   // Tool execution methods
   createToolExecution(execution: InsertToolExecution): Promise<ToolExecution>;
   updateToolExecution(id: string, update: Partial<InsertToolExecution>): Promise<ToolExecution | undefined>;
   getToolExecution(id: string): Promise<ToolExecution | undefined>;
   getToolExecutions(limit?: number): Promise<ToolExecution[]>;
   getToolExecutionsByTool(toolId: string, limit?: number): Promise<ToolExecution[]>;
+  
   // Social media post methods
   createSocialMediaPost(post: InsertSocialMediaPost): Promise<SocialMediaPost>;
   getSocialMediaPost(id: number): Promise<SocialMediaPost | undefined>;
   getAllSocialMediaPosts(limit?: number): Promise<SocialMediaPost[]>;
+  
   // Internal link suggestion methods
   createInternalLinkSuggestion(suggestion: InsertInternalLinkSuggestion): Promise<InternalLinkSuggestion>;
   getInternalLinkSuggestion(id: number): Promise<InternalLinkSuggestion | undefined>;
@@ -337,6 +360,136 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(internalLinkSuggestions)
       .orderBy(sql`${internalLinkSuggestions.createdAt} DESC`)
       .limit(limit);
+  }
+
+  // ============================================
+  // USER MANAGEMENT METHODS
+  // ============================================
+
+  async getAllProfiles(limit: number = 50, offset: number = 0): Promise<{ profiles: Profile[], total: number }> {
+    // Get profiles with pagination
+    const profilesResult = await db.select().from(profiles)
+      .orderBy(desc(profiles.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Get total count
+    const [{ count: totalCount }] = await db.select({ count: count() }).from(profiles);
+
+    return {
+      profiles: profilesResult,
+      total: totalCount
+    };
+  }
+
+  async getProfile(userId: string): Promise<Profile | undefined> {
+    const [profile] = await db.select().from(profiles).where(eq(profiles.userId, userId));
+    return profile || undefined;
+  }
+
+  async updateProfile(userId: string, update: Partial<InsertProfile>): Promise<Profile | undefined> {
+    const [updated] = await db.update(profiles)
+      .set(update)
+      .where(eq(profiles.userId, userId))
+      .returning();
+    return updated || undefined;
+  }
+
+  async toggleUserStatus(userId: string, isActive: boolean): Promise<Profile | undefined> {
+    const [updated] = await db.update(profiles)
+      .set({ isActive })
+      .where(eq(profiles.userId, userId))
+      .returning();
+    return updated || undefined;
+  }
+
+  // ============================================
+  // USER TOOL ACCESS MANAGEMENT
+  // ============================================
+
+  async getUserToolAccess(userId: string): Promise<UserToolAccess[]> {
+    return await db.select().from(userToolAccess)
+      .where(eq(userToolAccess.userId, userId))
+      .orderBy(desc(userToolAccess.createdAt));
+  }
+
+  async getAllUserToolAccess(limit: number = 100): Promise<UserToolAccess[]> {
+    return await db.select().from(userToolAccess)
+      .orderBy(desc(userToolAccess.createdAt))
+      .limit(limit);
+  }
+
+  async grantToolAccess(access: InsertUserToolAccess): Promise<UserToolAccess> {
+    const [granted] = await db.insert(userToolAccess)
+      .values(access)
+      .returning();
+    return granted;
+  }
+
+  async revokeToolAccess(userId: string, toolId: string): Promise<boolean> {
+    const result = await db.delete(userToolAccess)
+      .where(and(eq(userToolAccess.userId, userId), eq(userToolAccess.toolId, toolId)));
+    return result.rowCount > 0;
+  }
+
+  // ============================================
+  // TOOL SETTINGS MANAGEMENT
+  // ============================================
+
+  async getUserToolSettings(userId: string, toolId?: string): Promise<ToolSettings[]> {
+    let query = db.select().from(toolSettings).where(eq(toolSettings.userId, userId));
+    
+    if (toolId) {
+      query = query.where(eq(toolSettings.toolId, toolId));
+    }
+    
+    return await query.orderBy(desc(toolSettings.updatedAt));
+  }
+
+  async updateToolSettings(userId: string, toolId: string, settings: any): Promise<ToolSettings | undefined> {
+    const [updated] = await db.insert(toolSettings)
+      .values({
+        userId,
+        toolId,
+        settings,
+        updatedAt: new Date()
+      })
+      .onConflictDoUpdate({
+        target: [toolSettings.userId, toolSettings.toolId],
+        set: {
+          settings,
+          updatedAt: new Date()
+        }
+      })
+      .returning();
+    return updated || undefined;
+  }
+
+  // ============================================
+  // ADMIN AUDIT LOG
+  // ============================================
+
+  async getAuditLogs(limit: number = 50, offset: number = 0): Promise<{ logs: AdminAuditLog[], total: number }> {
+    // Get logs with pagination
+    const logsResult = await db.select().from(adminAuditLog)
+      .orderBy(desc(adminAuditLog.createdAt))
+      .limit(limit)
+      .offset(offset);
+
+    // Get total count
+    const [{ count: totalCount }] = await db.select({ count: count() }).from(adminAuditLog);
+
+    return {
+      logs: logsResult,
+      total: totalCount
+    };
+  }
+
+  async createAuditLog(log: InsertAdminAuditLog): Promise<AdminAuditLog> {
+    const [created] = await db.insert(adminAuditLog)
+      .values(log)
+      .returning();
+    return created;
   }
 }
 
