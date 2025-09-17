@@ -5,10 +5,13 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { ChevronDown, Menu, X, MessageCircle, ChevronRight } from "lucide-react";
+import { ChevronDown, Menu, X, MessageCircle, ChevronRight, User, Settings, LogOut, LogIn } from "lucide-react";
 import logoUrl from "@assets/logo-seotool-360-transparent_1758077866087.png";
 import { Link } from "wouter";
+import { useAuth } from "@/contexts/auth-context";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const contentSeoItems = [
   { label: "Topical Map", href: "/topical-map" },
@@ -27,6 +30,7 @@ const indexItems = [
 
 export default function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, logout, isLoading } = useAuth();
 
   const handleSupport = () => {
     // TODO: Implement support functionality
@@ -123,15 +127,90 @@ export default function Header() {
             </Link>
           </nav>
 
-          {/* Admin Button */}
-          <Link href="/admin">
-            <Button 
-              className="bg-blue-600 hover:bg-blue-700 text-white hidden md:inline-flex"
-              data-testid="button-admin-page"
-            >
-              Đến trang Admin
-            </Button>
-          </Link>
+          {/* User Auth Section */}
+          <div className="hidden md:flex items-center space-x-4">
+            {!user ? (
+              <Link href="/admin">
+                <Button 
+                  className="bg-blue-600 hover:bg-blue-700 text-white flex items-center space-x-2"
+                  data-testid="button-login"
+                >
+                  <LogIn className="w-4 h-4" />
+                  <span>Đăng nhập</span>
+                </Button>
+              </Link>
+            ) : (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="flex items-center space-x-2 p-2" data-testid="dropdown-user-menu">
+                    <Avatar className="h-8 w-8">
+                      <AvatarFallback className="bg-blue-100 text-blue-600 text-sm font-semibold">
+                        {user.profile?.username?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col items-start">
+                      <span className="text-sm font-medium text-foreground">
+                        {user.profile?.username || user.email}
+                      </span>
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {user.profile?.role || 'member'}
+                      </span>
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuItem asChild>
+                    <div className="flex items-center space-x-2 p-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarFallback className="bg-blue-100 text-blue-600 text-sm font-semibold">
+                          {user.profile?.username?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium">
+                          {user.profile?.username || user.email}
+                        </span>
+                        <span className="text-xs text-muted-foreground capitalize">
+                          {user.profile?.role || 'member'}
+                        </span>
+                      </div>
+                    </div>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/dashboard" className="flex items-center space-x-2 cursor-pointer" data-testid="menu-item-dashboard">
+                      <User className="w-4 h-4" />
+                      <span>Dashboard</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem asChild>
+                    <Link href="/settings" className="flex items-center space-x-2 cursor-pointer" data-testid="menu-item-settings">
+                      <Settings className="w-4 h-4" />
+                      <span>Cài đặt</span>
+                    </Link>
+                  </DropdownMenuItem>
+                  {user.profile?.role === 'admin' && (
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin" className="flex items-center space-x-2 cursor-pointer" data-testid="menu-item-admin">
+                        <Settings className="w-4 h-4" />
+                        <span>Quản trị</span>
+                      </Link>
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem 
+                    onClick={logout}
+                    className="flex items-center space-x-2 cursor-pointer text-red-600 focus:text-red-600"
+                    data-testid="menu-item-logout"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Đăng xuất</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
 
           {/* Mobile Menu Button */}
           <Button
@@ -245,18 +324,92 @@ export default function Header() {
               </div>
             </div>
 
-            {/* Admin Link */}
+            {/* Auth Section */}
             <div className="pt-4 border-t border-gray-200 dark:border-gray-600">
-              <Link href="/admin">
-                <div 
-                  className="flex items-center justify-between py-3 text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-4 transition-colors"
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  data-testid="mobile-admin-link"
-                >
-                  <span className="font-medium">Đến trang Admin</span>
-                  <ChevronRight className="h-4 w-4" />
+              {!user ? (
+                <Link href="/admin">
+                  <div 
+                    className="flex items-center justify-between py-3 text-white bg-blue-600 hover:bg-blue-700 rounded-lg px-4 transition-colors"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    data-testid="mobile-login-link"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <LogIn className="w-4 h-4" />
+                      <span className="font-medium">Đăng nhập</span>
+                    </div>
+                    <ChevronRight className="h-4 w-4" />
+                  </div>
+                </Link>
+              ) : (
+                <div className="space-y-2">
+                  {/* User Info */}
+                  <div className="flex items-center space-x-3 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <Avatar className="h-10 w-10">
+                      <AvatarFallback className="bg-blue-100 text-blue-600 font-semibold">
+                        {user.profile?.username?.charAt(0)?.toUpperCase() || user.email?.charAt(0)?.toUpperCase() || 'U'}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-foreground">
+                        {user.profile?.username || user.email}
+                      </span>
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {user.profile?.role || 'member'}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  {/* Menu Items */}
+                  <div className="space-y-1">
+                    <Link href="/dashboard">
+                      <div 
+                        className="flex items-center space-x-3 py-2 px-4 text-foreground hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        data-testid="mobile-menu-dashboard"
+                      >
+                        <User className="w-4 h-4" />
+                        <span>Dashboard</span>
+                      </div>
+                    </Link>
+                    
+                    <Link href="/settings">
+                      <div 
+                        className="flex items-center space-x-3 py-2 px-4 text-foreground hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                        onClick={() => setIsMobileMenuOpen(false)}
+                        data-testid="mobile-menu-settings"
+                      >
+                        <Settings className="w-4 h-4" />
+                        <span>Cài đặt</span>
+                      </div>
+                    </Link>
+                    
+                    {user.profile?.role === 'admin' && (
+                      <Link href="/admin">
+                        <div 
+                          className="flex items-center space-x-3 py-2 px-4 text-foreground hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+                          onClick={() => setIsMobileMenuOpen(false)}
+                          data-testid="mobile-menu-admin"
+                        >
+                          <Settings className="w-4 h-4" />
+                          <span>Quản trị</span>
+                        </div>
+                      </Link>
+                    )}
+                    
+                    <div 
+                      className="flex items-center space-x-3 py-2 px-4 text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors cursor-pointer"
+                      onClick={() => {
+                        logout();
+                        setIsMobileMenuOpen(false);
+                      }}
+                      data-testid="mobile-menu-logout"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      <span>Đăng xuất</span>
+                    </div>
+                  </div>
                 </div>
-              </Link>
+              )}
             </div>
           </div>
         </div>
