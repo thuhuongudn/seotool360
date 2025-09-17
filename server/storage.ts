@@ -1,12 +1,10 @@
-import { type User, type InsertUser, type SeoTool, type InsertSeoTool, type ToolExecution, type InsertToolExecution, type SocialMediaPost, type InsertSocialMediaPost, type InternalLinkSuggestion, type InsertInternalLinkSuggestion, users, seoTools, toolExecutions, socialMediaPosts, internalLinkSuggestions } from "@shared/schema";
+import { type SeoTool, type InsertSeoTool, type ToolExecution, type InsertToolExecution, type SocialMediaPost, type InsertSocialMediaPost, type InternalLinkSuggestion, type InsertInternalLinkSuggestion, seoTools, toolExecutions, socialMediaPosts, internalLinkSuggestions } from "@shared/schema";
 import { supabaseDb as db } from "./supabase";
 import { eq, sql } from "drizzle-orm";
 import { randomUUID } from "crypto";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // User management now handled by Supabase Auth + profiles table
   getAllSeoTools(): Promise<SeoTool[]>;
   getAllSeoToolsForAdmin(): Promise<SeoTool[]>;
   getSeoTool(id: string): Promise<SeoTool | undefined>;
@@ -51,6 +49,8 @@ export class DatabaseStorage implements IStorage {
           secondary_keywords TEXT,
           draft_content TEXT,
           result TEXT,
+          owner_id TEXT REFERENCES profiles(user_id),
+          tool_id CHARACTER VARYING REFERENCES seo_tools(id),
           created_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
       `);
@@ -235,20 +235,7 @@ export class DatabaseStorage implements IStorage {
     await db.insert(seoTools).values(defaultTools);
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.id, id));
-    return user || undefined;
-  }
-
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    const [user] = await db.select().from(users).where(eq(users.username, username));
-    return user || undefined;
-  }
-
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db.insert(users).values(insertUser).returning();
-    return user;
-  }
+  // User management methods removed - now using Supabase Auth + profiles table
 
   async getAllSeoTools(): Promise<SeoTool[]> {
     return await db.select().from(seoTools).where(eq(seoTools.status, "active"));

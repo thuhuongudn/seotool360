@@ -1,0 +1,344 @@
+# Triển khai Auth + Phân quyền + UI quản trị & người dùng
+
+## 0) Mục tiêu
+
+Thiết lập **Auth + phân quyền chuẩn Supabase** cho app nội bộ; chuẩn hóa database; bật RLS; tạo 02 tài khoản mẫu; xây UI **Admin** (quản trị user & cấp quyền tool) và **User** (đăng nhập, đổi mật khẩu, dùng tool). Bao gồm **quy trình kiểm thử hoàn chỉnh**.
+
+---
+
+## 1) Điều kiện & môi trường
+
+- Database là **Supabase Postgres**.
+    
+- Trong **Replit Secrets** (hoặc env), đảm bảo tồn tại:
+    
+    - `SUPABASE_URL`
+        
+    - `SUPABASE_ANON_KEY` (FE dùng)
+        
+    - `SUPABASE_SERVICE_ROLE_KEY` (chỉ server-side)
+        
+    - `SUPABASE_DB_URL` (dùng cho migrations/psql)
+        
+- **Tuyệt đối không** log hay để lộ `SERVICE_ROLE` lên FE.
+    
+
+---
+
+## 2) Chuẩn hóa Database (schema “public”)
+
+> Dùng migrations SQL idempotent (có `IF NOT EXISTS` / `CREATE OR REPLACE`).  
+> Hiện đã có bảng `seo_tools` (id, name, title, description, category, n8n_endpoint, status, …).
+
+### 2.1. Bảng `profiles` (hồ sơ app, 1–1 với `auth.users`)
+
+- `user_id uuid PRIMARY KEY` (FK → `auth.users.id`)
+    
+- `username text UNIQUE NOT NULL`
+    
+- `role text NOT NULL DEFAULT 'member'` — giá trị: `'admin' | 'member'`
+    
+- `is_active boolean NOT NULL DEFAULT true`
+    
+- `created_at timestamptz NOT NULL DEFAULT now()`
+    
+
+### 2.2. Bảng `user_tool_access` (bảng phân quyền theo tool)
+
+- `id uuid PRIMARY KEY DEFAULT gen_random_uuid()`
+    
+- `user_id uuid NOT NULL` (FK → `profiles.user_id`)
+    
+- `tool_id varchar NOT NULL` (FK → `seo_tools.id`)
+    
+- `permission text NOT NULL` — giá trị: `'use' | 'manage'`
+    
+- `granted_by uuid NOT NULL` (FK → `profiles.user_id`)
+    
+- `created_at timestamptz NOT NULL DEFAULT now()`
+    
+- Ràng buộc: `UNIQUE (user_id, tool_id)`
+    
+
+### 2.3. Bảng `tool_settings` (cấu hình cá nhân cho từng tool – UI Settings người dùng)
+
+- `id uuid PRIMARY KEY DEFAULT gen_random_uuid()`
+    
+- `user_id uuid NOT NULL` (FK → `profiles.user_id`)
+    
+- `tool_id varchar NOT NULL` (FK → `seo_tools.id`)
+    
+- `settings jsonb NOT NULL DEFAULT '{}'::jsonb`
+    
+- `updated_at timestamptz NOT NULL DEFAULT now()`
+    
+- Ràng buộc: `UNIQUE (user_id, tool_id)`
+    
+
+### 2.4. Bảng `admin_audit_log` (ghi lại tác vụ quản trị)
+
+- `id uuid PRIMARY KEY DEFAULT gen_random_uuid()`
+    
+- `actor_id uuid NOT NULL` (FK → `profiles.user_id`)
+    
+- `action text NOT NULL` — ví dụ: `create_user`, `delete_user`, `reset_password`, `grant_tool`, `revoke_tool`
+    
+- `subject_user_id uuid` (FK → `profiles.user_id`)
+    
+- `metadata jsonb NOT NULL DEFAULT '{}'::jsonb`
+    
+- `created_at timestamptz NOT NULL DEFAULT now()`
+    
+
+> **Gợi ý cho các bảng dữ liệu “tool” như `tool_executions`, `posts`, …**  
+> nếu chưa có, thêm:
+> 
+> - `tool_id varchar NOT NULL` (FK → `seo_tools.id`)
+>     
+> - (tuỳ trường hợp) `owner_id uuid` (FK → `profiles.user_id`) để RLS lọc theo chủ sở hữu.
+>     
+
+---
+
+## 3) Cấu hình Auth Supabase
+
+- **Authentication → Providers**: chỉ bật **Email + Password**.
+    
+- **Authentication → Tokens**:
+    
+    - Access token (JWT) expiry: **30–60 phút**.
+        
+    - Refresh token expiry: **28 ngày**.
+        
+    - Refresh token rotation: **ON**.
+        
+    - Revoke on sign-out: **ON**.
+    
+
+---
+
+## 4) Seed tài khoản mẫu (chạy server-side, dùng `SERVICE_ROLE`)
+
+Tạo **2 người dùng** và hồ sơ tương ứng:
+
+1. Admin
+    
+    - Email: `nhathuocvietnhatdn@gmail.com`
+        
+    - Password: `Vietnhat@123`
+        
+    - `profiles.role = 'admin'`, `profiles.username = 'nhathuocvietnhatdn'`
+        
+2. User
+    
+    - Email: `anhnhan@nhathuocvietnhat.vn`
+        
+    - Password: `Annhan@123`
+        
+    - `profiles.role = 'member'`, `profiles.username = 'anhnhan'`
+        
+
+> Sau khi tạo xong, ghi **`admin_audit_log`** với action `create_user`.
+
+---
+
+## 5) Bật RLS & đặt Policy (tên policy rõ ràng)
+
+> Bật RLS theo thứ tự bảng, mỗi bảng đặt **ít nhất** các policy sau. (Viết bằng ngôn ngữ SQL của Supabase; đặt tên như dưới để dễ truy vết.)
+
+### 5.1. `profiles`
+
+- `profiles_select_self_or_admin` (SELECT):
+    
+    - Admin: xem tất cả; Member: `user_id = auth.uid()`.
+        
+- `profiles_update_self_or_admin` (UPDATE):
+    
+    - Admin: sửa tất cả;
+        
+    - Member: chỉ sửa **trường an toàn** của chính mình (`username`), **không** đổi `role`/`is_active`.
+        
+- INSERT/DELETE: **không cho** qua client (chỉ `service_role`).
+    
+
+### 5.2. `seo_tools`
+
+- `seo_tools_select_active` (SELECT): mọi user xem tool có `status = 'active'`.
+    
+- INSERT/UPDATE/DELETE: chỉ admin (có thể qua server-side).
+    
+
+### 5.3. `user_tool_access`
+
+- `uta_select_self_or_admin` (SELECT): Admin xem tất cả; Member chỉ xem của mình.
+    
+- `uta_write_admin_only` (INSERT/UPDATE/DELETE): chỉ admin.
+    
+
+### 5.4. `tool_settings`
+
+- `ts_select_self_or_admin` (SELECT): Admin tất cả; Member chỉ bản ghi của mình.
+    
+- `ts_upsert_self_or_admin` (INSERT/UPDATE): Admin tất cả; Member chỉ của mình.
+    
+- `ts_delete_self_or_admin` (DELETE): Admin tất cả; Member chỉ của mình.
+    
+
+### 5.5. Bảng dữ liệu “tool” (ví dụ `tool_executions`, …)
+
+- `tool_data_admin_override`: nếu user là admin → full quyền.
+    
+- `tool_data_use_permission` (SELECT/INSERT/UPDATE/DELETE):
+    
+    - Cho phép nếu **tồn tại** dòng trong `user_tool_access` với `permission IN ('use','manage')` **cho đúng `tool_id`** liên quan bản ghi.
+        
+- Nếu bảng có `owner_id`:
+    
+    - Thêm điều kiện user thường chỉ thao tác bản ghi `owner_id = auth.uid()`.
+        
+
+---
+
+## 6) Server-side routes (chỉ admin, kiểm tra `profiles.role = 'admin'`)
+
+> Tất cả route dưới đây dùng **`SERVICE_ROLE`** khi gọi Admin API của Supabase, và ghi `admin_audit_log`.
+
+- `POST /admin/users` — tạo user (email, password, username, role, is_active)
+    
+- `PATCH /admin/users/:id` — đổi role / khóa mở `is_active`
+    
+- `POST /admin/users/:id/reset-password` — reset mật khẩu
+    
+- `DELETE /admin/users/:id` — xoá user
+    
+- `GET /admin/permissions/:user_id` — lấy danh sách tool & permission hiện có
+    
+- `POST /admin/permissions/:user_id/grant` — gán `{tool_id, permission}`
+    
+- `POST /admin/permissions/:user_id/revoke` — thu hồi `{tool_id}`
+    
+- `POST /admin/sessions/:user_id/revoke-all` — đăng xuất mọi thiết bị của 1 user
+    
+
+---
+
+## 7) UI/UX cần xây
+
+### 7.1. Màn **Đăng nhập**
+
+- Form: `username` + `password` + (checkbox) “Nhớ đăng nhập”.
+    
+- Map `username` → `email = username@internal.local`.
+    
+- Bật `persistSession` + `autoRefreshToken` (SPA) hoặc cookie HTTP-only (SSR).
+    
+- Thông báo lỗi gọn gàng (sai mật khẩu, tài khoản bị inactive).
+    
+
+### 7.2. **User Dashboard**
+
+- Header: chào mừng + `username`.
+    
+- Section **Active Tools**: liệt kê `seo_tools` có `status='active'` mà user **được quyền dùng** (theo `user_tool_access` hoặc là admin). Mỗi item có **Quick Link** đến `n8n_endpoint` hoặc trang tool nội bộ.
+    
+- Section **My Settings**:
+    
+    - Thay đổi `username` (nếu cho phép).
+        
+    - **Đổi mật khẩu** (gọi Auth API đổi mật khẩu của **chính mình**).
+        
+    - Cấu hình theo tool (ghi/đọc `tool_settings` của chính mình).
+        
+
+### 7.3. **Admin Console**
+
+- **Users**
+    
+    - Danh sách: username, email, role, is_active, last_sign_in (nếu có).
+        
+    - Actions: Tạo user, Reset mật khẩu, Khoá/Mở, Xoá, “Sign-out all”.
+        
+- **Permissions**
+    
+    - Chọn user → bảng 10 tool (từ `seo_tools`), chọn quyền: `none` | `use` | `manage`.
+        
+    - Lưu sẽ gọi routes grant/revoke. Ghi `admin_audit_log`.
+        
+- **Audit log**: bảng dòng (actor, action, subject, metadata, time).
+    
+
+---
+
+## 8) Luồng phiên & bảo mật
+
+- Access token 30–60 phút; Refresh token 28 ngày; rotation ON.
+    
+- “Nhớ đăng nhập” = lưu **session**, **không** lưu mật khẩu.
+    
+- Đăng xuất → revoke refresh token + xoá session.
+    
+- Mọi thao tác nhạy cảm **chỉ** qua server-side + `SERVICE_ROLE`.
+    
+- **RLS phải bật** trước khi public.
+    
+
+---
+
+## 9) Kiểm thử (Acceptance Test)
+
+> Viết test thủ công theo 3 vai trò: **admin**, **member có quyền 1–2 tool**, **member không quyền**.
+
+1. **Auth cơ bản**
+    
+    -  Admin và user đăng nhập thành công.
+        
+    -  “Nhớ đăng nhập”: đóng/mở tab còn phiên; sau 30–60’ access token tự refresh (không hỏi lại mật khẩu).
+        
+    -  Hết 28 ngày → bắt buộc login lại.
+        
+2. **RLS & quyền**
+    
+    -  Member không có quyền tool A: **không thấy** A trong dashboard, **gọi API cũng bị chặn**.
+        
+    -  Gán quyền `use` cho tool A → thấy A + thao tác được dữ liệu của A.
+        
+    -  Gỡ quyền A → ngay lập tức bị chặn (API & UI).
+        
+    -  Admin luôn thấy và thao tác mọi tool.
+        
+3. **Admin Console**
+    
+    -  Tạo user mới → xuất hiện trong danh sách; user đăng nhập được.
+        
+    -  Reset mật khẩu user → user đăng nhập bằng mật khẩu mới.
+        
+    -  Khoá `is_active=false` → user không đăng nhập được.
+        
+    -  Cấp/thu hồi quyền tool → phản ánh đúng trong dashboard user.
+        
+    -  “Sign-out all” → user bị mất phiên ở các thiết bị.
+        
+    -  Mọi thao tác admin ghi **`admin_audit_log`** đúng nội dung.
+        
+4. **User Settings**
+    
+    -  Đổi mật khẩu của chính mình thành công.
+        
+    -  Sửa `tool_settings` (jsonb) của từng tool → lưu & đọc lại đúng.
+        
+5. **An toàn**
+    
+    -  `SERVICE_ROLE` không xuất hiện trong FE, log, network.
+        
+    -  Truy cập API trực tiếp (bỏ qua UI) vẫn bị RLS chặn đúng.
+        
+
+---
+
+## 10) Bàn giao
+
+- Tài liệu ngắn: mô tả schema, danh sách policy đã tạo (tên & điều kiện), danh sách routes server-side, ảnh chụp UI chính.
+    
+- Script migrations + seed (idempotent).
+    
+- Cách **rotate** mật khẩu admin & `SERVICE_ROLE` khi cần.
