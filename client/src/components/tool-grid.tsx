@@ -21,7 +21,7 @@ interface ToolGridProps {
 
 export default function ToolGrid({ showAllTools = false, showFilters = false }: ToolGridProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState("all");
+  const [filterStatus, setFilterStatus] = useState("active");
 
   // Choose the appropriate API endpoint based on showAllTools prop
   const apiEndpoint = showAllTools ? "/api/admin/seo-tools" : "/api/seo-tools";
