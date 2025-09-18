@@ -173,12 +173,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create audit log for tool modification
-      await storage.createAuditLog({
-        actorId: req.user!.id,
-        action: 'update_tool',
-        subjectUserId: req.user!.id, // Admin modifying tool
-        metadata: { toolId: id, changes: req.body, timestamp: new Date().toISOString() }
-      });
+      try {
+        await storage.createAuditLog({
+          actorId: req.user!.id,
+          action: 'update_tool',
+          subjectUserId: req.user!.id, // Admin modifying tool
+          metadata: { toolId: id, changes: req.body, timestamp: new Date().toISOString() }
+        });
+      } catch (auditError) {
+        // Log audit error but don't fail the main operation
+        console.warn('Audit log creation failed (likely duplicate):', auditError);
+      }
       
       res.json(updatedTool);
     } catch (error) {
@@ -401,17 +406,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const profile = await storage.createProfile(profileData);
       
       // Create audit log
-      await storage.createAuditLog({
-        actorId: req.user!.id,
-        action: 'create_user',
-        subjectUserId: newUser.user.id,
-        metadata: { 
-          email,
-          username,
-          role,
-          created_at: new Date().toISOString()
-        }
-      });
+      try {
+        await storage.createAuditLog({
+          actorId: req.user!.id,
+          action: 'create_user',
+          subjectUserId: newUser.user.id,
+          metadata: { 
+            email,
+            username,
+            role,
+            created_at: new Date().toISOString()
+          }
+        });
+      } catch (auditError) {
+        // Log audit error but don't fail the main operation
+        console.warn('Audit log creation failed (likely duplicate):', auditError);
+      }
       
       res.status(201).json({
         ...profile,
@@ -479,12 +489,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create audit log
-      await storage.createAuditLog({
-        actorId: req.user!.id, // Use authenticated admin ID
-        action: 'update_user',
-        subjectUserId: userId,
-        metadata: { changes: { username, role } }
-      });
+      try {
+        await storage.createAuditLog({
+          actorId: req.user!.id, // Use authenticated admin ID
+          action: 'update_user',
+          subjectUserId: userId,
+          metadata: { changes: { username, role } }
+        });
+      } catch (auditError) {
+        // Log audit error but don't fail the main operation
+        console.warn('Audit log creation failed (likely duplicate):', auditError);
+      }
       
       res.json(updatedProfile);
     } catch (error) {
@@ -510,12 +525,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create audit log
-      await storage.createAuditLog({
-        actorId: req.user!.id, // Use authenticated admin ID
-        action: isActive ? 'activate_user' : 'deactivate_user',
-        subjectUserId: userId,
-        metadata: { isActive }
-      });
+      try {
+        await storage.createAuditLog({
+          actorId: req.user!.id, // Use authenticated admin ID
+          action: isActive ? 'activate_user' : 'deactivate_user',
+          subjectUserId: userId,
+          metadata: { isActive }
+        });
+      } catch (auditError) {
+        // Log audit error but don't fail the main operation
+        console.warn('Audit log creation failed (likely duplicate):', auditError);
+      }
       
       res.json(updatedProfile);
     } catch (error) {
@@ -545,12 +565,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create audit log
-      await storage.createAuditLog({
-        actorId: req.user!.id, // Use authenticated admin ID
-        action: 'reset_password',
-        subjectUserId: userId,
-        metadata: { timestamp: new Date().toISOString() }
-      });
+      try {
+        await storage.createAuditLog({
+          actorId: req.user!.id, // Use authenticated admin ID
+          action: 'reset_password',
+          subjectUserId: userId,
+          metadata: { timestamp: new Date().toISOString() }
+        });
+      } catch (auditError) {
+        // Log audit error but don't fail the main operation
+        console.warn('Audit log creation failed (likely duplicate):', auditError);
+      }
       
       res.json({ message: "Password reset successfully" });
     } catch (error) {
@@ -624,12 +649,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create audit log
-      await storage.createAuditLog({
-        actorId: req.user!.id, // Use authenticated admin ID
-        action: 'revoke_tool_access',
-        subjectUserId: userId,
-        metadata: { toolId }
-      });
+      try {
+        await storage.createAuditLog({
+          actorId: req.user!.id, // Use authenticated admin ID
+          action: 'revoke_tool_access',
+          subjectUserId: userId,
+          metadata: { toolId }
+        });
+      } catch (auditError) {
+        // Log audit error but don't fail the main operation
+        console.warn('Audit log creation failed (likely duplicate):', auditError);
+      }
       
       res.json({ message: "Tool access revoked successfully" });
     } catch (error) {
@@ -669,12 +699,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create audit log
-      await storage.createAuditLog({
-        actorId: req.user!.id, // Use authenticated admin ID
-        action: 'update_user_settings',
-        subjectUserId: userId,
-        metadata: { toolId, settings }
-      });
+      try {
+        await storage.createAuditLog({
+          actorId: req.user!.id, // Use authenticated admin ID
+          action: 'update_user_settings',
+          subjectUserId: userId,
+          metadata: { toolId, settings }
+        });
+      } catch (auditError) {
+        // Log audit error but don't fail the main operation
+        console.warn('Audit log creation failed (likely duplicate):', auditError);
+      }
       
       res.json(updatedSettings);
     } catch (error) {
@@ -744,12 +779,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create audit log
-      await storage.createAuditLog({
-        actorId: req.user!.id, // Use authenticated admin ID
-        action: 'force_logout',
-        subjectUserId: userId,
-        metadata: { timestamp: new Date().toISOString() }
-      });
+      try {
+        await storage.createAuditLog({
+          actorId: req.user!.id, // Use authenticated admin ID
+          action: 'force_logout',
+          subjectUserId: userId,
+          metadata: { timestamp: new Date().toISOString() }
+        });
+      } catch (auditError) {
+        // Log audit error but don't fail the main operation
+        console.warn('Audit log creation failed (likely duplicate):', auditError);
+      }
       
       res.json({ message: "User logged out successfully" });
     } catch (error) {
@@ -814,12 +854,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Create audit log
-      await storage.createAuditLog({
-        actorId: req.user!.id,
-        action: 'grant_tool_access',
-        subjectUserId: userId,
-        metadata: { toolId, timestamp: new Date().toISOString() }
-      });
+      try {
+        await storage.createAuditLog({
+          actorId: req.user!.id,
+          action: 'grant_tool_access',
+          subjectUserId: userId,
+          metadata: { toolId, timestamp: new Date().toISOString() }
+        });
+      } catch (auditError) {
+        // Log audit error but don't fail the main operation
+        console.warn('Audit log creation failed (likely duplicate):', auditError);
+      }
       
       res.json({ message: "Tool access granted successfully" });
     } catch (error) {
@@ -853,12 +898,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create audit log
-      await storage.createAuditLog({
-        actorId: req.user!.id,
-        action: 'revoke_tool_access',
-        subjectUserId: userId,
-        metadata: { toolId, timestamp: new Date().toISOString() }
-      });
+      try {
+        await storage.createAuditLog({
+          actorId: req.user!.id,
+          action: 'revoke_tool_access',
+          subjectUserId: userId,
+          metadata: { toolId, timestamp: new Date().toISOString() }
+        });
+      } catch (auditError) {
+        // Log audit error but don't fail the main operation
+        console.warn('Audit log creation failed (likely duplicate):', auditError);
+      }
       
       res.json({ message: "Tool access revoked successfully" });
     } catch (error) {
