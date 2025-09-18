@@ -594,60 +594,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ============================================
-  // BOOTSTRAP ENDPOINT - ROOT ADMIN SETUP (TEMPORARY)
+  // SECURITY: BOOTSTRAP ENDPOINT REMOVED
   // ============================================
   
-  // Bootstrap endpoint to create ROOT admin - should be removed after first use
-  app.post("/api/bootstrap/root-admin", async (req: Request, res: Response) => {
-    try {
-      const { email, userId } = req.body;
-      
-      // Only allow for specific ROOT admin email
-      if (email !== 'nhathuocvietnhatdn@gmail.com') {
-        return res.status(403).json({ message: 'Unauthorized bootstrap attempt' });
-      }
-      
-      if (!userId) {
-        return res.status(400).json({ message: 'userId is required' });
-      }
-      
-      // Check if profile already exists
-      let profile = await storage.getProfile(userId);
-      
-      if (profile) {
-        // Update existing profile to admin role
-        profile = await storage.updateProfile(userId, { role: 'admin', isActive: true });
-        return res.json({ 
-          message: 'ROOT admin role updated successfully', 
-          profile,
-          action: 'updated'
-        });
-      } else {
-        // Create new admin profile using updateProfile (which handles upserts)
-        const newProfile = {
-          userId,
-          username: 'ROOT Admin',
-          role: 'admin' as const,
-          isActive: true
-        };
-        
-        profile = await storage.updateProfile(userId, newProfile);
-        
-        return res.json({ 
-          message: 'ROOT admin profile created successfully', 
-          profile,
-          action: 'created'
-        });
-      }
-      
-    } catch (error) {
-      console.error('Error in root admin bootstrap:', error);
-      res.status(500).json({ 
-        message: 'Failed to bootstrap ROOT admin',
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
-    }
-  });
+  // Bootstrap endpoint has been removed after successful ROOT admin setup
+  // This eliminates the security vulnerability of unauthenticated admin escalation
 
   const httpServer = createServer(app);
   return httpServer;
