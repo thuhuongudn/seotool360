@@ -60,6 +60,16 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
   });
 
   const handleActivate = () => {
+    // SECURITY: Prevent activation of pending tools
+    if (tool.status === 'pending') {
+      toast({
+        title: "Công cụ chưa kích hoạt",
+        description: "Công cụ này đang chờ kích hoạt và chưa thể sử dụng.",
+        variant: "default",
+      });
+      return; // Block activation for pending tools
+    }
+
     // Define tool routes first
     const toolRoutes: { [key: string]: string } = {
       'markdown-html': '/markdown-converter',
@@ -180,6 +190,19 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
                   <span>Đăng nhập để sử dụng</span>
                 </>
               )}
+            </Button>
+          ) : tool.status === 'pending' ? (
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                // Disabled - no action for pending tools
+              }}
+              disabled={true}
+              className="w-full bg-gray-400 hover:bg-gray-400 text-gray-100 mt-auto cursor-not-allowed"
+              data-testid={`button-pending-${tool.name}`}
+            >
+              <ArrowRight className="mr-2 h-4 w-4 opacity-60" />
+              <span>Sử dụng công cụ</span>
             </Button>
           ) : (
             <Button

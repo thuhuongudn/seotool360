@@ -24,6 +24,9 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("active");
   const { user, isAdmin } = useAuth();
+  
+  // Define free tools (same logic as tool-card.tsx)
+  const freeTools = new Set(['markdown-html', 'qr-code']);
 
   // Choose the appropriate API endpoint based on showAllTools and user role
   const apiEndpoint = (showAllTools && user && isAdmin()) ? "/api/admin/seo-tools" : "/api/seo-tools";
@@ -50,6 +53,8 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
     // Filter by status
     if (filterStatus === "active") {
       filtered = filtered.filter(tool => tool.status === "active");
+    } else if (filterStatus === "free") {
+      filtered = filtered.filter(tool => freeTools.has(tool.name));
     }
 
     // Filter by search query
@@ -123,6 +128,7 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
                 <SelectContent>
                   <SelectItem value="all" data-testid="filter-homepage-all-tools">All tools</SelectItem>
                   <SelectItem value="active" data-testid="filter-homepage-active">Active</SelectItem>
+                  <SelectItem value="free" data-testid="filter-homepage-free">Free tools</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -169,6 +175,7 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
               <SelectContent>
                 <SelectItem value="all" data-testid="filter-homepage-all-tools">All tools</SelectItem>
                 <SelectItem value="active" data-testid="filter-homepage-active">Active</SelectItem>
+                <SelectItem value="free" data-testid="filter-homepage-free">Free tools</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -183,6 +190,8 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
               ? `Tìm thấy ${displayTools.length} kết quả cho "${searchQuery}"`
               : filterStatus === "active" 
                 ? `${displayTools.length} công cụ đang hoạt động`
+                : filterStatus === "free"
+                ? `${displayTools.length} công cụ miễn phí`  
                 : `Tổng cộng ${displayTools.length} công cụ`
             }
           </p>

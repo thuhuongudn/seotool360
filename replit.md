@@ -34,11 +34,13 @@ The server implements a clean architecture pattern with interfaces for storage o
 The application uses Drizzle ORM with PostgreSQL as the primary database:
 
 - **Schema Management**: Type-safe database schema with Drizzle ORM
-- **Connection**: Neon Database serverless PostgreSQL connection
+- **Connection**: Supabase PostgreSQL database with direct connection via SUPABASE_DB_URL
 - **Migrations**: Drizzle Kit for schema migrations and management
 - **Validation**: Zod schemas for runtime type checking and validation
 
 Key entities include Users and SEO Tools with proper relationships and constraints.
+
+**Note**: The application server properly uses SUPABASE_DB_URL for all database operations. Development tools like drizzle.config.ts still reference DATABASE_URL for migration compatibility, but this does not affect production functionality.
 
 ## Development Tooling
 The project uses modern development tools for type safety and code quality:
@@ -58,7 +60,7 @@ The system is designed to integrate with external services:
 # External Dependencies
 
 ## Core Framework Dependencies
-- **@neondatabase/serverless**: PostgreSQL serverless database connection
+- **@supabase/supabase-js**: Supabase client for authentication and database operations
 - **drizzle-orm & drizzle-kit**: Type-safe ORM and migration toolkit
 - **express**: Web application framework for the backend API
 - **react & react-dom**: Frontend UI library and DOM renderer

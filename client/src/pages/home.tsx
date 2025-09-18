@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import Header from "@/components/header";
 import ToolGrid from "@/components/tool-grid";
+import AdminLogin from "@/components/admin-login";
 import logoUrl from "@assets/logo-seotool-360-transparent_1758077866087.png";
 
 export default function Home() {
@@ -69,6 +70,9 @@ export default function Home() {
           </div>
         </div>
       </footer>
+      
+      {/* Dismissible Login Modal */}
+      <AdminLogin isModal={true} />
     </div>
   );
 }

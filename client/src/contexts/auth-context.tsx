@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { useLocation } from "wouter";
 import supabase from "@/lib/supabase";
 
 interface User {
@@ -17,6 +18,8 @@ interface AuthContextType {
   user: User | null;
   token: string | null;
   isLoading: boolean;
+  showLoginModal: boolean;
+  setShowLoginModal: (show: boolean) => void;
   login: (email: string, password: string) => Promise<boolean>;
   logout: () => void;
   isAdmin: () => boolean;
@@ -28,6 +31,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [, setLocation] = useLocation();
   const { toast } = useToast();
 
   const unsubscribeRef = useRef<(() => void) | null>(null);
@@ -158,9 +163,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (redirectTo) {
           // Clear the redirect parameter and navigate to intended destination
           window.history.replaceState({}, document.title, window.location.pathname);
-          setTimeout(() => {
-            window.location.href = redirectTo;
-          }, 1000); // Small delay to let user see success message
+          
+          // SECURITY: Only allow relative paths starting with '/' to prevent open redirect attacks
+          if (redirectTo.startsWith('/') && !redirectTo.includes('://') && !redirectTo.startsWith('//')) {
+            setTimeout(() => {
+              window.location.href = redirectTo;
+            }, 1000); // Small delay to let user see success message
+          }
+          // If redirect is invalid/malicious, ignore it and stay on current page
         }
       } else {
         throw new Error('Không thể tải thông tin profile');
@@ -182,8 +192,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('Handling logout');
     setUser(null);
     setToken(null);
+    
+    // Navigate to homepage
+    setLocation('/');
+    
+    // Show dismissible login modal
+    setTimeout(() => {
+      setShowLoginModal(true);
+    }, 500); // Small delay to ensure navigation completes
+    
     toast({
-      title: "Đăng xuất thành công",
+      title: "Đăng xuất thành công", 
       description: "Bạn đã đăng xuất khỏi hệ thống.",
     });
   };
@@ -246,6 +265,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     token,
     isLoading,
+    showLoginModal,
+    setShowLoginModal,
     login,
     logout,
     isAdmin
