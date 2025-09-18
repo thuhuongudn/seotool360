@@ -85,7 +85,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleAuthSuccess = async (supabaseUser: any, accessToken: string) => {
     try {
-      console.log('Auth success:', { userId: supabaseUser.id, hasToken: !!accessToken });
+      console.log('=== handleAuthSuccess START ===', { 
+        userId: supabaseUser.id, 
+        hasToken: !!accessToken,
+        tokenLength: accessToken?.length,
+        currentUser: user?.id,
+        authInProgress: authInProgressRef.current
+      });
       
       // Prevent duplicate auth success calls
       if (user?.id === supabaseUser.id && token === accessToken) {
@@ -103,12 +109,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Add a small delay to ensure token is properly set in Supabase session
       await new Promise(resolve => setTimeout(resolve, 100));
       
+      console.log('Calling /api/users/me with token:', {
+        tokenStart: accessToken.substring(0, 20),
+        tokenEnd: accessToken.substring(accessToken.length - 10)
+      });
+      
       // Get user profile from our API
       const response = await fetch(`/api/users/me`, {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json'
         }
+      });
+
+      console.log('Response from /api/users/me:', {
+        status: response.status,
+        ok: response.ok,
+        headers: Object.fromEntries(response.headers)
       });
 
       if (response.ok) {

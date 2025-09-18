@@ -3,24 +3,21 @@ import { createClient } from "@supabase/supabase-js";
 import { storage } from "./storage";
 
 const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY;
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error('Missing required Supabase environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing required Supabase environment variables: SUPABASE_URL, SUPABASE_ANON_KEY');
 }
 
-// Use service role key for server-side authentication with global configuration
-const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { 
-    autoRefreshToken: false, 
-    persistSession: false 
-  },
-  global: {
-    headers: {
-      'User-Agent': 'SEOTool360-Server/1.0',
+// Create fresh client for each request to avoid session state conflicts
+function createSupabaseClient() {
+  return createClient(supabaseUrl!, supabaseAnonKey!, {
+    auth: { 
+      autoRefreshToken: false, 
+      persistSession: false 
     },
-  },
-});
+  });
+}
 
 // Extended Request interface to include authenticated user
 export interface AuthenticatedRequest extends Request {
@@ -59,13 +56,14 @@ export async function authMiddleware(
 
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
-    // Verify the JWT token with Supabase
+    // Verify the JWT token with Supabase using fresh client
     console.log('Auth middleware - verifying token:', {
       tokenLength: token.length,
       tokenStart: token.substring(0, 20),
       supabaseUrl: supabaseUrl
     });
     
+    const supabase = createSupabaseClient();
     const { data: { user }, error } = await supabase.auth.getUser(token);
     
     console.log('Auth middleware - token verification result:', {
