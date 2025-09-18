@@ -100,6 +100,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       authInProgressRef.current = true;
 
+      // Add a small delay to ensure token is properly set in Supabase session
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
       // Get user profile from our API
       const response = await fetch(`/api/users/me`, {
         headers: {

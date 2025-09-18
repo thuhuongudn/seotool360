@@ -9,9 +9,17 @@ if (!supabaseUrl || !supabaseServiceKey) {
   throw new Error('Missing required Supabase environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY');
 }
 
-// Use service role key for server-side authentication
+// Use service role key for server-side authentication with global configuration
 const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: { autoRefreshToken: false, persistSession: false }
+  auth: { 
+    autoRefreshToken: false, 
+    persistSession: false 
+  },
+  global: {
+    headers: {
+      'User-Agent': 'SEOTool360-Server/1.0',
+    },
+  },
 });
 
 // Extended Request interface to include authenticated user
