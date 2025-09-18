@@ -1,10 +1,19 @@
 import PlaceholderPage from "@/components/placeholder-page";
+import ToolPermissionGuard from "@/components/tool-permission-guard";
+import { useToolId } from "@/hooks/use-tool-id";
 
 export default function SchemaMarkup() {
+  const toolId = useToolId('schema-markup');
+
   return (
-    <PlaceholderPage 
+    <ToolPermissionGuard 
+      toolId={toolId || ""} 
       toolName="Schema Markup"
-      description="Tạo mã Schema Markup tự động để cải thiện hiển thị trong kết quả tìm kiếm và tăng CTR."
-    />
+    >
+      <PlaceholderPage 
+        toolName="Schema Markup"
+        description="Tạo mã Schema Markup tự động để cải thiện hiển thị trong kết quả tìm kiếm và tăng CTR."
+      />
+    </ToolPermissionGuard>
   );
 }
