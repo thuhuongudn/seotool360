@@ -151,6 +151,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           title: "Đăng nhập thành công!",
           description: `Chào mừng ${profile.username || supabaseUser.email}`,
         });
+
+        // Handle redirect after successful login
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirectTo = urlParams.get('redirect');
+        if (redirectTo) {
+          // Clear the redirect parameter and navigate to intended destination
+          window.history.replaceState({}, document.title, window.location.pathname);
+          setTimeout(() => {
+            window.location.href = redirectTo;
+          }, 1000); // Small delay to let user see success message
+        }
       } else {
         throw new Error('Không thể tải thông tin profile');
       }

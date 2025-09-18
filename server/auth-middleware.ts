@@ -43,11 +43,6 @@ export async function authMiddleware(
 ) {
   try {
     const authHeader = req.headers.authorization;
-    console.log('Auth middleware - headers:', { 
-      authorization: authHeader ? `Bearer ${authHeader.substring(7, 20)}...` : 'missing',
-      path: req.path,
-      method: req.method
-    });
     
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.log('Auth middleware - rejected: missing or invalid header');
@@ -57,10 +52,7 @@ export async function authMiddleware(
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
 
     // Verify the JWT token with Supabase using fresh client
-    console.log('Auth middleware - verifying token:', {
-      hasToken: !!token,
-      supabaseUrl: supabaseUrl
-    });
+    console.log('Auth middleware - verifying token');
     
     // Create Supabase client with optimal configuration for token verification
     const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
@@ -83,17 +75,11 @@ export async function authMiddleware(
 
     console.log('Auth middleware - verification result:', {
       hasUser: !!user,
-      userId: user?.id,
-      error: error?.message,
-      errorCode: error?.code
+      hasError: !!error
     });
 
     if (error || !user) {
-      console.error('Auth middleware - token validation failed:', {
-        error: error?.message,
-        code: error?.code,
-        tokenLength: token.length
-      });
+      console.error('Auth middleware - token validation failed');
       return res.status(401).json({ message: 'Invalid or expired token' });
     }
 

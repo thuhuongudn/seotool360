@@ -60,18 +60,7 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
   });
 
   const handleActivate = () => {
-    // Check if tool requires authentication and user is not logged in
-    if (requiresAuth && !user) {
-      toast({
-        title: "Yêu cầu đăng nhập",
-        description: "Vui lòng đăng nhập để sử dụng công cụ này.",
-        variant: "default",
-      });
-      setLocation('/admin'); // Redirect to login page
-      return;
-    }
-    
-    // Navigate to dedicated pages for tools that have their own pages
+    // Define tool routes first
     const toolRoutes: { [key: string]: string } = {
       'markdown-html': '/markdown-converter',
       'social-media': '/social-media-writer',
@@ -87,6 +76,25 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
       'image-seo': '/image-seo',
       'qr-code': '/qr-code'
     };
+    
+    // Check if tool requires authentication and user is not logged in
+    if (requiresAuth && !user) {
+      toast({
+        title: "Yêu cầu đăng nhập",
+        description: "Vui lòng đăng nhập để sử dụng công cụ này.",
+        variant: "default",
+      });
+      // Store intended destination and redirect to login
+      const intendedRoute = toolRoutes[tool.name];
+      if (intendedRoute) {
+        setLocation(`/admin?redirect=${encodeURIComponent(intendedRoute)}`);
+      } else {
+        setLocation('/admin');
+      }
+      return;
+    }
+    
+    // Navigate to dedicated pages for tools that have their own pages
     
     const route = toolRoutes[tool.name];
     if (route) {
@@ -107,7 +115,7 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
       <Card className="hover:shadow-lg transition-shadow relative h-full">
         <CardContent className="p-6 h-full flex flex-col">
           {/* Premium/Free Tag in top-right corner */}
-          <div className="absolute top-4 right-4">
+          <div className="absolute top-2 right-2">
             {isFreeTool ? (
               <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 border-green-200">
                 Free
@@ -124,10 +132,10 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
               <IconComponent className={`${tool.iconColor} w-6 h-6`} />
             </div>
             
-            {/* Status Indicator */}
+            {/* Status Indicator - positioned to avoid overlap with Premium/Free badge */}
             {showStatusIndicator && (
               <div 
-                className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full border-2 border-white ${
                   tool.status === 'active' ? 'bg-green-500' : 'bg-orange-500'
                 }`}
                 data-testid={`status-indicator-${tool.name}`}
@@ -174,11 +182,27 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
               )}
             </Button>
           ) : (
-            <div className="mt-auto">
-              <div className="text-center text-green-600 text-sm font-medium mb-2">
-                {isFreeTool ? 'Sẵn sàng sử dụng' : 'Đã đăng nhập'}
-              </div>
-            </div>
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleActivate();
+              }}
+              disabled={activateToolMutation.isPending}
+              className="w-full bg-green-600 hover:bg-green-700 text-white mt-auto"
+              data-testid={`button-use-${tool.name}`}
+            >
+              {activateToolMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Đang xử lý...
+                </>
+              ) : (
+                <>
+                  <ArrowRight className="mr-2 h-4 w-4" />
+                  <span>Sử dụng công cụ</span>
+                </>
+              )}
+            </Button>
           )}
         </CardContent>
       </Card>

@@ -176,9 +176,12 @@ export default function AdminPage() {
 
     let filtered = allTools;
 
-    // Filter by status
+    // Filter by status - "all" shows pending tools, "active" shows active tools
     if (filterStatus === "active") {
       filtered = filtered.filter(tool => tool.status === "active");
+    } else if (filterStatus === "all") {
+      // "All Tool" filter shows all PENDING tools (chưa active) for ROOT admin to manage
+      filtered = filtered.filter(tool => tool.status === "pending");
     }
 
     // Filter by search query
@@ -345,11 +348,16 @@ export default function AdminPage() {
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold" data-testid="stat-recent-activity">
-                      {auditLogs?.logs?.length || 0}
+                      --
                     </div>
-                    <p className="text-xs text-muted-foreground">
-                      Hôm nay
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-xs text-muted-foreground">
+                        Hôm nay
+                      </p>
+                      <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">
+                        Đang phát triển
+                      </span>
+                    </div>
                   </CardContent>
                 </Card>
               </div>
@@ -476,7 +484,7 @@ export default function AdminPage() {
                       <SelectValue placeholder="Lọc theo trạng thái" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all" data-testid="filter-all-tools">Tất cả công cụ</SelectItem>
+                      <SelectItem value="all" data-testid="filter-all-tools">Chờ kích hoạt</SelectItem>
                       <SelectItem value="active" data-testid="filter-active">Đang hoạt động</SelectItem>
                     </SelectContent>
                   </Select>
@@ -503,7 +511,7 @@ export default function AdminPage() {
                         ? `Tìm thấy ${filteredTools.length} kết quả cho "${searchQuery}"`
                         : filterStatus === "active" 
                           ? `${filteredTools.length} công cụ đang hoạt động`
-                          : `Tổng cộng ${filteredTools.length} công cụ`
+                          : `${filteredTools.length} công cụ chờ kích hoạt`
                       }
                     </p>
                   </div>
@@ -562,57 +570,29 @@ export default function AdminPage() {
 
             {/* Audit Logs Tab */}
             <TabsContent value="audit" className="space-y-6">
-              {logsLoading ? (
-                <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="mt-4 text-gray-500 dark:text-gray-400">Đang tải nhật ký hoạt động...</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  <div className="mb-6">
-                    <h3 className="text-lg font-semibold mb-2">Nhật ký hoạt động Admin</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Theo dõi tất cả hoạt động quản trị trong hệ thống
-                    </p>
+              <div className="space-y-4">
+                <div className="mb-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <h3 className="text-lg font-semibold">Nhật ký hoạt động Admin</h3>
+                    <span className="px-3 py-1 bg-orange-100 text-orange-800 text-sm rounded-full">
+                      Đang phát triển
+                    </span>
                   </div>
-
-                  {auditLogs?.logs && auditLogs.logs.length > 0 ? (
-                    auditLogs.logs.map((log: AuditLog) => (
-                      <Card key={log.id} className="bg-white dark:bg-gray-800 shadow-sm">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <FileText className="w-4 h-4 text-blue-600" />
-                                <span className="font-medium text-gray-900 dark:text-white">
-                                  {log.action.replace('_', ' ').toUpperCase()}
-                                </span>
-                                <Badge variant="outline" className="text-xs">
-                                  {log.actorId}
-                                </Badge>
-                              </div>
-                              <p className="text-sm text-gray-600 dark:text-gray-300">
-                                {JSON.stringify(log.metadata, null, 2)}
-                              </p>
-                            </div>
-                            <div className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                              <Calendar className="w-4 h-4" />
-                              {new Date(log.createdAt).toLocaleString('vi-VN')}
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))
-                  ) : (
-                    <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
-                      <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                        Chưa có hoạt động nào
-                      </h3>
-                    </div>
-                  )}
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Theo dõi tất cả hoạt động quản trị trong hệ thống
+                  </p>
                 </div>
-              )}
+
+                <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
+                  <FileText className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+                  <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                    Tính năng đang được phát triển
+                  </h3>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                    Hệ thống theo dõi nhật ký hoạt động sẽ sớm được hoàn thiện
+                  </p>
+                </div>
+              </div>
             </TabsContent>
           </Tabs>
         </div>
