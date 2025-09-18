@@ -29,10 +29,10 @@ export async function apiRequest(
     ...(data ? { "Content-Type": "application/json" } : {}),
   };
 
-  // Add auth header for admin routes
-  if (url.includes('/api/admin/')) {
+  // Add auth header for protected routes (admin and user routes)
+  if (url.includes('/api/admin/') || url.includes('/api/user/')) {
     const token = await getAccessToken();
-    console.log('apiRequest - admin route:', { url, hasToken: !!token, tokenPrefix: token?.substring(0, 20) });
+    console.log('apiRequest - protected route:', { url, hasToken: !!token, tokenPrefix: token?.substring(0, 20) });
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
@@ -58,10 +58,10 @@ export const getQueryFn: <T>(options: {
     const url = queryKey.join("/") as string;
     const headers: Record<string, string> = {};
 
-    // Add auth header for admin routes
-    if (url.includes('/api/admin/')) {
+    // Add auth header for protected routes (admin and user routes)
+    if (url.includes('/api/admin/') || url.includes('/api/user/')) {
       const token = await getAccessToken();
-      console.log('getQueryFn - admin route:', { url, hasToken: !!token, tokenPrefix: token?.substring(0, 20) });
+      console.log('getQueryFn - protected route:', { url, hasToken: !!token, tokenPrefix: token?.substring(0, 20) });
       if (token) {
         headers.Authorization = `Bearer ${token}`;
       }
