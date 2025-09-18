@@ -19,6 +19,14 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { 
   Search, 
   Settings, 
@@ -33,7 +41,9 @@ import {
   Edit3,
   Key,
   Calendar,
-  Activity
+  Activity,
+  Plus,
+  UserPlus
 } from "lucide-react";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
@@ -79,6 +89,13 @@ export default function AdminPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [userSearchQuery, setUserSearchQuery] = useState("");
+  const [showCreateUserDialog, setShowCreateUserDialog] = useState(false);
+  const [createUserForm, setCreateUserForm] = useState({
+    email: "",
+    password: "",
+    username: "",
+    role: "member" as "admin" | "member"
+  });
   const { toast } = useToast();
   const { user, isAdmin } = useAuth();
 
@@ -164,6 +181,36 @@ export default function AdminPage() {
       toast({
         title: "Lỗi cập nhật",
         description: "Không thể cập nhật vai trò người dùng.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Create user mutation
+  const createUserMutation = useMutation({
+    mutationFn: async (userData: typeof createUserForm) => {
+      const response = await apiRequest("POST", "/api/admin/users", userData);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users'] });
+      setShowCreateUserDialog(false);
+      setCreateUserForm({
+        email: "",
+        password: "",
+        username: "",
+        role: "member"
+      });
+      toast({
+        title: "Tạo người dùng thành công!",
+        description: "Người dùng mới đã được tạo và có thể đăng nhập.",
+      });
+    },
+    onError: (error: any) => {
+      console.error('User creation error:', error);
+      toast({
+        title: "Lỗi tạo người dùng",
+        description: error.message || "Không thể tạo người dùng. Vui lòng thử lại.",
         variant: "destructive",
       });
     },
@@ -365,7 +412,7 @@ export default function AdminPage() {
 
             {/* Users Management Tab */}
             <TabsContent value="users" className="space-y-6">
-              {/* User Search */}
+              {/* User Search and Create Button */}
               <div className="flex gap-4 mb-6">
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -378,6 +425,95 @@ export default function AdminPage() {
                     data-testid="input-search-users"
                   />
                 </div>
+                
+                {/* Create User Button */}
+                <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2"
+                      data-testid="button-create-user"
+                    >
+                      <UserPlus className="w-4 h-4 mr-2" />
+                      Tạo người dùng
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle>Tạo người dùng mới</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="email">Email</Label>
+                        <Input
+                          id="email"
+                          type="email"
+                          placeholder="email@example.com"
+                          value={createUserForm.email}
+                          onChange={(e) => setCreateUserForm(prev => ({ ...prev, email: e.target.value }))}
+                          data-testid="input-create-user-email"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="username">Tên người dùng</Label>
+                        <Input
+                          id="username"
+                          placeholder="Nhập tên người dùng"
+                          value={createUserForm.username}
+                          onChange={(e) => setCreateUserForm(prev => ({ ...prev, username: e.target.value }))}
+                          data-testid="input-create-user-username"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="password">Mật khẩu</Label>
+                        <Input
+                          id="password"
+                          type="password"
+                          placeholder="Ít nhất 8 ký tự"
+                          value={createUserForm.password}
+                          onChange={(e) => setCreateUserForm(prev => ({ ...prev, password: e.target.value }))}
+                          data-testid="input-create-user-password"
+                        />
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="role">Vai trò</Label>
+                        <Select 
+                          value={createUserForm.role} 
+                          onValueChange={(value) => setCreateUserForm(prev => ({ ...prev, role: value as 'admin' | 'member' }))}
+                        >
+                          <SelectTrigger data-testid="select-create-user-role">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="member">Thành viên</SelectItem>
+                            <SelectItem value="admin">Quản trị viên</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-3 justify-end">
+                      <Button 
+                        variant="outline" 
+                        onClick={() => setShowCreateUserDialog(false)}
+                        disabled={createUserMutation.isPending}
+                        data-testid="button-cancel-create-user"
+                      >
+                        Hủy
+                      </Button>
+                      <Button 
+                        onClick={() => createUserMutation.mutate(createUserForm)}
+                        disabled={createUserMutation.isPending || !createUserForm.email || !createUserForm.username || !createUserForm.password}
+                        className="bg-blue-600 hover:bg-blue-700"
+                        data-testid="button-submit-create-user"
+                      >
+                        {createUserMutation.isPending ? "Đang tạo..." : "Tạo người dùng"}
+                      </Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
               
               {usersError ? (

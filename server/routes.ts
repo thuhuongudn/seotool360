@@ -264,6 +264,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ADMIN USER MANAGEMENT ROUTES
   // ============================================
 
+  // Create new user
+  app.post("/api/admin/users", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { email, password, username, role } = req.body;
+      
+      // Validate required fields
+      if (!email || !password || !username || !role) {
+        return res.status(400).json({ 
+          message: "Email, password, username, and role are required" 
+        });
+      }
+      
+      if (password.length < 8) {
+        return res.status(400).json({ 
+          message: "Password must be at least 8 characters long" 
+        });
+      }
+      
+      if (!['admin', 'member'].includes(role)) {
+        return res.status(400).json({ 
+          message: "Role must be 'admin' or 'member'" 
+        });
+      }
+      
+      // Check if user already exists
+      const { data: existingUsers, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+      if (listError) {
+        console.error("Error listing users:", listError);
+        return res.status(500).json({ message: "Failed to check existing users" });
+      }
+      
+      const existingUser = existingUsers.users.find(user => user.email === email);
+      if (existingUser) {
+        return res.status(409).json({ message: "User with this email already exists" });
+      }
+      
+      // Create user in Supabase Auth
+      const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true
+      });
+      
+      if (createError) {
+        console.error("Supabase user creation error:", createError);
+        return res.status(500).json({ message: "Failed to create user account" });
+      }
+      
+      if (!newUser.user) {
+        return res.status(500).json({ message: "User creation failed" });
+      }
+      
+      // Create profile in database
+      const profileData = {
+        userId: newUser.user.id,
+        username,
+        role: role as 'admin' | 'member',
+        isActive: true
+      };
+      
+      const profile = await storage.createProfile(profileData);
+      
+      // Create audit log
+      await storage.createAuditLog({
+        actorId: req.user!.id,
+        action: 'create_user',
+        subjectUserId: newUser.user.id,
+        metadata: { 
+          email,
+          username,
+          role,
+          created_at: new Date().toISOString()
+        }
+      });
+      
+      res.status(201).json({
+        ...profile,
+        email: newUser.user.email
+      });
+    } catch (error) {
+      console.error("Error creating user:", error);
+      res.status(500).json({ message: "Failed to create user" });
+    }
+  });
+
   // Get all users with pagination
   app.get("/api/admin/users", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {

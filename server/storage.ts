@@ -15,6 +15,7 @@ export interface IStorage {
   // User Management (Admin Operations)
   getAllProfiles(limit?: number, offset?: number): Promise<{ profiles: Profile[], total: number }>;
   getProfile(userId: string): Promise<Profile | undefined>;
+  createProfile(profile: InsertProfile): Promise<Profile>;
   updateProfile(userId: string, update: Partial<InsertProfile>): Promise<Profile | undefined>;
   toggleUserStatus(userId: string, isActive: boolean): Promise<Profile | undefined>;
   
@@ -385,6 +386,11 @@ export class DatabaseStorage implements IStorage {
   async getProfile(userId: string): Promise<Profile | undefined> {
     const [profile] = await db.select().from(profiles).where(eq(profiles.userId, userId));
     return profile || undefined;
+  }
+
+  async createProfile(profile: InsertProfile): Promise<Profile> {
+    const [createdProfile] = await db.insert(profiles).values(profile).returning();
+    return createdProfile;
   }
 
   async updateProfile(userId: string, update: Partial<InsertProfile>): Promise<Profile | undefined> {
