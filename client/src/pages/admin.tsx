@@ -586,8 +586,8 @@ export default function AdminPage() {
                     </div>
                   ) : (
                     <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
-                      {allTools?.map((tool: any) => {
-                        const hasAccess = userToolAccess?.some((access: any) => access.toolId === tool.id);
+                      {(allTools as any[] || []).map((tool: any) => {
+                        const hasAccess = (userToolAccess as any[] || []).some((access: any) => access.toolId === tool.id);
                         const isUpdating = grantToolAccessMutation.isPending || revokeToolAccessMutation.isPending;
                         
                         return (
@@ -631,7 +631,7 @@ export default function AdminPage() {
                         );
                       })}
                       
-                      {(!allTools || allTools.length === 0) && (
+                      {(!allTools || (allTools as any[]).length === 0) && (
                         <div className="text-center py-6 text-gray-500">
                           Không có tool nào để quản lý
                         </div>
