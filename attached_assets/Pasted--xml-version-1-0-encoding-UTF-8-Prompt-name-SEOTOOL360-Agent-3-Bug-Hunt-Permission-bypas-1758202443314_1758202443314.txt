@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Prompt name="SEOTOOL360 - Agent 3 Bug Hunt (Permission bypass on /internal-link-helper)">
+  <Role>
+    You are a senior Full-Stack + DevOps **Bug Fix Agent** working on a TypeScript/Next.js + Supabase app using TanStack Query. 
+    Your mission: **locate and explain** why the tool **/internal-link-helper** is accessible to a Member even when permission is revoked, while other tools respect RBAC.
+  </Role>
+
+  <Objective>
+    <Why>Ngăn lỗ hổng phân quyền cho phép truy cập sai, gây rò rỉ tính năng/tài nguyên.</Why>
+    <What>
+      Perform a focused investigation on **/internal-link-helper** and produce a clear root-cause report with a concrete fix plan.
+      Do NOT apply code changes yet; first **reproduce, trace, and report**.
+    </What>
+  </Objective>
+
+  <bug_analysis>
+    Use these fresh evidences from the user (screenshots provided) showing that the Home grid marks the tool as **locked** but direct navigation to **/internal-link-helper** still loads the page.
+
+    Your job is to confirm the exact failure point among:
+    - **Route/Server guard missing** on `/internal-link-helper` page or API routes (e.g., middleware not applied, getServerSideProps not checking `canUse`).
+    - **Wrong toolId mapping** (e.g., `internal-link-helper` vs `internal_link_helper` vs `suggest-internal-link`) causing permission checks to read a different ID than the one toggled in Admin.
+    - **Client gate bypass**: page renders form without awaiting permissions query (default “enabled”), or error boundary not redirecting on 403.
+    - **Stale cache**: query key for permissions on this page differs from Home and is never invalidated after revoke.
+    - **Backend allowlist**: API handlers for this tool skip RBAC middleware (e.g., `withAuth` but not `withPermission('internal-link-helper')`).
+  </bug_analysis>
+
+  <Requirements>
+    <Steps>
+      <Step>Reproduce: As **Member** with the tool revoked, open `/internal-link-helper`; capture **Network** panel (initial HTML, `GET /api/permissions/me`, any `/api/tools/internal-link-helper/*`). Note HTTP codes and payloads.</Step>
+      <Step>Code Scan: Search for the page and API handlers:
+        - `src/pages/internal-link-helper.tsx` or `src/app/(tools)/internal-link-helper/*`
+        - `src/pages/api/tools/internal-link-helper/*` (or similar service)
+        Verify the presence of RBAC guards both **server-side** and **API-side**.</Step>
+      <Step>Mapping Check: Locate constants/enum that bind tool slug → permission key, e.g., `TOOL_IDS.internalLinkHelper`. Compare the Admin toggle’s `toolId` with the ID read in guards. Check DB table `user_tool_permissions` to ensure rows contain the same key.</Step>
+      <Step>Cache/Query Keys: Inspect TanStack Query usage on this page. Confirm it subscribes to the same `['permissions']` key and refetches on `permissions.changed` events.</Step>
+      <Step>Produce findings: pinpoint the failing line(s)/file(s), attach stack snippets, and propose a minimal fix (guard + mapping + tests). Do not change code yet—only report and include planned diffs.</Step>
+    </Steps>
+
+    <Conventions>
+      <Convention>TypeScript; Next.js best practices; Vietnamese UX string for the lock state.</Convention>
+    </Conventions>
+
+    <Constraints>
+      <Constraint>Trước tiên phải báo cáo kết quả kiểm tra trong &lt;bug_analysis&gt;.</Constraint>
+      <Constraint>Không sửa code trước khi trình bày kế hoạch và diff dự kiến.</Constraint>
+    </Constraints>
+  </Requirements>
+
+  <WhereToLook>
+    <FileHints>
+      <Hint>src/constants/tools.ts (mapping slug ↔ toolId ↔ display)</Hint>
+      <Hint>src/server/middleware/withPermission.ts (or equivalent)</Hint>
+      <Hint>src/pages/api/tools/internal-link-helper/*.ts (ensure RBAC guard)</Hint>
+      <Hint>src/app/(tools)/internal-link-helper/page.tsx or src/pages/internal-link-helper.tsx (client/SSR gating)</Hint>
+      <Hint>src/hooks/usePermissions.ts (query keys, staleTime)</Hint>
+    </FileHints>
+  </WhereToLook>
+
+  <AcceptanceCriteria>
+    <Crit>Agent chỉ ra được **điểm hỏng** (mapping, guard thiếu, cache, hay API bỏ qua kiểm tra) với đường dẫn file và dòng liên quan.</Crit>
+    <Crit>Kế hoạch fix gồm: thêm/điều chỉnh guard, đồng bộ toolId, chuẩn hoá query keys, và test E2E cho revoke → lock.</Crit>
+    <Crit>Đề xuất diff/tên file cụ thể, không thay đổi ngoài phạm vi /internal-link-helper.</Crit>
+  </AcceptanceCriteria>
+
+  <TestPlan>
+    <Scenarios>
+      <S id="ILH-1">Member (quyền bị thu hồi) truy cập `/internal-link-helper` → nhận 302 đến `/` hoặc trang “Không có quyền truy cập”, các API trả 403.</S>
+      <S id="ILH-2">Admin cấp lại quyền → Member có thể truy cập trong &lt;3s, API trả 200.</S>
+      <S id="ILH-3">Home grid hiển thị thẻ bị khoá (đã đạt) và click không vào trang khi bị revoke.</S>
+    </Scenarios>
+    <CLI><![CDATA[
+# Verify API guard
+curl -i -H "Cookie: session=$MEMBER" "$BASE/api/tools/internal-link-helper/run"
+# Expected: 403 when revoked; 200 when granted
+]]></CLI>
+  </TestPlan>
+
+  <ResponseFormat>
+    <![CDATA[
+    Your response MUST have exactly two parts:
+
+    1) Visible reasoning:
+       <bug_analysis>
+         - Steps you ran, endpoints observed, code locations, and the exact root cause you found.
+         - Why other tools work but this one bypasses (e.g., mismatched toolId or missing middleware).
+         - The fix you will implement (files, guard, mapping), and risks/rollbacks.
+       </bug_analysis>
+
+    2) Then output ONLY this JSON:
+    {
+      "root_cause": "Single, precise statement of why /internal-link-helper bypassed RBAC.",
+      "proposed_changes_diff": "Planned unified diffs for affected files (filenames + diff).",
+      "merge_request": {
+        "title": "Enforce RBAC on /internal-link-helper",
+        "description": "What you will change, why it’s safe, how to rollback"
+      },
+      "test_plan": "Exact steps and commands (UI + API) to prove the fix."
+    }
+    ]]>
+  </ResponseFormat>
+</Prompt>
