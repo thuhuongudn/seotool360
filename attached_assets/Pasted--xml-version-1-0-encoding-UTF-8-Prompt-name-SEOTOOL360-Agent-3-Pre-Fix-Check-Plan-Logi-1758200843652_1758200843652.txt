@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Prompt name="SEOTOOL360 - Agent 3 Pre-Fix Check & Plan (Login Redirect, Tool RBAC UI, Revoke Enforcement)">
+  <Role>
+    You are a senior Full-Stack + DevOps engineer acting as a **Bug Fix Agent** for a TypeScript/Node.js monorepo (Next.js + Supabase + TanStack Query). 
+    Your immediate job is to **verify and report** on three newly reported defects **before** performing any code changes.
+  </Role>
+
+  <Objective>
+    <Why>Đảm bảo Experience đăng nhập/ủy quyền minh bạch, an toàn; tránh trạng thái “dính quyền” và điều hướng sai.</Why>
+    <What>
+      Pre-fix investigation + remediation plan for these issues:
+      1) **Login redirect from /admin**: When a member clicks “Login” from Home, the app navigates to `/admin` login. After successful login, it **stays at `/admin`** (empty page). Expected: **redirect to Home `/`** (or the originally requested tool page if there is one).
+      2) **Home tool list RBAC UI**: On Home, tools without access are rendered as if enabled (green). Expected: show **“Không có quyền truy cập”** with a **lock icon**, disable CTA, and keep enabled styling only for allowed tools.
+      3) **Revoke enforcement**: Admin revoke succeeds server-side, but the Member can still use the tool (client not re-auth/refetch; or server guard missing). Expected: immediate enforcement—tool becomes locked within &lt;3s across sessions/devices.
+    </What>
+  </Objective>
+
+  <Evidence>
+    <screenshot>/mnt/data/205D693F-DDEF-4643-BCF4-5D630770ACE0.jpeg</screenshot>
+    <screenshot>/mnt/data/10F5C95A-240A-409D-9FA5-1933BB5B0DEA.jpeg</screenshot>
+    <screenshot>/mnt/data/D48D5F47-DEBB-4C8A-955E-0D1E03269AD9.jpeg</screenshot>
+  </Evidence>
+
+  <bug_analysis>
+    First **confirm** the following, using code search + runtime traces:
+    - Where the login handler decides post-login destination. Check:
+      - NextAuth/Supabase callback, `redirect()` config, `returnUrl`/`next` param handling, and `/admin` route component.
+      - Presence of a “postLoginRedirect” stored in query/localStorage and whether it is honored after login.
+    - Home tool grid/list component:
+      - Source of **effective permissions** (query key, API response shape).
+      - Whether UI is using **optimistic “enabled”** state or defaulting to enabled on missing data.
+    - Tool page **server/API guards** & client route guards:
+      - Ensure APIs check permission on every request; client must refetch or subscribe to “permissions.changed”.
+    Report concrete findings before editing code.
+  </bug_analysis>
+
+  <Requirements>
+    <Steps>
+      <Step>**Pre-Fix Verification (must do first):** Run end-to-end checks to reproduce each issue; capture request/response and client cache state. Summarize the exact code paths responsible.</Step>
+      <Step>**Design a minimal, robust fix** for each bug with guardrails and tests (see AcceptanceCriteria & TestPlan). Prepare diffs but do not apply until after you present your plan and checks in your response.</Step>
+    </Steps>
+
+    <Conventions>
+      <Convention>TypeScript + ESLint/Prettier. React/Next.js best practices. Vietnamese UX text as specified.</Convention>
+    </Conventions>
+
+    <Constraints>
+      <Constraint>Show visible reasoning in &lt;bug_analysis&gt;.</Constraint>
+      <Constraint>Don’t break existing authenticated admin flows.</Constraint>
+      <Constraint>Keep changes backwards-compatible; additive migrations only if needed (RBAC tables already exist).</Constraint>
+    </Constraints>
+  </Requirements>
+
+  <ProposedFixBlueprint>
+    <LoginRedirect>
+      <Goal>After successful login from any route (including `/admin`), redirect to `returnUrl` if present, else Home `/`.</Goal>
+      <ImplementationHints>
+        - Support `?next=/tools/:id` or `returnUrl` param; persist during login round-trip.
+        - In auth callback (server) or login success handler (client), compute destination:
+          `dest = parsedReturnUrl ?? "/"`.
+        - For explicit `/admin` path with no content, add a server/route redirect to `/` for non-admin roles.
+      </ImplementationHints>
+    </LoginRedirect>
+
+    <HomeToolRBAC>
+      <Goal>Accurate visual state per tool.</Goal>
+      <ImplementationHints>
+        - Query `GET /api/permissions/me` and map to `canUse(toolId)`.
+        - For `false`: render disabled card/button, label **"Không có quyền truy cập"**, show **lock icon**, prevent navigation.
+        - Add skeleton/loading state to avoid default-enabled flicker; no optimistic “enabled”.
+      </ImplementationHints>
+    </HomeToolRBAC>
+
+    <RevokeEnforcement>
+      <Goal>Immediate lock within &lt;3s after admin revokes.</Goal>
+      <ImplementationHints>
+        - Server: ensure all tool APIs/middlewares check permission per request.
+        - On revoke/grant: publish `permissions.changed {userId}`; clear server cache; WebSocket/SSE or notification triggers client `invalidateQueries(['permissions'])`.
+        - Client: on focus/mount and on WS event → refetch permissions; route guards redirect to a “locked” view when permission becomes false.
+      </ImplementationHints>
+    </RevokeEnforcement>
+  </ProposedFixBlueprint>
+
+  <AcceptanceCriteria>
+    <Crit>Logging in from `/admin` with a member account lands on `/` (or `returnUrl` if provided). Directly visiting `/admin` as member redirects to `/`.</Crit>
+    <Crit>On Home, any tool without access shows a lock icon and the text **“Không có quyền truy cập”**; click does nothing or opens an upsell dialog.</Crit>
+    <Crit>After Admin revokes access, the member loses access within &lt;3s on all devices/tabs; protected APIs return 403 and UI updates without page reload.</Crit>
+    <Crit>Automated tests cover the three behaviors and pass in CI.</Crit>
+  </AcceptanceCriteria>
+
+  <APIs>
+    <endpoint method="GET" path="/api/permissions/me">Returns effective per-tool permissions for current user</endpoint>
+    <endpoint method="POST" path="/api/admin/tools/:toolId/grant">Grant tool to userId</endpoint>
+    <endpoint method="DELETE" path="/api/admin/users/:userId/tool-access/:toolId">Revoke tool for userId</endpoint>
+    <endpoint method="GET" path="/api/auth/callback">Auth callback where post-login redirect can be enforced</endpoint>
+  </APIs>
+
+  <TestPlan>
+    <Scenarios>
+      <S id="REDIRECT-1">From Home click a locked tool → redirected to login → after success, lands on that tool if permitted, else on `/` with “Không có quyền truy cập”.</S>
+      <S id="REDIRECT-2">Navigate to `/admin` as logged-out member → login → lands on `/` (not `/admin`).</S>
+      <S id="RBAC-UI-1">Home shows correct lock state for 3 tools: one allowed, two denied (with lock + text).</S>
+      <S id="REVOKE-1">Admin revokes tool X; member tab receives event or refetch; tool tile switches to locked; API calls return 403.</S>
+    </Scenarios>
+    <CLI><![CDATA[
+# Verify redirect param preserved
+curl -I "$BASE/login?returnUrl=%2Ftools%2Finternal-link-helper"
+# After revoke, API must be forbidden
+curl -i -H "Cookie: session=$MEMBER" "$BASE/api/tools/internal-link-helper/run"
+]]></CLI>
+  </TestPlan>
+
+  <ResponseFormat>
+    <![CDATA[
+    You MUST first **check and report** on the three tasks (redirect, RBAC UI, revoke enforcement) before proposing code changes.
+
+    Your final message must contain exactly two parts in this order:
+
+    1) A visible reasoning section:
+       <bug_analysis>
+         - Reproduction steps you executed for each task
+         - Observed URLs, network calls, cache state, and code locations responsible
+         - Root-cause hypotheses validated/invalidated
+         - The concrete implementation plan you will perform (files, components, APIs, guards)
+       </bug_analysis>
+
+    2) Immediately after that, output ONLY this JSON:
+    {
+      "root_cause": "Concise root causes for the 3 tasks.",
+      "proposed_changes_diff": "High-level diffs you plan to apply (filenames + pseudo-diff or exact unified diff if already drafted).",
+      "merge_request": {
+        "title": "Fix login redirect, RBAC home UI, and revoke enforcement",
+        "description": "Bulleted plan, risks, and rollback"
+      },
+      "test_plan": "Exact steps/commands (UI + API) you used to verify and will automate."
+    }
+    ]]>
+  </ResponseFormat>
+
+  <SuccessCriteria>
+    <Criterion>Agent reports concrete findings (routes, components, query keys) for all 3 tasks **before** execution.</Criterion>
+    <Criterion>Plan includes redirect logic, RBAC UI states, server/client enforcement & invalidation.</Criterion>
+    <Criterion>JSON section is complete and actionable.</Criterion>
+  </SuccessCriteria>
+</Prompt>
