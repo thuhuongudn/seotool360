@@ -5,8 +5,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/auth-context";
-import { Eye, EyeOff, LogIn, Loader2 } from "lucide-react";
+import { Eye, EyeOff, LogIn, Loader2, KeyRound } from "lucide-react";
 import logoUrl from "@assets/logo-seotool-360-transparent_1758077866087.png";
+import supabase from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 interface AdminLoginProps {
   isModal?: boolean;
@@ -18,7 +20,9 @@ export default function AdminLogin({ isModal = false, loginType = 'admin' }: Adm
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
+  const [isResettingPassword, setIsResettingPassword] = useState(false);
   const { login, showLoginModal, setShowLoginModal } = useAuth();
+  const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,6 +37,45 @@ export default function AdminLogin({ isModal = false, loginType = 'admin' }: Adm
       setShowLoginModal(false); // Close modal on successful login
     }
     setIsLoggingIn(false);
+  };
+
+  const handlePasswordReset = async () => {
+    if (!email.trim()) {
+      toast({
+        title: "Vui lòng nhập email",
+        description: "Nhập địa chỉ email để gửi link đặt lại mật khẩu.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setIsResettingPassword(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+        redirectTo: `${window.location.origin}/reset-password`
+      });
+
+      if (error) {
+        toast({
+          title: "Lỗi gửi email",
+          description: "Không thể gửi email đặt lại mật khẩu. Vui lòng thử lại.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Đã gửi email",
+          description: "Kiểm tra email của bạn để đặt lại mật khẩu.",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Lỗi kết nối",
+        description: "Không thể kết nối đến máy chủ. Vui lòng thử lại.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsResettingPassword(false);
+    }
   };
 
   const loginForm = (
@@ -126,6 +169,31 @@ export default function AdminLogin({ isModal = false, loginType = 'admin' }: Adm
               </>
             )}
           </Button>
+          
+          {/* Password reset option */}
+          <div className="text-center">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={handlePasswordReset}
+              disabled={isResettingPassword || !email.trim()}
+              className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300"
+              data-testid={loginType === 'admin' ? 'button-admin-reset-password' : 'button-member-reset-password'}
+            >
+              {isResettingPassword ? (
+                <>
+                  <Loader2 className="mr-2 h-3 w-3 animate-spin" />
+                  Đang gửi email...
+                </>
+              ) : (
+                <>
+                  <KeyRound className="mr-2 h-3 w-3" />
+                  Quên mật khẩu?
+                </>
+              )}
+            </Button>
+          </div>
         </form>
       </CardContent>
     </Card>

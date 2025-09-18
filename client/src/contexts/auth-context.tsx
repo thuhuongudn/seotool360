@@ -233,17 +233,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
       
+      // Trim inputs and normalize email
+      const trimmedEmail = email.trim().toLowerCase();
+      const trimmedPassword = password.trim();
+      
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password
+        email: trimmedEmail,
+        password: trimmedPassword
       });
 
       if (error) {
+        // Enhanced error mapping for better user guidance
+        let errorMessage = "Email hoặc mật khẩu không chính xác";
+        
+        if (error.message.includes('Invalid login credentials')) {
+          errorMessage = "Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại thông tin đăng nhập.";
+        } else if (error.message.includes('Email not confirmed')) {
+          errorMessage = "Email chưa được xác nhận. Vui lòng kiểm tra email để xác nhận tài khoản.";
+        } else if (error.message.includes('too many requests')) {
+          errorMessage = "Quá nhiều lần thử đăng nhập. Vui lòng thử lại sau ít phút.";
+        } else if (error.message.includes('signup is disabled')) {
+          errorMessage = "Đăng ký tài khoản đã bị tắt. Vui lòng liên hệ quản trị viên.";
+        }
+        
         toast({
           title: "Lỗi đăng nhập",
-          description: error.message === 'Invalid login credentials' 
-            ? "Email hoặc mật khẩu không chính xác"
-            : error.message,
+          description: errorMessage,
           variant: "destructive"
         });
         return false;
