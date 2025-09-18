@@ -10,9 +10,10 @@ import logoUrl from "@assets/logo-seotool-360-transparent_1758077866087.png";
 
 interface AdminLoginProps {
   isModal?: boolean;
+  loginType?: 'admin' | 'member';
 }
 
-export default function AdminLogin({ isModal = false }: AdminLoginProps) {
+export default function AdminLogin({ isModal = false, loginType = 'admin' }: AdminLoginProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -45,10 +46,13 @@ export default function AdminLogin({ isModal = false }: AdminLoginProps) {
           />
         </div>
         <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">
-          Đăng nhập Admin
+          {loginType === 'admin' ? 'Đăng nhập Admin' : 'Đăng nhập'}
         </CardTitle>
         <p className="text-gray-600 dark:text-gray-300 text-sm">
-          Truy cập trang quản trị SEOTOOL360
+          {loginType === 'admin' 
+            ? 'Truy cập trang quản trị SEOTOOL360'
+            : 'Đăng nhập để sử dụng công cụ SEO premium'
+          }
         </p>
       </CardHeader>
       <CardContent>
@@ -62,11 +66,11 @@ export default function AdminLogin({ isModal = false }: AdminLoginProps) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@seotool360.com"
+              placeholder={loginType === 'admin' ? 'admin@seotool360.com' : 'your@email.com'}
               required
               disabled={isLoggingIn}
               className="w-full"
-              data-testid="input-admin-email"
+              data-testid={loginType === 'admin' ? 'input-admin-email' : 'input-member-email'}
             />
           </div>
 
@@ -84,7 +88,7 @@ export default function AdminLogin({ isModal = false }: AdminLoginProps) {
                 required
                 disabled={isLoggingIn}
                 className="pr-10"
-                data-testid="input-admin-password"
+                data-testid={loginType === 'admin' ? 'input-admin-password' : 'input-member-password'}
               />
               <Button
                 type="button"
@@ -93,7 +97,7 @@ export default function AdminLogin({ isModal = false }: AdminLoginProps) {
                 className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                 onClick={() => setShowPassword(!showPassword)}
                 disabled={isLoggingIn}
-                data-testid="button-toggle-password"
+                data-testid={loginType === 'admin' ? 'button-toggle-admin-password' : 'button-toggle-member-password'}
               >
                 {showPassword ? (
                   <EyeOff className="h-4 w-4 text-gray-400" />
@@ -108,7 +112,7 @@ export default function AdminLogin({ isModal = false }: AdminLoginProps) {
             type="submit"
             className="w-full bg-blue-600 hover:bg-blue-700"
             disabled={isLoggingIn || !email || !password}
-            data-testid="button-admin-login"
+            data-testid={loginType === 'admin' ? 'button-admin-login' : 'button-member-login'}
           >
             {isLoggingIn ? (
               <>

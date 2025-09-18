@@ -23,7 +23,7 @@ export default function ProtectedRoute({ children }: ProtectedRouteProps) {
 
   // Show login form if not authenticated
   if (!user) {
-    return <AdminLogin />;
+    return <AdminLogin loginType="member" />;
   }
 
   // Render protected content for authenticated user

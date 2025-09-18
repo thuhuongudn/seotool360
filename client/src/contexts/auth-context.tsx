@@ -48,11 +48,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         
         if (session?.user) {
           hadSessionRef.current = true;
-          await handleAuthSuccess(session.user, session.access_token);
+          // Try to authenticate with session, but don't block on failure
+          try {
+            await handleAuthSuccess(session.user, session.access_token);
+          } catch (authError) {
+            // If auth fails (expired token), silently clear and continue
+            console.log('Session auth failed during init, clearing auth state');
+            setUser(null);
+            setToken(null);
+            hadSessionRef.current = false;
+          }
         }
       } catch (error) {
         console.error('Error initializing auth:', error);
       } finally {
+        // Always set loading to false, even if auth failed
         setIsLoading(false);
       }
     };
@@ -173,15 +183,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // If redirect is invalid/malicious, ignore it and stay on current page
         }
       } else {
+        // Handle 401 (expired token) silently - don't show error toast for homepage users
+        if (response.status === 401) {
+          console.log('Token expired, silently clearing auth state');
+          await supabase.auth.signOut();
+          return; // Silent exit - no error toast for expired tokens
+        }
         throw new Error('Không thể tải thông tin profile');
       }
     } catch (error) {
       console.error('Error fetching profile:', error);
-      toast({
-        title: "Lỗi đăng nhập",
-        description: "Không thể xác thực thông tin người dùng.",
-        variant: "destructive"
-      });
+      
+      // Only show error toast for actual login attempts, not expired token cleanup
+      // Check if this is during active login (when user clicked login button)
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (authInProgressRef.current && !errorMessage?.includes('401')) {
+        toast({
+          title: "Lỗi đăng nhập",
+          description: "Không thể xác thực thông tin người dùng.",
+          variant: "destructive"
+        });
+      }
       await supabase.auth.signOut();
     } finally {
       authInProgressRef.current = false;
