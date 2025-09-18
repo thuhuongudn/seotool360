@@ -58,15 +58,30 @@ export async function authMiddleware(
 
     // Verify the JWT token with Supabase using fresh client
     console.log('Auth middleware - verifying token:', {
-      tokenLength: token.length,
-      tokenStart: token.substring(0, 20),
+      hasToken: !!token,
       supabaseUrl: supabaseUrl
     });
     
-    const supabase = createSupabaseClient();
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+    // Create Supabase client with optimal configuration for token verification
+    const supabase = createClient(supabaseUrl!, supabaseAnonKey!, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+        flowType: 'pkce'
+      },
+      global: {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      }
+    });
+
+    console.log('Auth middleware - attempting token verification');
     
-    console.log('Auth middleware - token verification result:', {
+    const { data: { user }, error } = await supabase.auth.getUser();
+
+    console.log('Auth middleware - verification result:', {
       hasUser: !!user,
       userId: user?.id,
       error: error?.message,
@@ -74,11 +89,11 @@ export async function authMiddleware(
     });
 
     if (error || !user) {
-      console.error('Auth middleware - token validation failed:', error);
-      // Handle specific Supabase auth errors
-      if (error?.code === 'session_not_found' || error?.message?.includes('AuthSessionMissingError')) {
-        return res.status(401).json({ message: 'Session expired, please log in again' });
-      }
+      console.error('Auth middleware - token validation failed:', {
+        error: error?.message,
+        code: error?.code,
+        tokenLength: token.length
+      });
       return res.status(401).json({ message: 'Invalid or expired token' });
     }
 
@@ -96,7 +111,7 @@ export async function authMiddleware(
     // Attach user info to request
     req.user = {
       id: user.id,
-      email: user.email,
+      email: user.email as string | undefined,
       profile
     };
 

@@ -99,89 +99,89 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
   };
 
   return (
-    <Card 
-      className="hover:shadow-lg transition-shadow cursor-pointer"
-      id={tool.name}
+    <div 
+      onClick={handleActivate}
+      className="cursor-pointer"
       data-testid={`card-tool-${tool.name}`}
     >
-      <CardContent className="p-6">
-        <div className="relative">
-          <div className={`flex items-center justify-center w-12 h-12 ${tool.iconBgColor} rounded-lg mb-4`}>
-            <IconComponent className={`${tool.iconColor} w-6 h-6`} />
+      <Card className="hover:shadow-lg transition-shadow relative h-full">
+        <CardContent className="p-6 h-full flex flex-col">
+          {/* Premium/Free Tag in top-right corner */}
+          <div className="absolute top-4 right-4">
+            {isFreeTool ? (
+              <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 border-green-200">
+                Free
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 border-blue-200">
+                Premium
+              </Badge>
+            )}
+          </div>
+
+          <div className="relative mb-4">
+            <div className={`flex items-center justify-center w-12 h-12 ${tool.iconBgColor} rounded-lg`}>
+              <IconComponent className={`${tool.iconColor} w-6 h-6`} />
+            </div>
+            
+            {/* Status Indicator */}
+            {showStatusIndicator && (
+              <div 
+                className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+                  tool.status === 'active' ? 'bg-green-500' : 'bg-orange-500'
+                }`}
+                data-testid={`status-indicator-${tool.name}`}
+                title={tool.status === 'active' ? 'Active' : 'Pending'}
+              />
+            )}
           </div>
           
-          {/* Status Indicator */}
-          {showStatusIndicator && (
-            <div 
-              className={`absolute -top-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
-                tool.status === 'active' ? 'bg-green-500' : 'bg-orange-500'
-              }`}
-              data-testid={`status-indicator-${tool.name}`}
-              title={tool.status === 'active' ? 'Active' : 'Pending'}
-            />
-          )}
-        </div>
-        
-        <h3 
-          className="text-lg font-semibold text-card-foreground mb-2"
-          data-testid={`text-title-${tool.name}`}
-        >
-          {tool.title}
-        </h3>
-        
-        <p 
-          className="text-muted-foreground text-sm mb-4"
-          data-testid={`text-description-${tool.name}`}
-        >
-          {tool.description}
-        </p>
-        
-        <div className="space-y-2">
-          {/* Free/Premium indicator */}
-          {!user && (
-            <div className="flex items-center justify-center">
-              {isFreeTool ? (
-                <Badge variant="secondary" className="text-xs">
-                  Miễn phí
-                </Badge>
+          <h3 
+            className="text-lg font-semibold text-card-foreground mb-2"
+            data-testid={`text-title-${tool.name}`}
+          >
+            {tool.title}
+          </h3>
+          
+          <p 
+            className="text-muted-foreground text-sm mb-4 flex-1"
+            data-testid={`text-description-${tool.name}`}
+          >
+            {tool.description}
+          </p>
+          
+          {/* Single clean button */}
+          {(requiresAuth && !user) ? (
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleActivate();
+              }}
+              disabled={activateToolMutation.isPending}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-auto"
+              data-testid={`button-activate-${tool.name}`}
+            >
+              {activateToolMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Đang xử lý...
+                </>
               ) : (
-                <Badge variant="outline" className="text-xs flex items-center space-x-1">
-                  <Lock className="w-3 h-3" />
-                  <span>Yêu cầu đăng nhập</span>
-                </Badge>
+                <>
+                  <Lock className="mr-2 h-4 w-4" />
+                  <span>Đăng nhập để sử dụng</span>
+                </>
               )}
+            </Button>
+          ) : (
+            <div className="mt-auto">
+              <div className="text-center text-green-600 text-sm font-medium mb-2">
+                {isFreeTool ? 'Sẵn sàng sử dụng' : 'Đã đăng nhập'}
+              </div>
             </div>
           )}
-          
-          <Button
-            onClick={handleActivate}
-            disabled={activateToolMutation.isPending}
-            className={`w-full ${
-              requiresAuth && !user 
-                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                : 'bg-secondary hover:bg-secondary/80 text-secondary-foreground'
-            }`}
-            data-testid={`button-activate-${tool.name}`}
-          >
-            {activateToolMutation.isPending ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Đang xử lý...
-              </>
-            ) : requiresAuth && !user ? (
-              <>
-                <Lock className="mr-2 h-4 w-4" />
-                <span>Đăng nhập để sử dụng</span>
-              </>
-            ) : (
-              <>
-                <span>Sử dụng công cụ</span>
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </>
-            )}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }

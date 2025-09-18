@@ -109,10 +109,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Add a small delay to ensure token is properly set in Supabase session
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      console.log('Calling /api/users/me with token:', {
-        tokenStart: accessToken.substring(0, 20),
-        tokenEnd: accessToken.substring(accessToken.length - 10)
-      });
+      console.log('Calling /api/users/me with authenticated token');
       
       // Get user profile from our API
       const response = await fetch(`/api/users/me`, {
@@ -131,11 +128,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.ok) {
         const profile = await response.json();
         
-        // Check if user is admin
-        if (profile.role !== 'admin') {
+        // Allow both admin and member roles for authentication
+        if (!profile.role || (profile.role !== 'admin' && profile.role !== 'member')) {
           toast({
             title: "Truy cập bị từ chối",
-            description: "Bạn không có quyền truy cập trang quản trị.",
+            description: "Tài khoản không được phép truy cập hệ thống.",
             variant: "destructive"
           });
           await supabase.auth.signOut();
