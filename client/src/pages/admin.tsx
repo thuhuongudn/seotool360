@@ -230,8 +230,23 @@ export default function AdminPage() {
       const response = await apiRequest("POST", `/api/admin/users/${userId}/tool-access`, { toolId });
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      // Invalidate admin queries
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users', selectedUser?.userId, 'tool-access'] });
+      
+      // CRITICAL: Invalidate user permission queries for immediate enforcement 
+      queryClient.invalidateQueries({ queryKey: [`/api/user/tool-access/${variables.toolId}`] });
+      
+      // Also invalidate any general user permission queries
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const queryKey = query.queryKey;
+          return Array.isArray(queryKey) && queryKey[0] && 
+                 typeof queryKey[0] === 'string' && 
+                 queryKey[0].startsWith('/api/user/tool-access');
+        }
+      });
+      
       toast({
         title: "Cấp quyền thành công!",
         description: "Người dùng đã được cấp quyền sử dụng tool.",
@@ -253,8 +268,23 @@ export default function AdminPage() {
       const response = await apiRequest("DELETE", `/api/admin/users/${userId}/tool-access/${toolId}`);
       return response.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      // Invalidate admin queries
       queryClient.invalidateQueries({ queryKey: ['/api/admin/users', selectedUser?.userId, 'tool-access'] });
+      
+      // CRITICAL: Invalidate user permission queries for immediate enforcement 
+      queryClient.invalidateQueries({ queryKey: [`/api/user/tool-access/${variables.toolId}`] });
+      
+      // Also invalidate any general user permission queries
+      queryClient.invalidateQueries({ 
+        predicate: (query) => {
+          const queryKey = query.queryKey;
+          return Array.isArray(queryKey) && queryKey[0] && 
+                 typeof queryKey[0] === 'string' && 
+                 queryKey[0].startsWith('/api/user/tool-access');
+        }
+      });
+      
       toast({
         title: "Thu hồi quyền thành công!",
         description: "Quyền sử dụng tool đã được thu hồi.",

@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import type { SeoTool } from "@shared/schema";
 import { useAuth } from "@/contexts/auth-context";
+import { useToolPermission } from "@/hooks/use-tool-permission";
 import * as Icons from "lucide-react";
 
 interface ToolCardProps {
@@ -21,6 +22,9 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
   const { user } = useAuth();
+  
+  // Check tool permissions for premium tools
+  const { hasAccess, isLoading: isPermissionLoading, isLoggedIn } = useToolPermission(tool.id);
   
   // Define which tools are free to use without authentication
   const freeTools = new Set([
@@ -168,8 +172,17 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
             {tool.description}
           </p>
           
-          {/* Single clean button */}
-          {(requiresAuth && !user) ? (
+          {/* RBAC-enabled button with permission checking */}
+          {isPermissionLoading ? (
+            <Button
+              disabled={true}
+              className="w-full bg-gray-200 hover:bg-gray-200 text-gray-500 mt-auto cursor-wait"
+              data-testid={`button-loading-${tool.name}`}
+            >
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <span>Đang kiểm tra quyền...</span>
+            </Button>
+          ) : !isLoggedIn && requiresAuth ? (
             <Button
               onClick={(e) => {
                 e.stopPropagation();
@@ -177,7 +190,7 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
               }}
               disabled={activateToolMutation.isPending}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white mt-auto"
-              data-testid={`button-activate-${tool.name}`}
+              data-testid={`button-login-required-${tool.name}`}
             >
               {activateToolMutation.isPending ? (
                 <>
@@ -190,6 +203,24 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
                   <span>Đăng nhập để sử dụng</span>
                 </>
               )}
+            </Button>
+          ) : isLoggedIn && requiresAuth && !hasAccess ? (
+            <Button
+              onClick={(e) => {
+                e.stopPropagation();
+                // Show access denied message
+                toast({
+                  title: "Không có quyền truy cập",
+                  description: "Bạn cần được cấp quyền để sử dụng công cụ này. Vui lòng liên hệ admin.",
+                  variant: "default",
+                });
+              }}
+              disabled={false}
+              className="w-full bg-red-100 hover:bg-red-200 text-red-800 border border-red-300 mt-auto"
+              data-testid={`button-access-denied-${tool.name}`}
+            >
+              <Lock className="mr-2 h-4 w-4" />
+              <span>Không có quyền truy cập</span>
             </Button>
           ) : tool.status === 'pending' ? (
             <Button

@@ -171,6 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Handle redirect after successful login
         const urlParams = new URLSearchParams(window.location.search);
         const redirectTo = urlParams.get('redirect');
+        
         if (redirectTo) {
           // Clear the redirect parameter and navigate to intended destination
           window.history.replaceState({}, document.title, window.location.pathname);
@@ -182,6 +183,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }, 1000); // Small delay to let user see success message
           }
           // If redirect is invalid/malicious, ignore it and stay on current page
+        } else {
+          // ROLE-BASED REDIRECT: If member is at /admin, redirect to home
+          const currentPath = window.location.pathname;
+          const isAtAdminPage = currentPath === '/admin';
+          const isMember = profile.role === 'member';
+          
+          if (isAtAdminPage && isMember) {
+            console.log('Member logged in at /admin, redirecting to home');
+            setTimeout(() => {
+              window.location.href = '/';
+            }, 1000); // Small delay to let user see success message
+          }
         }
       } else {
         // Handle 401 (expired token) silently - don't show error toast for homepage users
