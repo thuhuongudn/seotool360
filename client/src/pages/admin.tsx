@@ -262,9 +262,15 @@ export default function AdminPage() {
     },
     onError: (error: any) => {
       console.error('Revoke access error:', error);
+      console.error('Revoke access error details:', {
+        message: error?.message,
+        stack: error?.stack,
+        name: error?.name,
+        cause: error?.cause
+      });
       toast({
         title: "Lỗi thu hồi quyền",
-        description: "Không thể thu hồi quyền tool.",
+        description: error?.message || "Không thể thu hồi quyền tool.",
         variant: "destructive",
       });
     },
