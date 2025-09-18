@@ -12,8 +12,20 @@ async function throwIfResNotOk(res: Response) {
 async function getAccessToken(): Promise<string | null> {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
-    console.log('getAccessToken - session:', { hasSession: !!session, hasToken: !!session?.access_token, error });
-    return session?.access_token || null;
+    const token = session?.access_token || null;
+    console.log('getAccessToken - session:', { 
+      hasSession: !!session, 
+      hasToken: !!token, 
+      tokenLength: token?.length || 0,
+      error 
+    });
+    
+    // Add small delay to ensure token is stable
+    if (token) {
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    
+    return token;
   } catch (error) {
     console.error('Error getting access token:', error);
     return null;
@@ -61,9 +73,18 @@ export const getQueryFn: <T>(options: {
     // Add auth header for protected routes (admin and user routes)
     if (url.includes('/api/admin/') || url.includes('/api/user/')) {
       const token = await getAccessToken();
-      console.log('getQueryFn - protected route:', { url, hasToken: !!token, tokenPrefix: token?.substring(0, 20) });
+      console.log('getQueryFn - protected route:', { 
+        url, 
+        hasToken: !!token, 
+        tokenPrefix: token?.substring(0, 20),
+        tokenLength: token?.length || 0,
+        willAddHeader: !!token
+      });
       if (token) {
         headers.Authorization = `Bearer ${token}`;
+        console.log('getQueryFn - auth header added successfully');
+      } else {
+        console.warn('getQueryFn - no token available, request will fail with 401');
       }
     }
 
