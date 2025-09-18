@@ -36,6 +36,8 @@ import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import MarkdownRenderer from "@/components/markdown-renderer";
 import CopyMarkdownButton from "@/components/copy-markdown-button";
+import ToolPermissionGuard from "@/components/tool-permission-guard";
+import { useToolId } from "@/hooks/use-tool-id";
 import type { InternalLinkSuggestion } from "@shared/schema";
 
 // Form schema matching the requirements
@@ -56,13 +58,14 @@ interface WebhookResponse {
   [key: string]: any;
 }
 
-export default function InternalLinkHelper() {
+// Authorized content component - only renders when user has access
+function AuthorizedInternalLinkContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [result, setResult] = useState<string>("");
   const [expandedSuggestions, setExpandedSuggestions] = useState<Set<number>>(new Set());
   const { toast } = useToast();
 
-  // Fetch recent suggestions
+  // Fetch recent suggestions - now safely inside authorized area
   const { data: recentSuggestions, isLoading: suggestionsLoading } = useQuery({
     queryKey: ['/api/internal-link-suggestions', { limit: 3 }],
     queryFn: () => fetch('/api/internal-link-suggestions?limit=3').then(res => res.json()) as Promise<InternalLinkSuggestion[]>
@@ -168,16 +171,16 @@ export default function InternalLinkHelper() {
   return (
     <div className="min-h-screen bg-background">
       <Header />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PageNavigation 
-          breadcrumbItems={[
-            { label: "Gợi ý internal link cho bài viết" }
-          ]}
-          backLink="/"
-        />
+    
+    <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <PageNavigation 
+        breadcrumbItems={[
+          { label: "Gợi ý internal link cho bài viết" }
+        ]}
+        backLink="/"
+      />
 
-        <div className="container mx-auto px-4 max-w-6xl">
+      <div className="container mx-auto px-4 max-w-6xl">
           {/* Header */}
           <div className="text-center mb-8">
             <h1
@@ -515,5 +518,20 @@ export default function InternalLinkHelper() {
         </div>
       </main>
     </div>
+  );
+}
+
+// Main wrapper component with ToolPermissionGuard
+export default function InternalLinkHelper() {
+  // Get tool ID for permission checking
+  const toolId = useToolId('internal-link-helper');
+
+  return (
+    <ToolPermissionGuard 
+      toolId={toolId || ""} 
+      toolName="Gợi ý internal link cho bài viết"
+    >
+      <AuthorizedInternalLinkContent />
+    </ToolPermissionGuard>
   );
 }

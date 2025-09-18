@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Shield, Lock } from "lucide-react";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
+import { useAuth } from "@/contexts/auth-context";
 
 interface ToolPermissionGuardProps {
   toolId: string;
@@ -21,6 +22,7 @@ export default function ToolPermissionGuard({
 }: ToolPermissionGuardProps) {
   const [showUnauthorizedPopup, setShowUnauthorizedPopup] = useState(false);
   const { hasAccess, isLoading, isLoggedIn } = useToolPermission(toolId);
+  const { setShowLoginModal } = useAuth();
 
   // Show loading state while checking permissions
   if (isLoading) {
@@ -57,8 +59,8 @@ export default function ToolPermissionGuard({
               </p>
               <Button
                 onClick={() => {
-                  // Trigger login modal through URL or context
-                  window.location.href = "/?login=true";
+                  // Trigger login modal directly through context
+                  setShowLoginModal(true);
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
                 data-testid="button-login-required"

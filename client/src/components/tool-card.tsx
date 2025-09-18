@@ -21,7 +21,7 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
-  const { user } = useAuth();
+  const { user, setShowLoginModal } = useAuth();
   
   // Check tool permissions for premium tools
   const { hasAccess, isLoading: isPermissionLoading, isLoggedIn } = useToolPermission(tool.id);
@@ -98,13 +98,8 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
         description: "Vui lòng đăng nhập để sử dụng công cụ này.",
         variant: "default",
       });
-      // Store intended destination and redirect to login
-      const intendedRoute = toolRoutes[tool.name];
-      if (intendedRoute) {
-        setLocation(`/admin?redirect=${encodeURIComponent(intendedRoute)}`);
-      } else {
-        setLocation('/admin');
-      }
+      // Trigger member login modal instead of redirect
+      setShowLoginModal(true);
       return;
     }
     

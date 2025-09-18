@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import FloatingSupportButton from "@/components/floating-support-button";
 import { AuthProvider } from "@/contexts/auth-context";
+import AdminLogin from "@/components/admin-login";
 import ProtectedAdminRoute from "@/components/protected-admin-route";
 import ProtectedRoute from "@/components/protected-route";
 import Home from "@/pages/home";
@@ -69,11 +70,7 @@ function Router() {
           <SearchIntent />
         </ProtectedRoute>
       </Route>
-      <Route path="/internal-link-helper">
-        <ProtectedRoute>
-          <InternalLinkHelper />
-        </ProtectedRoute>
-      </Route>
+      <Route path="/internal-link-helper" component={InternalLinkHelper} />
       <Route path="/article-rewriter">
         <ProtectedRoute>
           <ArticleRewriter />
@@ -121,6 +118,8 @@ function App() {
           <Toaster />
           <Router />
           <FloatingSupportButton />
+          {/* Global login modal */}
+          <AdminLogin isModal={true} loginType="member" />
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
