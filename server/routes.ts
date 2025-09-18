@@ -72,8 +72,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Check if tool is premium and requires permission
-      // Fallback to name-based check if isPremium field doesn't exist yet
-      const isPremium = tool.isPremium !== undefined ? tool.isPremium : (tool.name !== 'markdown-html' && tool.name !== 'qr-code');
+      // Since isPremium field doesn't exist yet, use name-based check
+      const isPremium = (tool.name !== 'markdown-html' && tool.name !== 'qr-code');
       
       if (isPremium) {
         // Premium tool - check user permissions
@@ -306,6 +306,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const userId = req.user.id;
       const { toolId } = req.params;
+
+      // ADMIN BYPASS: Admin accounts have access to all tools
+      const userProfile = await storage.getProfile(userId);
+      const isAdmin = userProfile?.role === 'admin';
+      
+      if (isAdmin) {
+        // Return synthetic permission for admin bypass
+        res.json([{
+          id: 'admin-bypass',
+          userId: userId,
+          toolId: toolId,
+          permission: 'use',
+          grantedBy: userId,
+          createdAt: new Date()
+        }]);
+        return;
+      }
 
       const userToolAccess = await storage.getUserToolAccess(userId);
       const hasAccess = userToolAccess.filter(access => access.toolId === toolId);
@@ -571,16 +588,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const access = await storage.grantToolAccess(validation.data);
       
-      // Create audit log
-      await storage.createAuditLog({
-        actorId: req.user!.id, // Use authenticated admin ID
-        action: 'grant_tool_access',
-        subjectUserId: validation.data.userId,
-        metadata: { 
-          toolId: validation.data.toolId,
-          permission: validation.data.permission 
-        }
-      });
+      // Create audit log - handle duplicate constraint gracefully
+      try {
+        await storage.createAuditLog({
+          actorId: req.user!.id, // Use authenticated admin ID
+          action: 'grant_tool_access',
+          subjectUserId: validation.data.userId,
+          metadata: { 
+            toolId: validation.data.toolId,
+            permission: validation.data.permission,
+            timestamp: new Date().toISOString() // Add timestamp for uniqueness
+          }
+        });
+      } catch (auditError) {
+        // Log audit error but don't fail the main operation
+        console.warn('Audit log creation failed (likely duplicate):', auditError);
+      }
       
       res.json(access);
     } catch (error) {

@@ -99,7 +99,8 @@ export const adminAuditLog = pgTable("admin_audit_log", {
   metadata: jsonb("metadata").notNull().default(sql`'{}'::jsonb`),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 }, (table) => ({
-  adminAuditUniqueIdx: sql`CREATE UNIQUE INDEX IF NOT EXISTS admin_audit_unique_idx ON ${table} (${table.actorId}, ${table.action}, ${table.subjectUserId})`,
+  // Remove unique constraint to allow multiple audit entries for same action
+  // Audit logs should capture all actions, including repeated ones
 }));
 
 // Legacy user schema removed - now using Supabase auth
