@@ -8,19 +8,28 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-// Helper function to get auth token from Supabase session
-async function getAccessToken(): Promise<string | null> {
+// Helper function to get auth token from Supabase session with retry mechanism
+async function getAccessToken(retryCount = 0): Promise<string | null> {
   try {
     const { data: { session }, error } = await supabase.auth.getSession();
     const token = session?.access_token || null;
+    
     console.log('getAccessToken - session:', { 
       hasSession: !!session, 
       hasToken: !!token, 
       tokenLength: token?.length || 0,
+      retryCount,
       error 
     });
     
-    // Add small delay to ensure token is stable
+    // If no token and we haven't retried, wait and try again
+    if (!token && retryCount === 0) {
+      console.log('getAccessToken - no token found, retrying with fresh session...');
+      await new Promise(resolve => setTimeout(resolve, 100));
+      return getAccessToken(1);
+    }
+    
+    // Add stability delay for successful token retrieval
     if (token) {
       await new Promise(resolve => setTimeout(resolve, 50));
     }
@@ -41,21 +50,36 @@ export async function apiRequest(
     ...(data ? { "Content-Type": "application/json" } : {}),
   };
 
-  // Add auth header for protected routes (admin and user routes)
-  if (url.includes('/api/admin/') || url.includes('/api/user/')) {
+  // Add auth header for ALL internal API routes
+  if (url.includes('/api/')) {
     const token = await getAccessToken();
-    console.log('apiRequest - protected route:', { url, hasToken: !!token, tokenPrefix: token?.substring(0, 20) });
+    console.log('apiRequest - protected route:', { url, hasToken: !!token });
     if (token) {
       headers.Authorization = `Bearer ${token}`;
     }
   }
 
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
     credentials: "include",
   });
+
+  // Retry once with fresh token on 401
+  if (res.status === 401 && url.includes('/api/')) {
+    console.log('apiRequest - got 401, retrying with fresh token...');
+    const freshToken = await getAccessToken(1);
+    if (freshToken) {
+      headers.Authorization = `Bearer ${freshToken}`;
+      res = await fetch(url, {
+        method,
+        headers,
+        body: data ? JSON.stringify(data) : undefined,
+        credentials: "include",
+      });
+    }
+  }
 
   await throwIfResNotOk(res);
   return res;
@@ -70,14 +94,12 @@ export const getQueryFn: <T>(options: {
     const url = queryKey.join("/") as string;
     const headers: Record<string, string> = {};
 
-    // Add auth header for protected routes (admin and user routes)
-    if (url.includes('/api/admin/') || url.includes('/api/user/')) {
+    // Add auth header for ALL internal API routes
+    if (url.includes('/api/')) {
       const token = await getAccessToken();
       console.log('getQueryFn - protected route:', { 
         url, 
-        hasToken: !!token, 
-        tokenPrefix: token?.substring(0, 20),
-        tokenLength: token?.length || 0,
+        hasToken: !!token,
         willAddHeader: !!token
       });
       if (token) {
@@ -88,10 +110,23 @@ export const getQueryFn: <T>(options: {
       }
     }
 
-    const res = await fetch(url, {
+    let res = await fetch(url, {
       headers,
       credentials: "include",
     });
+
+    // Retry once with fresh token on 401
+    if (res.status === 401 && url.includes('/api/')) {
+      console.log('getQueryFn - got 401, retrying with fresh token...');
+      const freshToken = await getAccessToken(1);
+      if (freshToken) {
+        headers.Authorization = `Bearer ${freshToken}`;
+        res = await fetch(url, {
+          headers,
+          credentials: "include",
+        });
+      }
+    }
 
     if (unauthorizedBehavior === "returnNull" && res.status === 401) {
       return null;
