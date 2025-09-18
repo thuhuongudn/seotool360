@@ -36,7 +36,11 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/markdown-converter" component={MarkdownConverter} />
-      <Route path="/social-media-writer" component={SocialMediaWriter} />
+      <Route path="/social-media-writer">
+        <ProtectedRoute>
+          <SocialMediaWriter />
+        </ProtectedRoute>
+      </Route>
       <Route path="/all-social-media-posts" component={AllSocialMediaPosts} />
       <Route path="/all-internal-link-suggestions" component={AllInternalLinkSuggestions} />
       <Route path="/dashboard">
@@ -55,17 +59,53 @@ function Router() {
         </ProtectedAdminRoute>
       </Route>
       {/* Content SEO Routes */}
-      <Route path="/topical-map" component={TopicalMap} />
-      <Route path="/search-intent" component={SearchIntent} />
-      <Route path="/internal-link-helper" component={InternalLinkHelper} />
-      <Route path="/article-rewriter" component={ArticleRewriter} />
-      <Route path="/schema-markup" component={SchemaMarkup} />
+      <Route path="/topical-map">
+        <ProtectedRoute>
+          <TopicalMap />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/search-intent">
+        <ProtectedRoute>
+          <SearchIntent />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/internal-link-helper">
+        <ProtectedRoute>
+          <InternalLinkHelper />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/article-rewriter">
+        <ProtectedRoute>
+          <ArticleRewriter />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/schema-markup">
+        <ProtectedRoute>
+          <SchemaMarkup />
+        </ProtectedRoute>
+      </Route>
       {/* Index Routes */}
-      <Route path="/bing-indexing" component={BingIndexing} />
-      <Route path="/google-indexing" component={GoogleIndexing} />
-      <Route path="/google-checker" component={GoogleChecker} />
+      <Route path="/bing-indexing">
+        <ProtectedRoute>
+          <BingIndexing />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/google-indexing">
+        <ProtectedRoute>
+          <GoogleIndexing />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/google-checker">
+        <ProtectedRoute>
+          <GoogleChecker />
+        </ProtectedRoute>
+      </Route>
       {/* Other Tool Routes */}
-      <Route path="/image-seo" component={ImageSeo} />
+      <Route path="/image-seo">
+        <ProtectedRoute>
+          <ImageSeo />
+        </ProtectedRoute>
+      </Route>
       <Route path="/qr-code" component={QrCode} />
       <Route path="/blog" component={Blog} />
       <Route component={NotFound} />
