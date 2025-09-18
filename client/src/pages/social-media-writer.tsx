@@ -178,21 +178,20 @@ export default function SocialMediaWriter() {
   };
 
   return (
-    <div className="min-h-screen bg-background">
-      <Header />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PageNavigation 
-          breadcrumbItems={[
-            { label: "Viết bài MXH" }
-          ]}
-          backLink="/"
-        />
-
-        <ToolPermissionGuard 
-          toolId={toolId || ""} 
-          toolName="Social Media Posts"
-        >
+    <ToolPermissionGuard 
+      toolId={toolId || ""} 
+      toolName="Social Media Posts"
+    >
+      <div className="min-h-screen bg-background">
+        <Header />
+        
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <PageNavigation 
+            breadcrumbItems={[
+              { label: "Viết bài MXH" }
+            ]}
+            backLink="/"
+          />
           <div className="container mx-auto px-4 max-w-6xl">
             {/* Header */}
             <div className="text-center mb-8">
@@ -648,9 +647,9 @@ export default function SocialMediaWriter() {
             </div>
           )}
         </div>
-          </div>
-        </ToolPermissionGuard>
-      </main>
-    </div>
+        </div>
+        </main>
+      </div>
+    </ToolPermissionGuard>
   );
 }
