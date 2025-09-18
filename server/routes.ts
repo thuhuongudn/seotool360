@@ -50,7 +50,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Activate a SEO tool (calls n8n API)
-  app.post("/api/seo-tools/activate", async (req: Request, res: Response) => {
+  app.post("/api/seo-tools/activate", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const validation = activateToolSchema.safeParse(req.body);
       if (!validation.success) {
@@ -69,6 +69,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (tool.status !== "active") {
         return res.status(400).json({ message: "SEO tool is not active" });
+      }
+
+      // Check if tool is premium and requires permission
+      // Fallback to name-based check if isPremium field doesn't exist yet
+      const isPremium = tool.isPremium !== undefined ? tool.isPremium : (tool.name !== 'markdown-html' && tool.name !== 'qr-code');
+      
+      if (isPremium) {
+        // Premium tool - check user permissions
+        const userAccess = await storage.getUserToolAccess(req.user!.id);
+        const hasAccess = userAccess.some(access => access.toolId === toolId);
+        
+        if (!hasAccess) {
+          return res.status(403).json({ 
+            message: "Access denied. You don't have permission to use this tool." 
+          });
+        }
       }
 
       // TODO: Call n8n API endpoint
@@ -133,15 +149,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update a specific tool (PUT /api/seo-tools/:id)
-  app.put("/api/seo-tools/:id", async (req: Request, res: Response) => {
+  // Update a specific tool (PUT /api/seo-tools/:id) - Admin only
+  app.put("/api/seo-tools/:id", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
       const { id } = req.params;
+      
+      // Validate that tool exists first
+      const existingTool = await storage.getSeoTool(id);
+      if (!existingTool) {
+        return res.status(404).json({ message: "SEO tool not found" });
+      }
+      
       const updatedTool = await storage.updateSeoTool(id, req.body);
       
       if (!updatedTool) {
         return res.status(404).json({ message: "SEO tool not found" });
       }
+      
+      // Create audit log for tool modification
+      await storage.createAuditLog({
+        actorId: req.user!.id,
+        action: 'update_tool',
+        subjectUserId: req.user!.id, // Admin modifying tool
+        metadata: { toolId: id, changes: req.body, timestamp: new Date().toISOString() }
+      });
       
       res.json(updatedTool);
     } catch (error) {
@@ -257,6 +288,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching current user profile:", error);
       res.status(500).json({ message: "Failed to fetch profile" });
+    }
+  });
+
+  // Get user's tool access permissions for a specific tool
+  app.get("/api/user/tool-access/:toolId", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const userId = req.user.id;
+      const { toolId } = req.params;
+
+      const userToolAccess = await storage.getUserToolAccess(userId);
+      const hasAccess = userToolAccess.filter(access => access.toolId === toolId);
+      
+      res.json(hasAccess);
+    } catch (error) {
+      console.error("Error fetching user tool access:", error);
+      res.status(500).json({ message: "Failed to fetch tool access" });
     }
   });
 
@@ -675,6 +726,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error logging out user:", error);
       res.status(500).json({ message: "Failed to logout user" });
+    }
+  });
+
+  // ============================================
+  // ADMIN USER TOOL ACCESS MANAGEMENT ROUTES
+  // ============================================
+
+  // Get user's tool access permissions (admin only)
+  app.get("/api/admin/users/:userId/tool-access", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId } = req.params;
+      
+      const userToolAccess = await storage.getUserToolAccess(userId);
+      res.json(userToolAccess);
+    } catch (error) {
+      console.error("Error fetching user tool access:", error);
+      res.status(500).json({ message: "Failed to fetch user tool access" });
+    }
+  });
+
+  // Grant tool access to user (admin only)
+  app.post("/api/admin/users/:userId/tool-access", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId } = req.params;
+      const { toolId } = req.body;
+      
+      if (!toolId) {
+        return res.status(400).json({ message: "Tool ID is required" });
+      }
+      
+      // Validate that the tool exists
+      const tool = await storage.getSeoTool(toolId);
+      if (!tool) {
+        return res.status(404).json({ message: "Tool not found" });
+      }
+      
+      // Validate that the user profile exists
+      const userProfile = await storage.getProfile(userId);
+      if (!userProfile) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Check if user already has access
+      const existingAccess = await storage.getUserToolAccess(userId);
+      const hasAccess = existingAccess.some(access => access.toolId === toolId);
+      
+      if (hasAccess) {
+        return res.status(400).json({ message: "User already has access to this tool" });
+      }
+      
+      // Grant access
+      await storage.grantToolAccess({ 
+        userId, 
+        toolId, 
+        permission: 'use',
+        grantedBy: req.user!.id 
+      });
+      
+      // Create audit log
+      await storage.createAuditLog({
+        actorId: req.user!.id,
+        action: 'grant_tool_access',
+        subjectUserId: userId,
+        metadata: { toolId, timestamp: new Date().toISOString() }
+      });
+      
+      res.json({ message: "Tool access granted successfully" });
+    } catch (error) {
+      console.error("Error granting tool access:", error);
+      res.status(500).json({ message: "Failed to grant tool access" });
+    }
+  });
+
+  // Revoke tool access from user (admin only)
+  app.delete("/api/admin/users/:userId/tool-access/:toolId", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const { userId, toolId } = req.params;
+      
+      // Validate that the tool exists
+      const tool = await storage.getSeoTool(toolId);
+      if (!tool) {
+        return res.status(404).json({ message: "Tool not found" });
+      }
+      
+      // Validate that the user profile exists
+      const userProfile = await storage.getProfile(userId);
+      if (!userProfile) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      // Revoke access
+      const success = await storage.revokeToolAccess(userId, toolId);
+      
+      if (!success) {
+        return res.status(404).json({ message: "Permission not found or already revoked" });
+      }
+      
+      // Create audit log
+      await storage.createAuditLog({
+        actorId: req.user!.id,
+        action: 'revoke_tool_access',
+        subjectUserId: userId,
+        metadata: { toolId, timestamp: new Date().toISOString() }
+      });
+      
+      res.json({ message: "Tool access revoked successfully" });
+    } catch (error) {
+      console.error("Error revoking tool access:", error);
+      res.status(500).json({ message: "Failed to revoke tool access" });
     }
   });
 

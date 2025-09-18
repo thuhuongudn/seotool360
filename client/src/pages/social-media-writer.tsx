@@ -35,6 +35,8 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import CopyMarkdownButton from "@/components/copy-markdown-button";
+import ToolPermissionGuard from "@/components/tool-permission-guard";
+import { useToolId } from "@/hooks/use-tool-id";
 import type { SocialMediaPost } from "@shared/schema";
 
 // Form schema matching the requirements
@@ -62,6 +64,9 @@ export default function SocialMediaWriter() {
   const [result, setResult] = useState<string>("");
   const [expandedPosts, setExpandedPosts] = useState<Set<number>>(new Set());
   const { toast } = useToast();
+  
+  // Get tool ID for permission checking
+  const toolId = useToolId('social-media');
 
   // Fetch recent posts
   const { data: recentPosts, isLoading: postsLoading } = useQuery({
@@ -184,9 +189,13 @@ export default function SocialMediaWriter() {
           backLink="/"
         />
 
-        <div className="container mx-auto px-4 max-w-6xl">
-          {/* Header */}
-          <div className="text-center mb-8">
+        <ToolPermissionGuard 
+          toolId={toolId || ""} 
+          toolName="Social Media Posts"
+        >
+          <div className="container mx-auto px-4 max-w-6xl">
+            {/* Header */}
+            <div className="text-center mb-8">
             <h1
               className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4"
               data-testid="heading-social-writer-title"
@@ -639,7 +648,8 @@ export default function SocialMediaWriter() {
             </div>
           )}
         </div>
-      </div>
+          </div>
+        </ToolPermissionGuard>
       </main>
     </div>
   );

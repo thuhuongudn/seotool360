@@ -17,6 +17,7 @@ export const seoTools = pgTable("seo_tools", {
   category: text("category").notNull(),
   n8nEndpoint: text("n8n_endpoint"),
   status: text("status").notNull().default("active"), // active | pending
+  // TODO: Add isPremium field when database migration is ready
 });
 
 export const toolExecutions = pgTable("tool_executions", {

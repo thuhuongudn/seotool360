@@ -96,6 +96,8 @@ export default function AdminPage() {
     username: "",
     role: "member" as "admin" | "member"
   });
+  const [showPermissionsDialog, setShowPermissionsDialog] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const { toast } = useToast();
   const { user, isAdmin } = useAuth();
 
@@ -211,6 +213,58 @@ export default function AdminPage() {
       toast({
         title: "Lỗi tạo người dùng",
         description: error.message || "Không thể tạo người dùng. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Fetch user tool access when permissions dialog is open
+  const { data: userToolAccess, isLoading: loadingUserPermissions } = useQuery({
+    queryKey: ['/api/admin/users', selectedUser?.userId, 'tool-access'],
+    enabled: !!selectedUser?.userId && showPermissionsDialog,
+  });
+
+  // Grant tool access mutation
+  const grantToolAccessMutation = useMutation({
+    mutationFn: async ({ userId, toolId }: { userId: string; toolId: string }) => {
+      const response = await apiRequest("POST", `/api/admin/users/${userId}/tool-access`, { toolId });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users', selectedUser?.userId, 'tool-access'] });
+      toast({
+        title: "Cấp quyền thành công!",
+        description: "Người dùng đã được cấp quyền sử dụng tool.",
+      });
+    },
+    onError: (error: any) => {
+      console.error('Grant access error:', error);
+      toast({
+        title: "Lỗi cấp quyền",
+        description: "Không thể cấp quyền tool cho người dùng.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Revoke tool access mutation
+  const revokeToolAccessMutation = useMutation({
+    mutationFn: async ({ userId, toolId }: { userId: string; toolId: string }) => {
+      const response = await apiRequest("DELETE", `/api/admin/users/${userId}/tool-access/${toolId}`);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/users', selectedUser?.userId, 'tool-access'] });
+      toast({
+        title: "Thu hồi quyền thành công!",
+        description: "Quyền sử dụng tool đã được thu hồi.",
+      });
+    },
+    onError: (error: any) => {
+      console.error('Revoke access error:', error);
+      toast({
+        title: "Lỗi thu hồi quyền",
+        description: "Không thể thu hồi quyền tool.",
         variant: "destructive",
       });
     },
@@ -516,6 +570,90 @@ export default function AdminPage() {
                 </Dialog>
               </div>
               
+              {/* Tool Permissions Management Dialog */}
+              <Dialog open={showPermissionsDialog} onOpenChange={setShowPermissionsDialog}>
+                <DialogContent className="sm:max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>
+                      Quản lý quyền tool - {selectedUser?.username}
+                    </DialogTitle>
+                  </DialogHeader>
+                  
+                  {loadingUserPermissions ? (
+                    <div className="py-6 text-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                      <p className="text-gray-500">Đang tải quyền hiện tại...</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 py-4">
+                      {allTools?.map((tool: any) => {
+                        const hasAccess = userToolAccess?.some((access: any) => access.toolId === tool.id);
+                        const isUpdating = grantToolAccessMutation.isPending || revokeToolAccessMutation.isPending;
+                        
+                        return (
+                          <div key={tool.id} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex-1">
+                              <h4 className="font-medium text-gray-900 dark:text-white">
+                                {tool.name}
+                              </h4>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                {tool.description}
+                              </p>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Badge variant={tool.status === 'active' ? 'default' : 'secondary'}>
+                                  {tool.status === 'active' ? 'Hoạt động' : 'Chờ duyệt'}
+                                </Badge>
+                                <span className="text-xs text-gray-400">
+                                  Premium Tool
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <Switch
+                              checked={hasAccess}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  grantToolAccessMutation.mutate({
+                                    userId: selectedUser!.userId,
+                                    toolId: tool.id
+                                  });
+                                } else {
+                                  revokeToolAccessMutation.mutate({
+                                    userId: selectedUser!.userId,
+                                    toolId: tool.id
+                                  });
+                                }
+                              }}
+                              disabled={isUpdating}
+                              data-testid={`switch-tool-access-${tool.id}`}
+                            />
+                          </div>
+                        );
+                      })}
+                      
+                      {(!allTools || allTools.length === 0) && (
+                        <div className="text-center py-6 text-gray-500">
+                          Không có tool nào để quản lý
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  <div className="flex justify-end pt-4">
+                    <Button 
+                      variant="outline" 
+                      onClick={() => {
+                        setShowPermissionsDialog(false);
+                        setSelectedUser(null);
+                      }}
+                      data-testid="button-close-permissions"
+                    >
+                      Đóng
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              
               {usersError ? (
                 <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg shadow-sm">
                   <Users className="mx-auto h-12 w-12 text-red-400 mb-4" />
@@ -561,6 +699,21 @@ export default function AdminPage() {
                           </div>
                           
                           <div className="flex items-center gap-4">
+                            {/* Manage Permissions Button */}
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedUser(userProfile);
+                                setShowPermissionsDialog(true);
+                              }}
+                              className="text-purple-600 border-purple-600 hover:bg-purple-50"
+                              data-testid={`button-manage-permissions-${userProfile.userId}`}
+                            >
+                              <Key className="w-4 h-4 mr-1" />
+                              Quản lý quyền
+                            </Button>
+                            
                             {/* Role Selector */}
                             <Select 
                               value={userProfile.role} 

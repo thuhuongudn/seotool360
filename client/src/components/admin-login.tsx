@@ -24,6 +24,17 @@ export default function AdminLogin({ isModal = false, loginType = 'admin' }: Adm
   const { login, showLoginModal, setShowLoginModal } = useAuth();
   const { toast } = useToast();
 
+  // Debug logging for testing
+  const isButtonDisabled = isLoggingIn || !email || !password;
+  console.log('AdminLogin state:', { 
+    email: email || 'EMPTY', 
+    password: password ? '[SET]' : 'EMPTY', 
+    isLoggingIn, 
+    isButtonDisabled,
+    emailLength: email.length,
+    passwordLength: password.length
+  });
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     

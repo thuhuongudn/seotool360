@@ -70,11 +70,18 @@ async function seedUsers() {
   console.log('🌱 Starting user seeding...')
   
   try {
-    // Admin User  
+    // Primary Admin User  
     const adminUser = await createOrGetUser(
       'nhathuocvietnhatdn@gmail.com',
       'Vietnhat@123',
       { username: 'nhathuocvietnhatdn', role: 'admin' }
+    )
+
+    // Test Admin User (for testing purposes)
+    const testAdminUser = await createOrGetUser(
+      'admin@seotool360.com',
+      'SeT0olAdmin!',
+      { username: 'admin', role: 'admin' }
     )
 
     // Regular User
