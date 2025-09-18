@@ -890,11 +890,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
       
+      // Enhanced debugging for permission revoke failures
+      // Check current permissions before revoking
+      const currentPermissions = await storage.getUserToolAccess(userId);
+      const hasMatchingPermission = currentPermissions.some(p => p.toolId === toolId);
+      
+      console.log('Permission revoke attempt - Debug info:', {
+        userId,
+        toolId,
+        userExists: !!userProfile,
+        currentPermissionsCount: currentPermissions.length,
+        userPermissions: currentPermissions.map(p => ({ toolId: p.toolId, permission: p.permission })),
+        hasMatchingPermission,
+        actorId: req.user!.id
+      });
+      
       // Revoke access
       const success = await storage.revokeToolAccess(userId, toolId);
       
       if (!success) {
-        return res.status(404).json({ message: "Permission not found or already revoked" });
+        return res.status(404).json({ 
+          message: "Permission not found or already revoked", 
+          debug: { 
+            userId, 
+            toolId, 
+            userPermissions: currentPermissions.map(p => p.toolId),
+            hasMatchingPermission 
+          } 
+        });
       }
       
       // Create audit log

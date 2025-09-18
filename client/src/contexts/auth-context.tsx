@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect, useRef } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import supabase from "@/lib/supabase";
+import { queryClient } from "@/lib/queryClient";
 
 interface User {
   id: string;
@@ -212,8 +213,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleLogout = () => {
     console.log('Handling logout');
+    
+    // Clear all cached queries to prevent permission leakage
+    try {
+      console.log('Starting comprehensive cache invalidation during logout');
+      queryClient.removeQueries();
+      queryClient.clear();
+      // Specifically invalidate admin and user permission queries
+      queryClient.removeQueries({ queryKey: ['/api/admin'] });
+      queryClient.removeQueries({ queryKey: ['/api/user'] });
+      queryClient.removeQueries({ queryKey: ['/api/tools'] });
+      console.log('Comprehensive cache invalidation completed');
+    } catch (cacheError) {
+      console.warn('Cache clearing error during logout:', cacheError);
+    }
+    
     setUser(null);
     setToken(null);
+    hadSessionRef.current = false;
     
     // Navigate to homepage
     setLocation('/');
@@ -286,8 +303,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     try {
       console.log('Initiating logout');
+      // Clear all TanStack Query cache before logout to prevent sticky permissions
+      queryClient.clear();
+      console.log('Pre-logout query cache cleared');
       await supabase.auth.signOut();
       handleLogout();
+      // Force additional cache clear after logout
+      queryClient.clear();
+      console.log('Post-logout cache clear completed');
     } catch (error) {
       console.error('Logout error:', error);
       handleLogout(); // Force logout even if API call fails

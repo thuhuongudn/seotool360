@@ -426,16 +426,34 @@ export class DatabaseStorage implements IStorage {
   }
 
   async grantToolAccess(access: InsertUserToolAccess): Promise<UserToolAccess> {
-    const [granted] = await db.insert(userToolAccess)
+    // Use upsert to handle duplicate grants gracefully
+    const [granted] = await db
+      .insert(userToolAccess)
       .values(access)
+      .onConflictDoUpdate({
+        target: [userToolAccess.userId, userToolAccess.toolId],
+        set: {
+          permission: access.permission,
+          grantedBy: access.grantedBy,
+          createdAt: new Date()
+        }
+      })
       .returning();
+    console.log('Tool access granted/updated:', { userId: access.userId, toolId: access.toolId });
     return granted;
   }
 
   async revokeToolAccess(userId: string, toolId: string): Promise<boolean> {
     const result = await db.delete(userToolAccess)
-      .where(and(eq(userToolAccess.userId, userId), eq(userToolAccess.toolId, toolId)));
-    return result.rowCount > 0;
+      .where(and(eq(userToolAccess.userId, userId), eq(userToolAccess.toolId, toolId)))
+      .returning();
+    const success = result.length > 0;
+    console.log('Permission revoke attempt:', {
+      userId, toolId, 
+      rowsAffected: result.length,
+      success: success
+    });
+    return success;
   }
 
   // ============================================
@@ -443,13 +461,15 @@ export class DatabaseStorage implements IStorage {
   // ============================================
 
   async getUserToolSettings(userId: string, toolId?: string): Promise<ToolSettings[]> {
-    let query = db.select().from(toolSettings).where(eq(toolSettings.userId, userId));
+    const conditions = [eq(toolSettings.userId, userId)];
     
     if (toolId) {
-      query = query.where(eq(toolSettings.toolId, toolId));
+      conditions.push(eq(toolSettings.toolId, toolId));
     }
     
-    return await query.orderBy(desc(toolSettings.updatedAt));
+    return await db.select().from(toolSettings)
+      .where(and(...conditions))
+      .orderBy(desc(toolSettings.updatedAt));
   }
 
   async updateToolSettings(userId: string, toolId: string, settings: any): Promise<ToolSettings | undefined> {
