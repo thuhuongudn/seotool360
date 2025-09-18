@@ -585,7 +585,7 @@ export default function AdminPage() {
                       <p className="text-gray-500">Đang tải quyền hiện tại...</p>
                     </div>
                   ) : (
-                    <div className="space-y-4 py-4">
+                    <div className="space-y-4 py-4 max-h-96 overflow-y-auto">
                       {allTools?.map((tool: any) => {
                         const hasAccess = userToolAccess?.some((access: any) => access.toolId === tool.id);
                         const isUpdating = grantToolAccessMutation.isPending || revokeToolAccessMutation.isPending;
