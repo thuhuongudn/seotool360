@@ -77,13 +77,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (isPremium) {
         // Premium tool - check user permissions
-        const userAccess = await storage.getUserToolAccess(req.user!.id);
-        const hasAccess = userAccess.some(access => access.toolId === toolId);
+        // Admin accounts bypass all permission checks
+        const userProfile = await storage.getProfile(req.user!.id);
+        const isAdmin = userProfile?.role === 'admin';
         
-        if (!hasAccess) {
-          return res.status(403).json({ 
-            message: "Access denied. You don't have permission to use this tool." 
-          });
+        if (!isAdmin) {
+          const userAccess = await storage.getUserToolAccess(req.user!.id);
+          const hasAccess = userAccess.some(access => access.toolId === toolId);
+          
+          if (!hasAccess) {
+            return res.status(403).json({ 
+              message: "Access denied. You don't have permission to use this tool." 
+            });
+          }
         }
       }
 
