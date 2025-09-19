@@ -21,11 +21,26 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Get all SEO tools
-  app.get("/api/seo-tools", async (req: Request, res: Response) => {
+  // Get all SEO tools - admin sees all tools, members see only active tools
+  app.get("/api/seo-tools", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      const tools = await storage.getAllSeoTools();
-      res.json(tools);
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      // Check if user is admin for bypass logic
+      const userProfile = await storage.getProfile(req.user.id);
+      const isAdmin = userProfile?.role === 'admin';
+      
+      if (isAdmin) {
+        // Admin sees all tools (active and pending) 
+        const tools = await storage.getAllSeoToolsForAdmin();
+        res.json(tools);
+      } else {
+        // Members see only active tools
+        const tools = await storage.getAllSeoTools();
+        res.json(tools);
+      }
     } catch (error) {
       console.error("Error fetching SEO tools:", error);
       res.status(500).json({ message: "Failed to fetch SEO tools" });

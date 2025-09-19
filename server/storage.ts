@@ -114,13 +114,9 @@ export class DatabaseStorage implements IStorage {
   }
 
   private async initializeDefaultTools() {
-    // Check if tools already exist
-    const existingTools = await db.select().from(seoTools).limit(1);
-    if (existingTools.length > 0) {
-      // Tools exist, but check for migration needs
-      await this.migrateAiWritingToInternalLink();
-      return;
-    }
+    // Always ensure we have all tools - force sync with schema
+    await this.migrateAiWritingToInternalLink();
+    await this.ensureAllToolsExist();
 
     const defaultTools: Omit<SeoTool, 'id'>[] = [
       {
@@ -259,6 +255,166 @@ export class DatabaseStorage implements IStorage {
 
     // Insert tools into database
     await db.insert(seoTools).values(defaultTools);
+  }
+
+  private async ensureAllToolsExist() {
+    const defaultTools: Omit<SeoTool, 'id'>[] = [
+      {
+        name: 'topical-map',
+        title: 'Xây dựng Topical Map',
+        description: 'Tạo bản đồ chủ đề toàn diện để không định vị thế chuyên gia (Topical Authority).',
+        icon: 'Sitemap',
+        iconBgColor: 'bg-purple-100',
+        iconColor: 'text-purple-600',
+        category: 'content-seo',
+        n8nEndpoint: '/n8n/topical-map',
+        status: "active"
+      },
+      {
+        name: 'search-intent',
+        title: 'Phân tích Search Intent',
+        description: 'Thấu hiểu ý định tìm kiếm đằng sau mỗi từ khóa để xây dựng nội dung đúng mục tiêu.',
+        icon: 'Search',
+        iconBgColor: 'bg-blue-100',
+        iconColor: 'text-blue-600',
+        category: 'content-seo',
+        n8nEndpoint: '/n8n/search-intent',
+        status: "active"
+      },
+      {
+        name: 'internal-link-helper',
+        title: 'Gợi ý internal link',
+        description: 'Tạo gợi ý liên kết nội bộ thông minh cho bài viết để cải thiện SEO và trải nghiệm người dùng.',
+        icon: 'Link',
+        iconBgColor: 'bg-green-100',
+        iconColor: 'text-green-600',
+        category: 'content-seo',
+        n8nEndpoint: '/n8n/internal-link-helper',
+        status: "active"
+      },
+      {
+        name: 'article-rewriter',
+        title: 'Viết lại bài AI',
+        description: 'Tái tạo nội dung từ một link thành một bài viết mới, độc đáo và chuẩn SEO.',
+        icon: 'RotateCcw',
+        iconBgColor: 'bg-red-100',
+        iconColor: 'text-red-600',
+        category: 'content-seo',
+        n8nEndpoint: '/n8n/article-rewriter',
+        status: "active"
+      },
+      {
+        name: 'social-media',
+        title: 'Viết bài Mạng Xã Hội',
+        description: 'Tạo các bài đăng Facebook, Instagram... sáng tạo và thu hút chỉ trong vài giây.',
+        icon: 'Share2',
+        iconBgColor: 'bg-cyan-100',
+        iconColor: 'text-cyan-600',
+        category: 'content-seo',
+        n8nEndpoint: '/n8n/social-media',
+        status: "active"
+      },
+      {
+        name: 'bing-indexing',
+        title: 'Gửi Index Bing',
+        description: 'Thông báo cho Bing và các công cụ tìm kiếm khác qua IndexNow API.',
+        icon: 'Globe',
+        iconBgColor: 'bg-blue-100',
+        iconColor: 'text-blue-600',
+        category: 'index',
+        n8nEndpoint: '/n8n/bing-indexing',
+        status: "active"
+      },
+      {
+        name: 'google-indexing',
+        title: 'Gửi Index Google',
+        description: 'Chủ động gửi yêu cầu của Index, cập nhật hoặc xóa URL đến Google qua API.',
+        icon: 'Globe2',
+        iconBgColor: 'bg-green-100',
+        iconColor: 'text-green-600',
+        category: 'index',
+        n8nEndpoint: '/n8n/google-indexing',
+        status: "active"
+      },
+      {
+        name: 'google-checker',
+        title: 'Kiểm tra Google Index',
+        description: 'Xác định nhanh trang thái index của hàng loạt URL trên Google.',
+        icon: 'SearchCheck',
+        iconBgColor: 'bg-indigo-100',
+        iconColor: 'text-indigo-600',
+        category: 'index',
+        n8nEndpoint: '/n8n/google-checker',
+        status: "active"
+      },
+      {
+        name: 'schema-markup',
+        title: 'Tạo Schema Markup',
+        description: 'Tự động tạo mã JSON-LD cho các loại schema phổ biến như Article, FAQ, How-to.',
+        icon: 'Code',
+        iconBgColor: 'bg-yellow-100',
+        iconColor: 'text-yellow-600',
+        category: 'content-seo',
+        n8nEndpoint: '/n8n/schema-markup',
+        status: "active"
+      },
+      {
+        name: 'image-seo',
+        title: 'Tối ưu SEO Hình ảnh',
+        description: 'Tự động thêm metadata, geotag và các thông tin SEO quan trọng khác vào ảnh.',
+        icon: 'Image',
+        iconBgColor: 'bg-pink-100',
+        iconColor: 'text-pink-600',
+        category: 'seo',
+        n8nEndpoint: '/n8n/image-seo',
+        status: "active"
+      },
+      {
+        name: 'markdown-html',
+        title: 'Markdown to HTML',
+        description: 'Chuyển đổi văn bản Markdown sang mã HTML sạch một cách nhanh chóng và tiện lợi.',
+        icon: 'FileCode',
+        iconBgColor: 'bg-orange-100',
+        iconColor: 'text-orange-600',
+        category: 'tools',
+        n8nEndpoint: '/n8n/markdown-html',
+        status: "active"
+      },
+      {
+        name: 'qr-code',
+        title: 'Tạo mã QR Code',
+        description: 'Tạo mã QR miễn phí cho link, VCard, số điện thoại, Google Maps và nhiều hơn nữa.',
+        icon: 'QrCode',
+        iconBgColor: 'bg-teal-100',
+        iconColor: 'text-teal-600',
+        category: 'tools',
+        n8nEndpoint: '/n8n/qr-code',
+        status: "active"
+      }
+    ];
+
+    // Upsert all tools - insert if not exists, update if exists
+    for (const tool of defaultTools) {
+      try {
+        const existing = await db.select().from(seoTools).where(eq(seoTools.name, tool.name));
+        
+        if (existing.length === 0) {
+          // Tool doesn't exist, insert it
+          await db.insert(seoTools).values(tool);
+          console.log(`✓ Inserted missing tool: ${tool.name}`);
+        } else {
+          // Tool exists, update it to ensure latest data
+          await db.update(seoTools)
+            .set(tool)
+            .where(eq(seoTools.name, tool.name));
+          console.log(`✓ Updated existing tool: ${tool.name}`);
+        }
+      } catch (error) {
+        console.error(`Failed to upsert tool ${tool.name}:`, error);
+      }
+    }
+    
+    console.log('✓ All SEO tools synchronized with schema');
   }
 
   // User management methods removed - now using Supabase Auth + profiles table
