@@ -21,26 +21,11 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Get all SEO tools - admin sees all tools, members see only active tools
-  app.get("/api/seo-tools", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+  // Get all SEO tools
+  app.get("/api/seo-tools", async (req: Request, res: Response) => {
     try {
-      if (!req.user) {
-        return res.status(401).json({ message: "Authentication required" });
-      }
-
-      // Check if user is admin for bypass logic
-      const userProfile = await storage.getProfile(req.user.id);
-      const isAdmin = userProfile?.role === 'admin';
-      
-      if (isAdmin) {
-        // Admin sees all tools (active and pending) 
-        const tools = await storage.getAllSeoToolsForAdmin();
-        res.json(tools);
-      } else {
-        // Members see only active tools
-        const tools = await storage.getAllSeoTools();
-        res.json(tools);
-      }
+      const tools = await storage.getAllSeoTools();
+      res.json(tools);
     } catch (error) {
       console.error("Error fetching SEO tools:", error);
       res.status(500).json({ message: "Failed to fetch SEO tools" });
@@ -351,6 +336,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching user tool access:", error);
       res.status(500).json({ message: "Failed to fetch tool access" });
+    }
+  });
+
+  // Cleanup duplicate tools (admin only)
+  app.post("/api/admin/cleanup-duplicate-tools", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      console.log('🧹 Starting cleanup of duplicate tools...');
+      
+      // Get all tools grouped by name
+      const allTools = await storage.getAllSeoToolsForAdmin();
+      console.log(`Found ${allTools.length} total tools in database`);
+      
+      // Group tools by name and find duplicates
+      const toolsByName = allTools.reduce((acc, tool) => {
+        if (!acc[tool.name]) {
+          acc[tool.name] = [];
+        }
+        acc[tool.name].push(tool);
+        return acc;
+      }, {} as { [key: string]: any[] });
+      
+      let duplicatesRemoved = 0;
+      
+      // For each tool name, keep the first one and delete the rest
+      for (const [toolName, tools] of Object.entries(toolsByName)) {
+        if (tools.length > 1) {
+          console.log(`🔍 Found ${tools.length} duplicates for ${toolName}`);
+          
+          // Sort by ID to keep the earliest one
+          tools.sort((a, b) => a.id.localeCompare(b.id));
+          const keepTool = tools[0]; // Keep the first one
+          const toolsToDelete = tools.slice(1); // Remove all except first
+          
+          for (const tool of toolsToDelete) {
+            const success = await storage.deleteSeoToolWithDependencies(tool.id, keepTool.id);
+            if (success) {
+              duplicatesRemoved++;
+              console.log(`🗑️  Deleted duplicate ${toolName}: ${tool.id}`);
+            } else {
+              console.warn(`⚠️  Failed to delete duplicate ${toolName}: ${tool.id}`);
+            }
+          }
+        }
+      }
+      
+      console.log(`✅ Cleanup completed! Removed ${duplicatesRemoved} duplicate tools`);
+      
+      // Get final count
+      const finalTools = await storage.getAllSeoToolsForAdmin();
+      console.log(`📊 Final tool count: ${finalTools.length}`);
+      
+      res.json({
+        message: `Successfully removed ${duplicatesRemoved} duplicate tools`,
+        duplicatesRemoved,
+        finalToolCount: finalTools.length
+      });
+      
+    } catch (error) {
+      console.error("Error cleaning duplicate tools:", error);
+      res.status(500).json({ message: "Failed to cleanup duplicate tools" });
     }
   });
 
