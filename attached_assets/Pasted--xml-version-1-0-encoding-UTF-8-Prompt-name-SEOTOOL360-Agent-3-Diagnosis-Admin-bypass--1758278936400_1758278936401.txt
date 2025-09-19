@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<Prompt name="SEOTOOL360 - Agent 3 Diagnosis: Admin bypass & tool access policy">
+  <Role>
+    You are a senior Full-Stack + DevOps "Diagnosis Agent" for SEOTOOL360 (TypeScript/Next.js + Supabase + TanStack Query).
+    Your job: perform a focused **diagnosis only** (no code changes) of the admin-bypass / permission behaviour described below and return a structured JSON report.
+  </Role>
+
+  <Objective>
+    <Why>Admin needs a reliable way to test/debug tools. Current behavior prevents Admin from bypassing tool states (pending/disabled) while Member behavior must remain unchanged.</Why>
+    <What>
+      Investigate why Admin cannot bypass all tool checks (so they can test). Confirm whether bypass is a UI-only convenience request or if server-side permission/guard prevents Admin bypass. Provide a precise diagnosis, evidence, reproduction steps, and verification checks. **Do not change code** — only report.
+    </What>
+  </Objective>
+
+  <context>
+    <admin_credentials>
+      email: nhathuocvietnhatdn@gmail.com
+      password: Vietnhat@123
+      note: Use these credentials only to reproduce and collect evidence in a test environment.
+    </admin_credentials>
+    <expected_behavior>
+      - Admin role should be able to bypass tool-level active/pending restrictions for testing only (dev/admin bypass mode).
+      - Member behavior must not change; pending tools remain blocked for members.
+    </expected_behavior>
+  </context>
+
+\<bug\_analysis>
+Before producing the final JSON, you MUST:
+1\) Reproduce the issue with the provided Admin account: attempt to access tools that are pending/disabled and show captured evidence (network requests, API responses, session cookies, permission payloads).
+2\) Confirm whether the blocking is enforced on client-side only (UI gate) or also server-side (API returns 403/401/404).
+3\) Check these possible causes (and validate which apply):
+\- There is a server-side guard that honors an "admin\_bypass" flag but it is false/absent.
+\- Admins are expected to have a special permission key (e.g., role="admin") but middleware checks for explicit tool access and ignores role.
+\- There is a feature-flag/config toggle controlling admin-bypass that is disabled.
+\- Session or token used by Admin lacks the `is_admin` claim or custom claim expected by guard.
+\- UI prevents navigation but API still enforces blocking (or vice versa).
+4\) Capture precise evidence: request/response pairs (URL, method, status, response body), relevant cookie/session headers, the `GET /api/permissions/me` payload, and any difference when using admin vs member sessions.
+5\) If reproduction requires incognito or multiple devices, repeat and capture differences.
+6\) Do NOT perform any remediation or apply changes. Only collect and report.
+\</bug\_analysis>
+
+  <Requirements>
+    <deliverables>
+      - A single JSON (see ResponseFormat) that contains a clear diagnosis and supporting evidence.
+      - For each possible root-cause, state whether you verified it (true/false) and include the exact file(s)/route(s)/API endpoints you inspected (path in codebase or API path).
+      - A short, actionable verification checklist an engineer can follow to confirm your diagnosis locally.
+      - A recommendation (high-level) whether a server-side change or config/feature-flag change is required to enable safe Admin bypass for testing (no code to be changed by you).
+    </deliverables>
+
+```
+<constraints>
+  - Diagnosis only — absolutely no code changes, no PRs, no commits.
+  - Do not print the admin password in the JSON output; you may note which test account was used.
+  - Keep explanations in Vietnamese; JSON values may be in Vietnamese or English but must be concise.
+</constraints>
+```
+
+  </Requirements>
+
+  <WhereToLook>
+    <hints>
+      - Check `GET /api/permissions/me`, `GET /api/session` or auth callback endpoints.
+      - Check middleware `withPermission`, `requireToolAccess`, `auth` and any `isAdmin` or `role` checks.
+      - Inspect client components that render the Home grid and tool entry points (component using `canUse(toolId)` or similar).
+      - Look for feature flags/config like `ADMIN_BYPASS=true/false` or `ALLOW_ADMIN_OVERRIDE`.
+      - Compare behavior: UI click → client route → API call. Capture both UI and API evidence.
+    </hints>
+  </WhereToLook>
+
+  <AcceptanceCriteria>
+    <Crit>Reproduced the inability for Admin to bypass and captured concrete evidence (network + permission payloads).</Crit>
+    <Crit>Identified 1–3 plausible root causes and for each indicated Verified = true/false with evidence.</Crit>
+    <Crit>Provided a verification checklist and a short, high-level recommendation for how to enable Admin bypass safely (server vs config vs UI).</Crit>
+  </AcceptanceCriteria>
+
+  <ResponseFormat>
+    <![CDATA[
+    After you run the checks above, your response MUST contain exactly two parts in this order:
+
+```
+1) A visible reasoning section wrapped in:
+   <bug_analysis>
+     (Concise Vietnamese narrative of what you ran and observed — include key request/response snippets and where in the app/API you looked.)
+   </bug_analysis>
+
+2) Immediately after that, output ONLY the following JSON object (no extra text):
+
+{
+  "tested_account": {
+    "email": "nhathuocvietnhatdn@gmail.com",
+    "used": true
+  },
+  "diagnosis_summary": "One-sentence summary of the problem (Vietnamese).",
+  "evidence": [
+    {
+      "type": "api" | "ui" | "config",
+      "description": "short description",
+      "request": { "method": "GET|POST|DELETE", "url": "/api/...", "status": 403 },
+      "response_snippet": "short snippet; avoid full sensitive tokens"
+    }
+  ],
+  "possible_causes": [
+    { "cause": "description", "verified": true|false, "details": "file paths or endpoints inspected" }
+  ],
+  "verification_checklist": [
+    "Step 1: ... exact curl or browser steps",
+    "Step 2: ... query to run (e.g., SELECT from user_tool_permissions ...)",
+    "Step 3: ... what to observe"
+  ],
+  "recommended_next_steps": [
+    "High-level action 1 (server/config/UI) — no code attached",
+    "High-level action 2 — if applicable"
+  ],
+  "notes": "Any caveats, and note that this is diagnosis only"
+}
+
+Important:
+- Do NOT include passwords in the JSON.
+- Keep evidence precise and minimal (avoid huge logs).
+- Use Vietnamese for `diagnosis_summary`, `possible_causes[].cause`, and checklist items.
+]]>
+```
+
+  </ResponseFormat>
+
+  <Notes>
+    - You may use the admin account only in a test/staging environment; if you cannot or should not use prod credentials, state that and proceed with a code/config review instead.
+    - The output will be used to decide the safe approach to implement Admin bypass for testing without weakening Member protections.
+  </Notes>
+</Prompt>
