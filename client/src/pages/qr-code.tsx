@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import {
   UploadCloud,
@@ -33,10 +34,15 @@ import {
   MapPin,
   Globe,
   UserRound,
+  Wifi as WifiIcon,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import QRCode from "qrcode";
 
-type QRType = "url" | "phone" | "maps" | "vcard";
+type QRType = "url" | "phone" | "maps" | "vcard" | "wifi";
+
+type WifiEncryption = "nopass" | "WPA" | "WEP";
 
 interface FormValues {
   url: string;
@@ -49,6 +55,9 @@ interface FormValues {
   vcardJobTitle: string;
   vcardWebsite: string;
   vcardAddress: string;
+  wifiSsid: string;
+  wifiPassword: string;
+  wifiEncryption: WifiEncryption;
 }
 
 const INITIAL_FORM: FormValues = {
@@ -62,6 +71,9 @@ const INITIAL_FORM: FormValues = {
   vcardJobTitle: "",
   vcardWebsite: "",
   vcardAddress: "",
+  wifiSsid: "",
+  wifiPassword: "",
+  wifiEncryption: "WPA",
 };
 
 const QR_TYPE_DETAILS: Record<QRType, { label: string; description: string; icon: ComponentType<any> }> = {
@@ -85,6 +97,11 @@ const QR_TYPE_DETAILS: Record<QRType, { label: string; description: string; icon
     description: "Tạo danh thiếp QR chuyên nghiệp với đầy đủ thông tin liên hệ.",
     icon: UserRound,
   },
+  wifi: {
+    label: "WiFi",
+    description: "Chia sẻ cấu hình WiFi để quét và kết nối tức thì.",
+    icon: WifiIcon,
+  },
 };
 
 function QrCodeGeneratorContent() {
@@ -97,6 +114,7 @@ function QrCodeGeneratorContent() {
   const [pngDataUrl, setPngDataUrl] = useState<string | null>(null);
   const [svgDataUrl, setSvgDataUrl] = useState<string | null>(null);
   const [lastSuccessMessage, setLastSuccessMessage] = useState<string | null>(null);
+  const [wifiShowPassword, setWifiShowPassword] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { toast } = useToast();
@@ -124,6 +142,8 @@ function QrCodeGeneratorContent() {
     setLogoName(null);
     resetPreview();
   };
+
+  const escapeWifiValue = useCallback((value: string) => value.replace(/([\\;,:"])/g, "\\$1"), []);
 
   const buildContentString = useCallback((): string => {
     switch (qrType) {
@@ -187,10 +207,42 @@ function QrCodeGeneratorContent() {
 
         return lines.filter(Boolean).join("\n");
       }
+      case "wifi": {
+        const ssid = formValues.wifiSsid.trim();
+        if (!ssid) {
+          throw new Error("Vui lòng nhập tên mạng WiFi.");
+        }
+        if (ssid.length > 32) {
+          throw new Error("Tên mạng WiFi tối đa 32 ký tự.");
+        }
+
+        const encryption: WifiEncryption = formValues.wifiEncryption || "WPA";
+        let password = formValues.wifiPassword.trim();
+
+        if (encryption === "nopass") {
+          password = "";
+        } else {
+          if (!password) {
+            throw new Error("Vui lòng nhập mật khẩu WiFi.");
+          }
+          if (encryption === "WPA" && password.length < 8) {
+            throw new Error("Mật khẩu phải có ít nhất 8 ký tự cho WPA/WPA2.");
+          }
+          if (encryption === "WEP" && password.length < 5) {
+            throw new Error("Mật khẩu phải có ít nhất 5 ký tự cho WEP.");
+          }
+        }
+
+        const typeValue: WifiEncryption = encryption === "WEP" ? "WEP" : encryption === "nopass" ? "nopass" : "WPA";
+        const escapedSsid = escapeWifiValue(ssid);
+        const escapedPassword = escapeWifiValue(password);
+
+        return `WIFI:T:${typeValue};S:${escapedSsid};${typeValue !== "nopass" ? `P:${escapedPassword};` : ""};`;
+      }
       default:
         return formValues.url.trim();
     }
-  }, [formValues, qrType]);
+  }, [escapeWifiValue, formValues, qrType]);
 
   const drawLogoOnCanvas = useCallback(async (canvas: HTMLCanvasElement, dataUrl: string) => {
     const image = await new Promise<HTMLImageElement>((resolve, reject) => {
@@ -527,10 +579,100 @@ function QrCodeGeneratorContent() {
             </p>
           </div>
         );
+      case "wifi": {
+        const encryption = formValues.wifiEncryption;
+        const isOpenNetwork = encryption === "nopass";
+        return (
+          <div className="space-y-5">
+            <div className="space-y-2">
+              <Label htmlFor="qr-wifi-ssid">Tên mạng (SSID) *</Label>
+              <Input
+                id="qr-wifi-ssid"
+                placeholder="Nhập tên mạng WiFi"
+                value={formValues.wifiSsid}
+                onChange={handleInputChange("wifiSsid")}
+                maxLength={32}
+              />
+              <p className="text-sm text-muted-foreground">Tên mạng tối đa 32 ký tự theo chuẩn WiFi.</p>
+            </div>
+
+            <div className="space-y-3">
+              <Label>Mã hóa</Label>
+              <RadioGroup
+                value={formValues.wifiEncryption}
+                onValueChange={(value) => {
+                  setFormValues((prev) => ({
+                    ...prev,
+                    wifiEncryption: value as WifiEncryption,
+                    wifiPassword: value === "nopass" ? "" : prev.wifiPassword,
+                  }));
+                  if (value === "nopass") {
+                    setWifiShowPassword(false);
+                  }
+                }}
+                className="space-y-2"
+              >
+                <label className="flex items-start gap-3 rounded-lg border p-3">
+                  <RadioGroupItem value="WPA" id="wifi-encryption-wpa" />
+                  <div>
+                    <Label htmlFor="wifi-encryption-wpa" className="text-sm font-medium">WPA/WPA2</Label>
+                    <p className="text-sm text-muted-foreground">Bảo mật tiêu chuẩn hiện tại, khuyến nghị sử dụng.</p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 rounded-lg border p-3">
+                  <RadioGroupItem value="nopass" id="wifi-encryption-nopass" />
+                  <div>
+                    <Label htmlFor="wifi-encryption-nopass" className="text-sm font-medium">Không có</Label>
+                    <p className="text-sm text-muted-foreground">Mạng WiFi mở, không cần mật khẩu – chỉ dùng cho khu vực công cộng.</p>
+                  </div>
+                </label>
+                <label className="flex items-start gap-3 rounded-lg border p-3">
+                  <RadioGroupItem value="WEP" id="wifi-encryption-wep" />
+                  <div>
+                    <Label htmlFor="wifi-encryption-wep" className="text-sm font-medium">WEP</Label>
+                    <p className="text-sm text-muted-foreground">Bảo mật cũ, ít an toàn – chỉ sử dụng khi thiết bị không hỗ trợ chuẩn mới.</p>
+                  </div>
+                </label>
+              </RadioGroup>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="qr-wifi-password">Mật khẩu {isOpenNetwork ? "(không cần cho mạng mở)" : "*"}</Label>
+              <div className="relative">
+                <Input
+                  id="qr-wifi-password"
+                  type={wifiShowPassword ? "text" : "password"}
+                  placeholder="Nhập mật khẩu WiFi"
+                  value={formValues.wifiPassword}
+                  onChange={handleInputChange("wifiPassword")}
+                  disabled={isOpenNetwork}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setWifiShowPassword((prev) => !prev)}
+                  className="absolute inset-y-0 right-0 flex items-center px-3"
+                  disabled={isOpenNetwork}
+                >
+                  {wifiShowPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                {isOpenNetwork
+                  ? "Mã QR sẽ tạo mạng WiFi mở, người dùng chỉ cần quét để kết nối."
+                  : formValues.wifiEncryption === "WEP"
+                    ? "WEP yêu cầu mật khẩu tối thiểu 5 ký tự (khuyến nghị dùng WPA/WPA2 để bảo mật hơn)."
+                    : "WPA/WPA2 yêu cầu mật khẩu tối thiểu 8 ký tự, bao gồm chữ và số."}
+              </p>
+            </div>
+          </div>
+        );
+      }
       default:
         return null;
     }
-  }, [formValues, handleInputChange, qrType]);
+  }, [formValues, handleInputChange, qrType, wifiShowPassword]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -547,7 +689,7 @@ function QrCodeGeneratorContent() {
             Tạo <span className="text-blue-600">mã QR tuỳ chỉnh</span> trong vài giây
           </h1>
           <p className="text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
-            Chuyển đổi đường dẫn, thông tin liên hệ hoặc tọa độ chỉ bằng một cú nhấp. Công cụ hỗ trợ nhúng logo, tải về chất lượng cao và hoàn toàn miễn phí.
+            Chuyển đổi đường dẫn, thông tin liên hệ, cấu hình WiFi hoặc tọa độ chỉ bằng một cú nhấp. Công cụ hỗ trợ nhúng logo, tải về chất lượng cao và hoàn toàn miễn phí.
           </p>
         </section>
 
@@ -558,7 +700,7 @@ function QrCodeGeneratorContent() {
               <CardHeader>
                 <CardTitle>Thông tin mã QR</CardTitle>
                 <CardDescription>
-                  Chọn loại mã và nhập nội dung tương ứng. Hệ thống hỗ trợ Website, Số điện thoại, Google Maps và danh thiếp VCard.
+                  Chọn loại mã và nhập nội dung tương ứng. Hệ thống hỗ trợ Website, Số điện thoại, Google Maps, danh thiếp VCard và cấu hình WiFi.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
@@ -567,6 +709,7 @@ function QrCodeGeneratorContent() {
                   <Select value={qrType} onValueChange={(value) => {
                     setQrType(value as QRType);
                     setLastSuccessMessage(null);
+                    setWifiShowPassword(false);
                     resetPreview();
                   }}>
                     <SelectTrigger className="w-full">
@@ -676,7 +819,7 @@ function QrCodeGeneratorContent() {
                   Công cụ tạo mã QR cho phép bạn chia sẻ thông tin tức thì chỉ bằng một thao tác quét. Phù hợp cho cá nhân và doanh nghiệp trong các chiến dịch marketing, sự kiện, danh thiếp hay đóng gói sản phẩm.
                 </p>
                 <ul className="list-disc space-y-2 pl-5">
-                  <li>Hỗ trợ 4 loại dữ liệu phổ biến: Website, Số điện thoại, Google Maps, VCard.</li>
+                  <li>Hỗ trợ 5 loại dữ liệu phổ biến: Website, Số điện thoại, Google Maps, VCard và WiFi.</li>
                   <li>Hoàn toàn miễn phí, không lưu trữ dữ liệu cá nhân, không watermark.</li>
                   <li>Ảnh chất lượng cao, tải nhanh dưới dạng PNG hoặc SVG.</li>
                   <li>Nhúng logo trung tâm mà vẫn đảm bảo quét dễ dàng nhờ chuẩn lỗi H.</li>
@@ -737,7 +880,11 @@ function QrCodeGeneratorContent() {
                     <li>Nhấn "Tạo mã QR" để hệ thống dựng ảnh với chuẩn lỗi mức H.</li>
                     <li>Kiểm tra phần xem trước, sau đó tải về dưới dạng PNG hoặc SVG để in ấn và chia sẻ.</li>
                     <li>Test thử bằng điện thoại trước khi sử dụng chính thức để đảm bảo quét thành công.</li>
+                    <li>Đối với WiFi, sau khi quét bạn sẽ được gợi ý kết nối ngay mà không cần nhập tay SSID và mật khẩu.</li>
                   </ol>
+                  <p className="text-sm text-muted-foreground">
+                    Hướng dẫn sử dụng QR WiFi: Mở camera (hoặc ứng dụng quét mã) trên điện thoại và hướng vào mã QR để hệ thống tự nhận diện, hiển thị mạng và đề nghị kết nối ngay lập tức.
+                  </p>
                 </div>
               </CardContent>
             </Card>
