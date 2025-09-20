@@ -97,7 +97,7 @@ export default function MarkdownConverter() {
               className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4"
               data-testid="heading-converter-title"
             >
-              Chuyển đổi Markdown sang HTML miễn phí
+              Chuyển đổi <span className="text-blue-600">Markdown sang HTML</span> miễn phí
             </h1>
             <p 
               className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto"
