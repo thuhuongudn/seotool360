@@ -32,6 +32,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all SEO tools for admin (includes pending tools)
+  app.get("/api/admin/seo-tools", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const tools = await storage.getAllSeoToolsForAdmin();
+      res.json(tools);
+    } catch (error) {
+      console.error("Error fetching admin SEO tools:", error);
+      res.status(500).json({ message: "Failed to fetch SEO tools" });
+    }
+  });
+
   // Get a specific SEO tool
   app.get("/api/seo-tools/:id", async (req: Request, res: Response) => {
     try {

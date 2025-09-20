@@ -1,8 +1,16 @@
 import { useQuery } from "@tanstack/react-query";
+import { useAuth } from "@/contexts/auth-context";
 
 export function useToolId(toolName: string): string | undefined {
+  const { user, isAdmin } = useAuth();
+  const isLoggedIn = !!user?.id;
+  const userIsAdmin = isAdmin();
+
+  const endpoint = userIsAdmin ? '/api/admin/seo-tools' : '/api/seo-tools';
+
   const { data: tools } = useQuery({
-    queryKey: ['/api/seo-tools'],
+    queryKey: [endpoint],
+    enabled: userIsAdmin ? isLoggedIn : true,
   });
 
   if (!tools || !Array.isArray(tools)) {
