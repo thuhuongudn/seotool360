@@ -67,7 +67,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "SEO tool not found" });
       }
 
-      if (tool.status !== "active") {
+      // Load user profile once so we can determine admin bypass
+      const userProfile = await storage.getProfile(req.user!.id);
+      const isAdmin = userProfile?.role === 'admin';
+      
+      if (tool.status !== "active" && !isAdmin) {
         return res.status(400).json({ message: "SEO tool is not active" });
       }
 
@@ -75,21 +79,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Since isPremium field doesn't exist yet, use name-based check
       const isPremium = (tool.name !== 'markdown-html' && tool.name !== 'qr-code');
       
-      if (isPremium) {
-        // Premium tool - check user permissions
-        // Admin accounts bypass all permission checks
-        const userProfile = await storage.getProfile(req.user!.id);
-        const isAdmin = userProfile?.role === 'admin';
+      if (isPremium && !isAdmin) {
+        // Premium tool - check user permissions for non-admins
+        const userAccess = await storage.getUserToolAccess(req.user!.id);
+        const hasAccess = userAccess.some(access => access.toolId === toolId);
         
-        if (!isAdmin) {
-          const userAccess = await storage.getUserToolAccess(req.user!.id);
-          const hasAccess = userAccess.some(access => access.toolId === toolId);
-          
-          if (!hasAccess) {
-            return res.status(403).json({ 
-              message: "Access denied. You don't have permission to use this tool." 
-            });
-          }
+        if (!hasAccess) {
+          return res.status(403).json({ 
+            message: "Access denied. You don't have permission to use this tool." 
+          });
         }
       }
 
