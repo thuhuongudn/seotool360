@@ -26,6 +26,7 @@ import {
   Loader2,
   FileDown,
   RefreshCcw,
+  Trash2,
 } from "lucide-react";
 import "leaflet/dist/leaflet.css";
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -36,11 +37,18 @@ import type { ChangeEvent, DragEvent } from "react";
 import type { LeafletEventHandlerFn, Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import { format } from "date-fns";
 
+type ExifRational = { numerator: number; denominator: number };
+
 const DEFAULT_LAT = 16.0544;
 const DEFAULT_LNG = 108.2022;
 const DEFAULT_ZOOM = 13;
 const MAX_FILE_SIZE_MB = 15;
+const MAX_CANVAS_DIMENSION = 4000;
+const JPEG_QUALITY = 0.92;
 const SUPPORTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const GOONG_API_KEY = "vmBdGIeUBdmUX4ARIhfa4iygOubW9A73K51syJgF";
+const GOONG_GEOCODE_ENDPOINT = "https://rsapi.goong.io/geocode";
+const SEARCH_THROTTLE_MS = 1500;
 
 const PRESET_LOCATIONS: Array<{ label: string; lat: number; lng: number }> = [
   { label: "Đà Nẵng", lat: 16.0544, lng: 108.2022 },
@@ -72,7 +80,7 @@ function encodeUnicodeToXp(value: string): number[] {
   return buffer;
 }
 
-function convertGpsToRational(deg: number) {
+function convertGpsToRational(deg: number): ExifRational[] {
   const absolute = Math.abs(deg);
   const degrees = Math.floor(absolute);
   const minutesFloat = (absolute - degrees) * 60;
@@ -80,9 +88,9 @@ function convertGpsToRational(deg: number) {
   const seconds = (minutesFloat - minutes) * 60;
 
   return [
-    [degrees, 1],
-    [minutes, 1],
-    [Math.round(seconds * 100), 100],
+    { numerator: degrees, denominator: 1 },
+    { numerator: minutes, denominator: 1 },
+    { numerator: Math.round(seconds * 100), denominator: 100 },
   ];
 }
 
@@ -174,6 +182,7 @@ function ImageSeoContent() {
     date: format(new Date(), "yyyy-MM-dd"),
     rating: 0,
   });
+  const [rawKeywords, setRawKeywords] = useState("");
   const [latitude, setLatitude] = useState(DEFAULT_LAT);
   const [longitude, setLongitude] = useState(DEFAULT_LNG);
   const [latitudeInput, setLatitudeInput] = useState(String(DEFAULT_LAT));
@@ -181,33 +190,44 @@ function ImageSeoContent() {
   const [addressQuery, setAddressQuery] = useState("Đà Nẵng, Việt Nam");
   const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [lastSearchAt, setLastSearchAt] = useState<number | null>(null);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
   const markerRef = useRef<LeafletMarker | null>(null);
   const leafletRef = useRef<typeof import("leaflet") | null>(null);
 
-  const resetState = () => {
+  const resetState = (options?: { resetMetadata?: boolean; resetLocation?: boolean }) => {
+    const { resetMetadata = false, resetLocation = false } = options || {};
     setSelectedFile(null);
     setOriginalName("");
     setImagePreview(null);
     setImageMime(null);
-    setExtractedMetadata({});
-    setMetadata({
-      title: "",
-      subject: "",
-      author: "",
-      copyright: "Tất cả quyền hợp pháp thuộc website",
-      keywords: "",
-      date: format(new Date(), "yyyy-MM-dd"),
-      rating: 0,
-    });
-    setLatitude(DEFAULT_LAT);
-    setLongitude(DEFAULT_LNG);
-    setLatitudeInput(String(DEFAULT_LAT));
-    setLongitudeInput(String(DEFAULT_LNG));
-    setAddressQuery("Đà Nẵng, Việt Nam");
     setProcessedDataUrl(null);
+    setIsSearching(false);
+    setExtractedMetadata({});
+
+    if (resetMetadata) {
+      setMetadata({
+        title: "",
+        subject: "",
+        author: "",
+        copyright: "Tất cả quyền hợp pháp thuộc website",
+        keywords: "",
+        date: format(new Date(), "yyyy-MM-dd"),
+        rating: 0,
+      });
+      setRawKeywords("");
+    }
+
+    if (resetLocation) {
+      setLatitude(DEFAULT_LAT);
+      setLongitude(DEFAULT_LNG);
+      setLatitudeInput(String(DEFAULT_LAT));
+      setLongitudeInput(String(DEFAULT_LNG));
+      setAddressQuery("Đà Nẵng, Việt Nam");
+    }
   };
 
   useEffect(() => {
@@ -325,6 +345,9 @@ function ImageSeoContent() {
         date: loaded.date ?? prev.date,
         rating: loaded.rating ?? prev.rating,
       }));
+      if (loaded.keywords) {
+        setRawKeywords(loaded.keywords);
+      }
 
       if (loaded.latitude !== undefined && loaded.longitude !== undefined) {
         setLatitude(loaded.latitude);
@@ -373,14 +396,25 @@ function ImageSeoContent() {
 
   const handleInputChange = (field: keyof typeof metadata) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const value = event.target.value;
-    setMetadata((prev) => ({ ...prev, [field]: field === "keywords" ? sanitizeKeywords(value) : value }));
+    if (field === "keywords") {
+      setRawKeywords(value);
+      setMetadata((prev) => ({ ...prev, keywords: value }));
+    } else {
+      setMetadata((prev) => ({ ...prev, [field]: value }));
+    }
+  };
+
+  const handleKeywordsBlur = () => {
+    const cleaned = sanitizeKeywords(rawKeywords);
+    setRawKeywords(cleaned);
+    setMetadata((prev) => ({ ...prev, keywords: cleaned }));
   };
 
   const handleRatingChange = (value: number) => {
     setMetadata((prev) => ({ ...prev, rating: prev.rating === value ? 0 : value }));
   };
 
-  const handleAddressSearch = () => {
+  const handleAddressSearch = useCallback(async () => {
     const trimmed = addressQuery.trim();
     if (!trimmed) {
       toast({
@@ -391,42 +425,100 @@ function ImageSeoContent() {
       return;
     }
 
-    const coordinateMatch = trimmed.match(/(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)/);
-    if (coordinateMatch) {
-      const lat = parseFloat(coordinateMatch[1]);
-      const lng = parseFloat(coordinateMatch[2]);
-      if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
-        setLatitude(lat);
-        setLongitude(lng);
-        setLatitudeInput(lat.toFixed(6));
-        setLongitudeInput(lng.toFixed(6));
-        toast({
-          title: "Đã cập nhật toạ độ",
-          description: "Marker đã được di chuyển tới vị trí mới.",
-        });
-        return;
-      }
-    }
-
-    const preset = PRESET_LOCATIONS.find((location) => location.label.toLowerCase().includes(trimmed.toLowerCase()));
-    if (preset) {
-      setLatitude(preset.lat);
-      setLongitude(preset.lng);
-      setLatitudeInput(preset.lat.toFixed(6));
-      setLongitudeInput(preset.lng.toFixed(6));
+    const now = Date.now();
+    if (lastSearchAt && now - lastSearchAt < SEARCH_THROTTLE_MS) {
       toast({
-        title: "Đã chọn vị trí",
-        description: `Marker được đặt tại ${preset.label}.`,
+        title: "Tìm kiếm quá nhanh",
+        description: "Vui lòng chờ giây lát trước khi tìm kiếm lại.",
+        variant: "destructive",
       });
       return;
     }
 
-    toast({
-      title: "Không tìm thấy địa điểm",
-      description: "Vui lòng nhập lại toạ độ (ví dụ: 16.0544, 108.2022) hoặc tên thành phố ở Việt Nam.",
-      variant: "destructive",
-    });
-  };
+    const updateCoordinates = (lat: number, lng: number, label: string, description?: string) => {
+      setLatitude(lat);
+      setLongitude(lng);
+      const latFixed = lat.toFixed(6);
+      const lngFixed = lng.toFixed(6);
+      setLatitudeInput(latFixed);
+      setLongitudeInput(lngFixed);
+      setAddressQuery(label);
+      toast({
+        title: "Đã cập nhật toạ độ",
+        description: description ?? `Toạ độ: ${latFixed}, ${lngFixed}`,
+      });
+    };
+
+    setLastSearchAt(now);
+    setIsSearching(true);
+
+    try {
+      const coordinateMatch = trimmed.match(/(-?\d+(?:\.\d+)?)[,\s]+(-?\d+(?:\.\d+)?)/);
+      if (coordinateMatch) {
+        const lat = parseFloat(coordinateMatch[1]);
+        const lng = parseFloat(coordinateMatch[2]);
+        if (!Number.isNaN(lat) && !Number.isNaN(lng)) {
+          updateCoordinates(lat, lng, trimmed, `Đã sử dụng toạ độ: ${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+          return;
+        }
+      }
+
+      let apiResultApplied = false;
+      let apiErrorType: "network" | "zero-results" | "invalid-response" | null = null;
+
+      try {
+        const response = await fetch(`${GOONG_GEOCODE_ENDPOINT}?address=${encodeURIComponent(trimmed)}&api_key=${GOONG_API_KEY}`);
+        if (!response.ok) {
+          apiErrorType = "network";
+          throw new Error(`HTTP ${response.status}`);
+        }
+        const data = await response.json();
+        if (Array.isArray(data?.results) && data.results.length > 0) {
+          const best = data.results[0];
+          const lat = best?.geometry?.location?.lat;
+          const lng = best?.geometry?.location?.lng;
+          if (typeof lat === "number" && typeof lng === "number") {
+            const formatted = typeof best?.formatted_address === "string" ? best.formatted_address : trimmed;
+            updateCoordinates(lat, lng, formatted, `Đã tìm thấy: ${formatted}`);
+            apiResultApplied = true;
+            return;
+          }
+          apiErrorType = "invalid-response";
+        } else {
+          apiErrorType = data?.status === "ZERO_RESULTS" ? "zero-results" : "invalid-response";
+        }
+      } catch (geoError) {
+        if (!apiErrorType) {
+          apiErrorType = "network";
+        }
+        console.error("Goong geocode error:", geoError);
+      }
+
+      if (!apiResultApplied) {
+        const lowerTrimmed = trimmed.toLowerCase();
+        const preset = PRESET_LOCATIONS.find((location) => lowerTrimmed.includes(location.label.toLowerCase()));
+        if (preset) {
+          updateCoordinates(preset.lat, preset.lng, preset.label, `Không tìm thấy địa chỉ cụ thể. Đã sử dụng vị trí ${preset.label}.`);
+          return;
+        }
+
+        const errorDescription =
+          apiErrorType === "network"
+            ? "Không thể kết nối dịch vụ định vị. Vui lòng kiểm tra mạng và thử lại."
+            : apiErrorType === "zero-results"
+            ? "Không tìm thấy địa điểm. Hãy thử nhập địa chỉ khác hoặc sử dụng toạ độ."
+            : "Không thể xác định địa điểm. Bạn có thể nhập toạ độ (ví dụ: 16.0544, 108.2022) hoặc chọn thành phố ở Việt Nam.";
+
+        toast({
+          title: "Không tìm thấy địa điểm",
+          description: errorDescription,
+          variant: "destructive",
+        });
+      }
+    } finally {
+      setIsSearching(false);
+    }
+  }, [addressQuery, lastSearchAt, toast]);
 
   const handleCoordinateInput = (type: "lat" | "lng") => (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
@@ -453,76 +545,324 @@ function ImageSeoContent() {
       return;
     }
 
+    const sanitizeForProcessing = sanitizeKeywords(rawKeywords || metadata.keywords || "");
+
+    const sanitizeGpsValue = (value: number): number | null => {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        return null;
+      }
+      if (value < -180 || value > 180) {
+        return null;
+      }
+      return value;
+    };
+
+    const normalizeGpsComponents = (raw: any, originalDecimal: number): ExifRational[] => {
+      if (!Array.isArray(raw)) {
+        return convertGpsToRational(originalDecimal);
+      }
+      return raw.map((entry: any) => {
+        if (entry && typeof entry === "object" && "numerator" in entry && "denominator" in entry) {
+          return {
+            numerator: Math.round(entry.numerator as number),
+            denominator: Math.round((entry.denominator as number) || 1),
+          };
+        }
+        if (Array.isArray(entry)) {
+          const [num = 0, den = 1] = entry;
+          return { numerator: Math.round(Number(num)), denominator: Math.round(Number(den) || 1) };
+        }
+        return { numerator: 0, denominator: 1 };
+      });
+    };
+
+    const mapExifError = (code: string) => {
+      switch (code) {
+        case "piexif-unavailable":
+          return {
+            title: "Lỗi tải thư viện",
+            description: "Không thể tải thư viện xử lý EXIF. Vui lòng tải lại trang và thử lại.",
+          };
+        case "piexif-load":
+          return {
+            title: "Không thể đọc metadata",
+            description: "Không thể đọc metadata hiện tại từ ảnh. Ảnh có thể đã bị hỏng hoặc không chứa EXIF hợp lệ.",
+          };
+        case "piexif-dump":
+          return {
+            title: "Không thể tạo metadata mới",
+            description: "Có lỗi khi tạo dữ liệu metadata mới cho ảnh. Hãy thử ảnh khác hoặc giảm dung lượng.",
+          };
+        case "piexif-insert":
+          return {
+            title: "Không thể nhúng metadata",
+            description: "Có lỗi khi nhúng metadata vào ảnh. Hãy thử chuyển đổi ảnh sang JPG và thử lại.",
+          };
+        case "canvas-conversion":
+          return {
+            title: "Không thể chuyển đổi ảnh",
+            description: "Ảnh quá lớn hoặc định dạng không được hỗ trợ. Hãy dùng ảnh nhỏ hơn hoặc định dạng JPG/PNG/WebP.",
+          };
+        case "image-validate":
+          return {
+            title: "Ảnh không hợp lệ sau xử lý",
+            description: "Ảnh đầu ra không thể mở được. Vui lòng thử lại với ảnh khác hoặc kích thước nhỏ hơn.",
+          };
+        default:
+          return {
+            title: "Không thể xử lý ảnh",
+            description: "Đã xảy ra lỗi không xác định. Hãy thử tải lại trang hoặc dùng ảnh khác.",
+          };
+      }
+    };
+
+    const validateDataUrl = (dataUrl: string) =>
+      new Promise<void>((resolve, reject) => {
+        const testImg = new Image();
+        testImg.onload = () => resolve();
+        testImg.onerror = (event) => reject(event);
+        testImg.src = dataUrl;
+      });
+
     try {
       setIsProcessing(true);
-      const piexif = await import("piexifjs");
+      console.log("=== COMPREHENSIVE EXIF DIAGNOSTIC START ===");
+      console.log("Timestamp:", new Date().toISOString());
+      console.log("Browser:", typeof navigator !== "undefined" ? navigator.userAgent : "unknown");
+      console.log("Selected image info:", {
+        name: selectedFile.name,
+        size: selectedFile.size,
+        type: selectedFile.type,
+        lastModified: selectedFile.lastModified,
+      });
+      console.log("Image preview prefix:", imagePreview.slice(0, 80));
+      console.log("Metadata snapshot:", metadata);
+      console.log("Raw keywords:", rawKeywords);
+      console.log("Coordinates snapshot:", { latitude, longitude });
+
+      const { default: piexif } = await import("piexifjs");
+      const piexifAny = piexif as Record<string, any>;
+      if (!piexifAny || typeof piexifAny.load !== "function" || typeof piexifAny.dump !== "function" || typeof piexifAny.insert !== "function") {
+        throw new Error("piexif-unavailable");
+      }
+
+      const ImageIFD = piexifAny.ImageIFD;
+      const ExifIFD = piexifAny.ExifIFD;
+      const GPSIFD = piexifAny.GPSIFD;
+      const GPSHelper = piexifAny.GPSHelper;
+      console.log("=== PIEXIFJS LIBRARY ANALYSIS ===");
+      console.log("Piexif type:", typeof piexifAny);
+      console.log("Available properties:", Object.keys(piexifAny));
+      console.log("Method availability:", {
+        load: typeof piexifAny.load,
+        dump: typeof piexifAny.dump,
+        insert: typeof piexifAny.insert,
+        GPSHelper: typeof GPSHelper,
+      });
+      try {
+        const testExif: any = { "0th": {}, "Exif": {}, "GPS": {}, "1st": {} };
+        const testDump = piexifAny.dump(testExif);
+        console.log("Basic piexif.dump test SUCCESS", testDump.length, "bytes");
+      } catch (basicError) {
+        console.error("Basic piexif.dump test FAILED", basicError);
+      }
+
       const ensureJpeg = async (): Promise<string> => {
+        console.log("=== STEP 1: IMAGE DATA PREPARATION ===");
         if (imageMime === "image/jpeg" || imagePreview.startsWith("data:image/jpeg")) {
+          console.log("Ảnh đã ở định dạng JPEG, không cần chuyển đổi");
           return imagePreview;
         }
-        const img = new Image();
-        img.src = imagePreview;
-        await new Promise((resolve, reject) => {
-          img.onload = resolve;
-          img.onerror = reject;
+        const converted = await new Promise<string>((resolve, reject) => {
+          const img = new Image();
+          img.src = imagePreview;
+          img.onload = () => {
+            try {
+              let targetWidth = img.naturalWidth;
+              let targetHeight = img.naturalHeight;
+              const maxDim = Math.max(targetWidth, targetHeight);
+              if (maxDim > MAX_CANVAS_DIMENSION) {
+                const scale = MAX_CANVAS_DIMENSION / maxDim;
+                targetWidth = Math.round(targetWidth * scale);
+                targetHeight = Math.round(targetHeight * scale);
+                console.log("[image-seo] Thu nhỏ ảnh để phù hợp EXIF", {
+                  originalWidth: img.naturalWidth,
+                  originalHeight: img.naturalHeight,
+                  targetWidth,
+                  targetHeight,
+                });
+              }
+              const canvas = document.createElement("canvas");
+              canvas.width = targetWidth;
+              canvas.height = targetHeight;
+              const ctx = canvas.getContext("2d");
+              if (!ctx) {
+                reject(new Error("canvas-conversion"));
+                return;
+              }
+              ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+              const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+              console.log("Canvas conversion completed", { dataUrlPrefix: dataUrl.slice(0, 50) });
+              resolve(dataUrl);
+            } catch (canvasError) {
+              reject(canvasError instanceof Error ? canvasError : new Error("canvas-conversion"));
+            }
+          };
+          img.onerror = (event) => reject(event instanceof Error ? event : new Error("canvas-conversion"));
         });
-        const canvas = document.createElement("canvas");
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) throw new Error("Không thể khởi tạo canvas để chuyển đổi ảnh.");
-        ctx.drawImage(img, 0, 0);
-        return canvas.toDataURL("image/jpeg", 0.92);
+        return converted;
       };
 
-      const baseDataUrl = await ensureJpeg();
-      const exif = piexif.load(baseDataUrl);
+      let baseDataUrl: string;
+      try {
+        baseDataUrl = await ensureJpeg();
+        console.log("Base data URL length:", baseDataUrl.length);
+      } catch (conversionError) {
+        console.error("[image-seo] Lỗi chuyển đổi ảnh sang JPG", conversionError);
+        throw new Error(conversionError instanceof Error ? conversionError.message : "canvas-conversion");
+      }
 
-      exif["0th"] = exif["0th"] || {};
-      exif["Exif"] = exif["Exif"] || {};
-      exif["GPS"] = exif["GPS"] || {};
+      let exifData;
+      try {
+        exifData = piexifAny.load(baseDataUrl);
+        console.log("EXIF load SUCCESS", {
+          zerothKeys: Object.keys(exifData["0th"] || {}),
+          exifKeys: Object.keys(exifData["Exif"] || {}),
+          gpsKeys: Object.keys(exifData["GPS"] || {}),
+        });
+      } catch (loadError) {
+        console.error("[image-seo] piexifAny.load thất bại", loadError);
+        throw new Error("piexif-load");
+      }
 
-      exif["0th"][piexif.ImageIFD.ImageDescription] = metadata.title;
-      exif["0th"][piexif.ImageIFD.Artist] = metadata.author;
-      exif["0th"][piexif.ImageIFD.Copyright] = metadata.copyright;
-      exif["0th"][piexif.ImageIFD.XPTitle] = encodeUnicodeToXp(metadata.title);
-      exif["0th"][piexif.ImageIFD.XPSubject] = encodeUnicodeToXp(metadata.subject);
-      exif["0th"][piexif.ImageIFD.XPKeywords] = encodeUnicodeToXp(metadata.keywords);
-      exif["0th"][piexif.ImageIFD.Rating] = metadata.rating;
-      exif["0th"][piexif.ImageIFD.RatingPercent] = metadata.rating * 20;
+      exifData["0th"] = exifData["0th"] || {};
+      exifData["Exif"] = exifData["Exif"] || {};
+      exifData["GPS"] = exifData["GPS"] || {};
+
+      try {
+        exifData["0th"][ImageIFD.ImageDescription] = metadata.title;
+        console.log("Set ImageDescription", metadata.title);
+      } catch (err) {
+        console.error("Set ImageDescription failed", err);
+      }
+      try {
+        exifData["0th"][ImageIFD.Artist] = metadata.author;
+        console.log("Set Artist", metadata.author);
+      } catch (err) {
+        console.error("Set Artist failed", err);
+      }
+      try {
+        exifData["0th"][ImageIFD.Copyright] = metadata.copyright;
+      } catch (err) {
+        console.error("Set Copyright failed", err);
+      }
+      try {
+        exifData["0th"][ImageIFD.XPTitle] = encodeUnicodeToXp(metadata.title);
+      } catch (err) {
+        console.error("Set XPTitle failed", err);
+      }
+      try {
+        exifData["0th"][ImageIFD.XPSubject] = encodeUnicodeToXp(metadata.subject);
+      } catch (err) {
+        console.error("Set XPSubject failed", err);
+      }
+      try {
+        exifData["0th"][ImageIFD.XPKeywords] = encodeUnicodeToXp(sanitizeForProcessing);
+      } catch (err) {
+        console.error("Set XPKeywords failed", err);
+      }
+      try {
+        exifData["0th"][ImageIFD.Rating] = metadata.rating;
+        exifData["0th"][ImageIFD.RatingPercent] = metadata.rating * 20;
+      } catch (err) {
+        console.error("Set Rating failed", err);
+      }
 
       const dateTimeOriginal = makeDateTimeOriginal(metadata.date);
       if (dateTimeOriginal) {
-        exif["Exif"][piexif.ExifIFD.DateTimeOriginal] = dateTimeOriginal;
-        exif["Exif"][piexif.ExifIFD.CreateDate] = dateTimeOriginal;
+        try {
+          exifData["Exif"][ExifIFD.DateTimeOriginal] = dateTimeOriginal;
+          exifData["Exif"][ExifIFD.DateTimeDigitized] = dateTimeOriginal;
+        } catch (err) {
+          console.error("Set DateTimeOriginal failed", err);
+        }
       }
 
-      const latRef = latitude >= 0 ? "N" : "S";
-      const lngRef = longitude >= 0 ? "E" : "W";
-      exif["GPS"][piexif.GPSIFD.GPSLatitudeRef] = latRef;
-      exif["GPS"][piexif.GPSIFD.GPSLatitude] = convertGpsToRational(latitude);
-      exif["GPS"][piexif.GPSIFD.GPSLongitudeRef] = lngRef;
-      exif["GPS"][piexif.GPSIFD.GPSLongitude] = convertGpsToRational(longitude);
+      const sanitizedLat = sanitizeGpsValue(latitude);
+      const sanitizedLng = sanitizeGpsValue(longitude);
+      if (sanitizedLat !== null && sanitizedLng !== null) {
+        const latRef = sanitizedLat >= 0 ? "N" : "S";
+        const lngRef = sanitizedLng >= 0 ? "E" : "W";
+        try {
+          const latRaw = GPSHelper && typeof GPSHelper.degToDmsRational === "function"
+            ? GPSHelper.degToDmsRational(Math.abs(sanitizedLat))
+            : convertGpsToRational(sanitizedLat);
+          const lngRaw = GPSHelper && typeof GPSHelper.degToDmsRational === "function"
+            ? GPSHelper.degToDmsRational(Math.abs(sanitizedLng))
+            : convertGpsToRational(sanitizedLng);
+          const latDms = normalizeGpsComponents(latRaw, sanitizedLat);
+          const lngDms = normalizeGpsComponents(lngRaw, sanitizedLng);
+          exifData["GPS"][GPSIFD.GPSLatitudeRef] = latRef;
+          exifData["GPS"][GPSIFD.GPSLatitude] = latDms;
+          exifData["GPS"][GPSIFD.GPSLongitudeRef] = lngRef;
+          exifData["GPS"][GPSIFD.GPSLongitude] = lngDms;
+          console.log("Set GPS tags", { latRef, lngRef, latDms, lngDms });
+        } catch (err) {
+          console.error("Set GPS tags failed", err, { latitude: sanitizedLat, longitude: sanitizedLng });
+        }
+      } else {
+        console.warn("GPS values invalid, skipping EXIF GPS tags", { latitude, longitude });
+      }
 
-      const exifBytes = piexif.dump(exif);
-      const finalDataUrl = piexif.insert(exifBytes, baseDataUrl);
+      let exifBytes: string;
+      try {
+        console.log("Final EXIF object before dump:", JSON.stringify(exifData, null, 2));
+        exifBytes = piexifAny.dump(exifData);
+        console.log("[image-seo] piexifAny.dump thành công", exifBytes.length);
+      } catch (dumpError) {
+        console.error("[image-seo] piexifAny.dump thất bại", dumpError);
+        throw new Error("piexif-dump");
+      }
+
+      let finalDataUrl: string;
+      try {
+        finalDataUrl = piexifAny.insert(exifBytes, baseDataUrl);
+      } catch (insertError) {
+        console.error("[image-seo] piexifAny.insert thất bại", insertError);
+        throw new Error("piexif-insert");
+      }
+
+      try {
+        await validateDataUrl(finalDataUrl);
+      } catch (validationError) {
+        console.error("[image-seo] Ảnh đầu ra không hợp lệ", validationError);
+        throw new Error("image-validate");
+      }
+
       setProcessedDataUrl(finalDataUrl);
+      setMetadata((prev) => ({ ...prev, keywords: sanitizeForProcessing }));
+      setRawKeywords(sanitizeForProcessing);
 
       toast({
         title: "Đã chèn metadata",
         description: "Ảnh của bạn đã được tối ưu hóa với thông tin SEO và Geotag.",
       });
+      console.log("[image-seo] Hoàn tất xử lý ảnh", { finalSize: finalDataUrl.length });
     } catch (error) {
-      console.error(error);
+      const errorCode = error instanceof Error ? error.message : "unknown";
+      const message = mapExifError(errorCode);
+      if (!(error instanceof Error && error.message === "canvas-conversion")) {
+        console.error("[image-seo] Lỗi xử lý ảnh", error);
+      }
       toast({
-        title: "Không thể xử lý ảnh",
-        description: "Exif chỉ hỗ trợ tốt cho ảnh JPG. Hãy thử với tệp JPG hoặc chuyển đổi trước khi xử lý.",
+        title: message.title,
+        description: message.description,
         variant: "destructive",
       });
     } finally {
       setIsProcessing(false);
     }
-  }, [imageMime, imagePreview, latitude, longitude, metadata, selectedFile, toast]);
+  }, [imageMime, imagePreview, latitude, longitude, metadata, rawKeywords, selectedFile, toast]);
 
   const handleDownload = () => {
     if (!processedDataUrl) {
@@ -627,15 +967,35 @@ function ImageSeoContent() {
                 </label>
 
                 {originalName ? (
-                  <div className="flex items-center justify-between rounded-md border bg-background p-3 text-sm">
-                    <div>
-                      <p className="font-medium text-gray-900 dark:text-white">{originalName}</p>
-                      <p className="text-muted-foreground">Đã tải lên thành công – bạn có thể tiếp tục chỉnh metadata bên dưới.</p>
+                  <div className="flex flex-col gap-3 rounded-md border bg-background p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-gray-900 dark:text-white truncate" title={originalName}>
+                        {originalName}
+                      </p>
+                      <p className="text-muted-foreground mt-1">
+                        Đã tải lên thành công – bạn có thể tiếp tục chỉnh metadata bên dưới.
+                      </p>
                     </div>
-                    <Button variant="ghost" size="sm" onClick={resetState}>
-                      <RefreshCcw className="h-4 w-4 mr-1" />
-                      Đổi ảnh khác
-                    </Button>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => resetState({ resetMetadata: false, resetLocation: false })}
+                        className="sm:flex-shrink-0 w-full sm:w-auto"
+                      >
+                        <RefreshCcw className="h-4 w-4 mr-1" />
+                        Đổi ảnh khác
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => resetState({ resetMetadata: true, resetLocation: true })}
+                        className="sm:flex-shrink-0 w-full sm:w-auto"
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Xoá tất cả thông tin
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
 
@@ -693,7 +1053,14 @@ function ImageSeoContent() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="meta-keywords">Từ khóa (phân cách bằng dấu phẩy)</Label>
-                  <Textarea id="meta-keywords" rows={3} placeholder="ảnh sản phẩm, banner ưu đãi, cửa hàng Đà Nẵng" value={metadata.keywords} onChange={handleInputChange("keywords")} />
+                  <Textarea
+                    id="meta-keywords"
+                    rows={3}
+                    placeholder="ảnh sản phẩm, banner ưu đãi, cửa hàng Đà Nẵng"
+                    value={rawKeywords}
+                    onChange={handleInputChange("keywords")}
+                    onBlur={handleKeywordsBlur}
+                  />
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
@@ -734,10 +1101,31 @@ function ImageSeoContent() {
                 <div className="space-y-2">
                   <Label htmlFor="address-search">Tìm kiếm địa điểm</Label>
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    <Input id="address-search" value={addressQuery} onChange={(event) => setAddressQuery(event.target.value)} placeholder="Nhập địa chỉ hoặc toạ độ (vd: 16.0544, 108.2022)" />
-                    <Button type="button" variant="secondary" onClick={handleAddressSearch} className="shrink-0">
-                      <Compass className="h-4 w-4 mr-1" />
-                      Tìm vị trí
+                    <Input
+                      id="address-search"
+                      value={addressQuery}
+                      onChange={(event) => setAddressQuery(event.target.value)}
+                      placeholder="Nhập địa chỉ hoặc toạ độ (vd: 16.0544, 108.2022)"
+                      disabled={isSearching}
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleAddressSearch}
+                      className="shrink-0"
+                      disabled={isSearching}
+                    >
+                      {isSearching ? (
+                        <span className="flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Đang tìm kiếm...
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <Compass className="h-4 w-4" />
+                          Tìm vị trí
+                        </span>
+                      )}
                     </Button>
                   </div>
                   <p className="text-xs text-muted-foreground">
