@@ -1,8 +1,6 @@
 import { useState, useRef, useMemo, useCallback, type ComponentType } from "react";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
-import ToolPermissionGuard from "@/components/tool-permission-guard";
-import { useToolId } from "@/hooks/use-tool-id";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -104,13 +102,14 @@ const QR_TYPE_DETAILS: Record<QRType, { label: string; description: string; icon
   },
 };
 
-function QrCodeGeneratorContent() {
+export default function QrCodeGeneratorPage() {
   const [qrType, setQrType] = useState<QRType>("url");
   const [formValues, setFormValues] = useState<FormValues>(INITIAL_FORM);
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
   const [logoName, setLogoName] = useState<string | null>(null);
   const [isDragActive, setIsDragActive] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [lastGenerateTimestamp, setLastGenerateTimestamp] = useState<number | null>(null);
   const [pngDataUrl, setPngDataUrl] = useState<string | null>(null);
   const [svgDataUrl, setSvgDataUrl] = useState<string | null>(null);
   const [lastSuccessMessage, setLastSuccessMessage] = useState<string | null>(null);
@@ -312,6 +311,19 @@ function QrCodeGeneratorContent() {
   }, []);
 
   const handleGenerate = useCallback(async () => {
+    const now = Date.now();
+    const cooldownMs = 1500;
+    if (lastGenerateTimestamp && now - lastGenerateTimestamp < cooldownMs) {
+      toast({
+        title: "Tạo mã quá nhanh",
+        description: "Vui lòng chờ một chút trước khi tạo mã QR tiếp theo.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setLastGenerateTimestamp(now);
+
     if (!canvasRef.current) {
       return;
     }
@@ -370,7 +382,7 @@ function QrCodeGeneratorContent() {
     } finally {
       setIsGenerating(false);
     }
-  }, [buildContentString, buildSvgWithLogo, drawLogoOnCanvas, logoDataUrl, toast]);
+  }, [buildContentString, buildSvgWithLogo, drawLogoOnCanvas, lastGenerateTimestamp, logoDataUrl, toast]);
 
   const handleDownload = (format: "png" | "svg") => {
     const url = format === "png" ? pngDataUrl : svgDataUrl;
@@ -907,15 +919,5 @@ function QrCodeGeneratorContent() {
         </div>
       </main>
     </div>
-  );
-}
-
-export default function QrCode() {
-  const toolId = useToolId("qr-code");
-
-  return (
-    <ToolPermissionGuard toolId={toolId || ""} toolName="Tạo mã QR">
-      <QrCodeGeneratorContent />
-    </ToolPermissionGuard>
   );
 }
