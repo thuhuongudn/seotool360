@@ -12,6 +12,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   UploadCloud,
@@ -22,6 +29,9 @@ import {
   StarOff,
   Compass,
   Loader2,
+  Sparkles,
+  Copy,
+  Check,
   FileDown,
   RefreshCcw,
   Trash2,
@@ -49,6 +59,10 @@ const GOONG_GEOCODE_ENDPOINT = "https://rsapi.goong.io/geocode";
 const SEARCH_THROTTLE_MS = 1500;
 const DEFAULT_COPYRIGHT = "nhathuocvietnhat.vn";
 const DEFAULT_ADDRESS = "224 Thái Thị Bôi, Chính Gián, Thanh Khê, Đà Nẵng";
+const ALT_TEXT_MIN_LENGTH = 50;
+const ALT_TEXT_MAX_LENGTH = 125;
+const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
+const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
 
 const PRESET_LOCATIONS: Array<{ label: string; lat: number; lng: number }> = [
   { label: "Đà Nẵng", lat: 16.0544, lng: 108.2022 },
@@ -57,6 +71,10 @@ const PRESET_LOCATIONS: Array<{ label: string; lat: number; lng: number }> = [
   { label: "Huế", lat: 16.4637, lng: 107.5909 },
   { label: "Nha Trang", lat: 12.2388, lng: 109.1967 },
 ];
+
+type AltTextModel = "gemini" | "openai";
+
+const ALT_TEXT_DEFAULT_MODEL: AltTextModel = "gemini";
 
 interface LoadedMetadata {
   title?: string;
@@ -69,6 +87,19 @@ interface LoadedMetadata {
   latitude?: number;
   longitude?: number;
 }
+
+const ALT_TEXT_MODELS: Array<{ value: AltTextModel; label: string; description: string }> = [
+  {
+    value: "gemini",
+    label: "Gemini 2.5 Flash",
+    description: "Khuyến nghị – tốc độ nhanh, chi phí thấp",
+  },
+  {
+    value: "openai",
+    label: "OpenAI GPT-4o-mini",
+    description: "Chất lượng cao hơn, chi phí cao hơn",
+  },
+];
 
 function encodeUnicodeToXp(value: string): number[] {
   const terminated = value + "\u0000";
@@ -192,6 +223,69 @@ const prepareAsciiOrTransliteration = (value: string): string => {
   return toAsciiFallback(value);
 };
 
+const extractBase64Payload = (dataUrl: string | null): { mime: string; base64: string } | null => {
+  if (!dataUrl || !dataUrl.startsWith("data:")) return null;
+  const parts = dataUrl.split(",");
+  if (parts.length < 2) return null;
+  const header = parts[0];
+  const base64 = parts.slice(1).join(",");
+  const mimeMatch = header.match(/^data:(.*?);base64$/);
+  const mime = mimeMatch ? mimeMatch[1] : "image/jpeg";
+  if (!base64) return null;
+  return { mime, base64 };
+};
+
+const sanitizeAltTextOutput = (value: string): string =>
+  value
+    .replace(/```[a-z]*|```/gi, "")
+    .replace(/[\r\n]+/g, " ")
+    .replace(/\s+/g, " ")
+    .replace(/^"|"$/g, "")
+    .trim();
+
+const enforceAltTextFormat = (
+  value: string,
+  {
+    copyright,
+    fallbackKeyword,
+  }: {
+    copyright: string;
+    fallbackKeyword?: string;
+  },
+): string => {
+  const prefix = (copyright || DEFAULT_COPYRIGHT).trim();
+  if (!prefix) {
+    return sanitizeAltTextOutput(value);
+  }
+
+  let cleaned = sanitizeAltTextOutput(value);
+  if (!cleaned) {
+    return `${prefix}-alt text chưa khả dụng`;
+  }
+
+  const prefixPattern = new RegExp(`^${prefix}[-–—\s]+`, "i");
+  cleaned = cleaned.replace(prefixPattern, "");
+  cleaned = cleaned.replace(/^[-–—\s]+/, "");
+  let result = `${prefix}-${cleaned}`;
+
+  if (result.length > ALT_TEXT_MAX_LENGTH) {
+    const prefixPart = `${prefix}-`;
+    const allowedLength = Math.max(ALT_TEXT_MIN_LENGTH - prefixPart.length, 0);
+    const trimmedContent = cleaned.slice(0, ALT_TEXT_MAX_LENGTH - prefixPart.length).replace(/[\s,.;:-]+$/g, "").trim();
+    result = `${prefixPart}${trimmedContent || cleaned.slice(0, allowedLength)}`;
+  }
+
+  if (result.length < ALT_TEXT_MIN_LENGTH && fallbackKeyword) {
+    const keyword = fallbackKeyword.split(",")[0]?.trim();
+    if (keyword) {
+      const appended = `${result} ${keyword}`.trim();
+      result = appended.length <= ALT_TEXT_MAX_LENGTH ? appended : result;
+    }
+  }
+
+  return result;
+};
+
 const buildSlugFromPieces = (...parts: string[]): string => {
   const combined = parts
     .filter((part) => typeof part === "string" && part.trim().length > 0)
@@ -242,6 +336,29 @@ function ImageSeoContent() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [lastSearchAt, setLastSearchAt] = useState<number | null>(null);
+  const [altTextModel, setAltTextModel] = useState<AltTextModel>(ALT_TEXT_DEFAULT_MODEL);
+  const [isGeneratingAltText, setIsGeneratingAltText] = useState(false);
+  const [generatedAltText, setGeneratedAltText] = useState("");
+  const [altTextValue, setAltTextValue] = useState("");
+  const [altTextError, setAltTextError] = useState<string | null>(null);
+  const [altTextCopied, setAltTextCopied] = useState(false);
+  const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+  const openAiApiKey = import.meta.env.VITE_OPENAI_API_KEY as string | undefined;
+
+  const selectedAltTextModelInfo = useMemo(
+    () => ALT_TEXT_MODELS.find((item) => item.value === altTextModel),
+    [altTextModel],
+  );
+
+  const keywordsForPrompt = useMemo(() => {
+    if (rawKeywords?.trim()) return rawKeywords.trim();
+    if (metadata.keywords?.trim()) return metadata.keywords.trim();
+    if (extractedMetadata.keywords?.trim()) return extractedMetadata.keywords.trim();
+    return "";
+  }, [rawKeywords, metadata.keywords, extractedMetadata.keywords]);
+
+  const modelIsConfigured = altTextModel === "gemini" ? Boolean(geminiApiKey) : Boolean(openAiApiKey);
+  const hasImageForAltText = Boolean(processedDataUrl || imagePreview);
 
   const normalizedManualSlug = useMemo(
     () => (fileSlug.trim().length > 0 ? buildSlugFromPieces(fileSlug.trim()) : ""),
@@ -270,6 +387,10 @@ function ImageSeoContent() {
     setImageMime(null);
     setProcessedDataUrl(null);
     setIsSearching(false);
+    setGeneratedAltText("");
+    setAltTextValue("");
+    setAltTextError(null);
+    setAltTextCopied(false);
     setExtractedMetadata({});
 
     if (resetMetadata) {
@@ -366,6 +487,16 @@ function ImageSeoContent() {
       mapRef.current.panTo([latitude, longitude]);
     }
   }, [latitude, longitude]);
+
+  useEffect(() => {
+    if (!altTextCopied) return;
+    const timer = window.setTimeout(() => setAltTextCopied(false), 1600);
+    return () => window.clearTimeout(timer);
+  }, [altTextCopied]);
+
+  useEffect(() => {
+    setAltTextError(null);
+  }, [altTextModel]);
 
   const loadExifData = useCallback(async (file: File) => {
     try {
@@ -584,6 +715,246 @@ function ImageSeoContent() {
       setIsSearching(false);
     }
   }, [addressQuery, lastSearchAt, toast]);
+
+  const composeAltTextPrompt = () => {
+    const title = metadata.title || extractedMetadata.title || "Không có";
+    const subject = metadata.subject || extractedMetadata.subject || "Không có";
+    const keywords = keywordsForPrompt || "Không có";
+    const copyright = metadata.copyright || extractedMetadata.copyright || DEFAULT_COPYRIGHT;
+
+    const promptSections = [
+      "Bạn là chuyên gia SEO và marketing. Dựa vào ảnh và thông tin sau, tạo alt text tối ưu SEO:",
+      "",
+      "Thông tin sản phẩm:",
+      `- Tiêu đề: ${title}`,
+      `- Chủ đề: ${subject}`,
+      `- Từ khóa: ${keywords}`,
+      `- Bản quyền: ${copyright}`,
+      "",
+      "Yêu cầu alt text:",
+      "1. Bắt đầu bằng định dạng \"{bản quyền}-\"",
+      "2. Mô tả chính xác nội dung ảnh",
+      "3. Ngôn ngữ tự nhiên, dễ đọc cho người dùng",
+      "4. Tối ưu SEO và chứa từ khóa quan trọng (nếu phù hợp)",
+      `5. Độ dài tối ưu từ ${ALT_TEXT_MIN_LENGTH} đến ${ALT_TEXT_MAX_LENGTH} ký tự`,
+      "6. Tuân thủ tiêu chuẩn Google",
+      "",
+      "Chỉ trả về alt text, không giải thích thêm.",
+    ];
+
+    return {
+      prompt: promptSections.join("\n"),
+      copyright,
+      fallbackKeyword: keywordsForPrompt,
+    };
+  };
+
+  const handleGenerateAltText = async () => {
+    if (!hasImageForAltText) {
+      const message = "Vui lòng tải ảnh trước khi tạo alt text.";
+      setAltTextError(message);
+      toast({ title: "Thiếu ảnh", description: message, variant: "destructive" });
+      return;
+    }
+
+    if (!modelIsConfigured) {
+      const message =
+        altTextModel === "gemini"
+          ? "Vui lòng cấu hình GEMINI_API_KEY trong .env.local."
+          : "Vui lòng cấu hình OPENAI_API_KEY trong .env.local.";
+      setAltTextError(message);
+      toast({ title: "Chưa cấu hình API", description: message, variant: "destructive" });
+      return;
+    }
+
+    const imagePayload = extractBase64Payload(processedDataUrl || imagePreview);
+    if (!imagePayload) {
+      const message = "Không thể đọc dữ liệu ảnh. Hãy thử tải lại ảnh.";
+      setAltTextError(message);
+      toast({ title: "Lỗi ảnh", description: message, variant: "destructive" });
+      return;
+    }
+
+    const { prompt, copyright, fallbackKeyword } = composeAltTextPrompt();
+
+    setIsGeneratingAltText(true);
+    setAltTextError(null);
+    setAltTextCopied(false);
+
+    try {
+      let responseText = "";
+
+      if (altTextModel === "gemini") {
+        if (!geminiApiKey) {
+          throw new Error("GEMINI_API_KEY_MISSING");
+        }
+
+        const response = await fetch(`${GEMINI_ENDPOINT}?key=${geminiApiKey}`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: prompt },
+                  {
+                    inline_data: {
+                      mime_type: imagePayload.mime,
+                      data: imagePayload.base64,
+                    },
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          const apiMessage = data?.error?.message || `Gemini trả về lỗi ${response.status}`;
+          throw new Error(apiMessage);
+        }
+
+        const parts = data?.candidates?.[0]?.content?.parts;
+        if (Array.isArray(parts)) {
+          responseText = parts
+            .map((part: any) => (typeof part?.text === "string" ? part.text : ""))
+            .join(" ")
+            .trim();
+        }
+      } else {
+        if (!openAiApiKey) {
+          throw new Error("OPENAI_API_KEY_MISSING");
+        }
+
+        const response = await fetch(OPENAI_ENDPOINT, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${openAiApiKey}`,
+          },
+          body: JSON.stringify({
+            model: "gpt-4o-mini",
+            messages: [
+              {
+                role: "user",
+                content: [
+                  { type: "text", text: prompt },
+                  {
+                    type: "image_url",
+                    image_url: {
+                      url: `data:${imagePayload.mime};base64,${imagePayload.base64}`,
+                    },
+                  },
+                ],
+              },
+            ],
+            max_tokens: 180,
+            temperature: 0.7,
+          }),
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          const apiMessage = data?.error?.message || `OpenAI trả về lỗi ${response.status}`;
+          throw new Error(apiMessage);
+        }
+
+        const messageContent = data?.choices?.[0]?.message?.content;
+        if (typeof messageContent === "string") {
+          responseText = messageContent;
+        } else if (Array.isArray(messageContent)) {
+          responseText = messageContent
+            .map((item: any) => (typeof item?.text === "string" ? item.text : ""))
+            .join(" ")
+            .trim();
+        }
+      }
+
+      if (!responseText) {
+        throw new Error("EMPTY_RESPONSE");
+      }
+
+      const formatted = enforceAltTextFormat(responseText, {
+        copyright,
+        fallbackKeyword,
+      });
+
+      setGeneratedAltText(formatted);
+      setAltTextValue(formatted);
+      toast({
+        title: "Đã tạo alt text",
+        description: "Alt text đã sẵn sàng. Bạn có thể chỉnh sửa hoặc sao chép để sử dụng.",
+      });
+    } catch (error: unknown) {
+      console.error("Alt text generation error", error);
+      let message = "Không thể tạo alt text, vui lòng thử lại sau.";
+      if (error instanceof Error) {
+        if (error.message === "GEMINI_API_KEY_MISSING") {
+          message = "Vui lòng cấu hình GEMINI_API_KEY trong .env.local.";
+        } else if (error.message === "OPENAI_API_KEY_MISSING") {
+          message = "Vui lòng cấu hình OPENAI_API_KEY trong .env.local.";
+        } else if (error.message === "EMPTY_RESPONSE") {
+          message = "AI không trả về kết quả. Hãy thử nhập thêm thông tin hoặc chọn model khác.";
+        } else if (error.message.trim().length > 0) {
+          message = error.message;
+        }
+      }
+      setAltTextError(message);
+      toast({ title: "Tạo alt text thất bại", description: message, variant: "destructive" });
+    } finally {
+      setIsGeneratingAltText(false);
+    }
+  };
+
+  const handleCopyAltText = async () => {
+    if (!altTextValue.trim()) {
+      toast({
+        title: "Chưa có alt text",
+        description: "Hãy tạo (hoặc nhập) alt text trước khi sao chép.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      if (!navigator?.clipboard) {
+        throw new Error("CLIPBOARD_UNAVAILABLE");
+      }
+      await navigator.clipboard.writeText(altTextValue.trim());
+      setAltTextCopied(true);
+      toast({
+        title: "Đã sao chép alt text",
+        description: "Dán alt text vào thuộc tính alt khi tải ảnh lên website.",
+      });
+    } catch (copyError) {
+      console.error("Copy alt text failed", copyError);
+      const message =
+        copyError instanceof Error && copyError.message === "CLIPBOARD_UNAVAILABLE"
+          ? "Trình duyệt không hỗ trợ copy tự động. Bạn hãy chọn và sao chép thủ công."
+          : "Không thể sao chép alt text. Hãy thử lại.";
+      toast({ title: "Sao chép thất bại", description: message, variant: "destructive" });
+    }
+  };
+
+  const handleApplyAltText = () => {
+    if (!generatedAltText) {
+      toast({
+        title: "Chưa có alt text AI",
+        description: "Hãy nhấn \"Tạo Alt Text\" để AI gợi ý trước.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setAltTextValue(generatedAltText);
+    setAltTextCopied(false);
+    toast({
+      title: "Đã áp dụng alt text",
+      description: "Alt text AI đã được chèn vào khung nhập để bạn chỉnh sửa hoặc sao chép.",
+    });
+  };
 
   const handleCoordinateInput = (type: "lat" | "lng") => (event: ChangeEvent<HTMLInputElement>) => {
     const value = event.target.value;
@@ -1176,6 +1547,94 @@ function ImageSeoContent() {
                   <div className="space-y-2">
                     <Label>Đánh giá</Label>
                     <div className="flex items-center gap-2">{ratingStars}</div>
+                  </div>
+                </div>
+                <div className="space-y-4 rounded-lg border border-dashed border-slate-200 p-4 dark:border-slate-700">
+                  <div>
+                    <h3 className="text-base font-semibold">Tạo alt text cho ảnh bằng AI</h3>
+                    <p className="text-sm text-muted-foreground">
+                      Sử dụng metadata và hình ảnh đã tải lên để sinh mô tả alt text chuẩn SEO.
+                    </p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-[minmax(0,240px)_1fr] md:items-end">
+                    <div className="space-y-2">
+                      <Label htmlFor="alt-text-model">Model AI</Label>
+                      <Select value={altTextModel} onValueChange={(value) => setAltTextModel(value as AltTextModel)}>
+                        <SelectTrigger id="alt-text-model">
+                          <SelectValue placeholder="Chọn model" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ALT_TEXT_MODELS.map((model) => (
+                            <SelectItem key={model.value} value={model.value}>
+                              {model.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {selectedAltTextModelInfo ? (
+                        <p className="text-xs text-muted-foreground">{selectedAltTextModelInfo.description}</p>
+                      ) : null}
+                      {!modelIsConfigured ? (
+                        <p className="text-xs text-orange-600 dark:text-orange-400">Chưa cấu hình API key cho model này.</p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                      <Button
+                        type="button"
+                        onClick={handleGenerateAltText}
+                        disabled={isGeneratingAltText || !hasImageForAltText || !modelIsConfigured}
+                        className="flex-1 sm:flex-none"
+                      >
+                        {isGeneratingAltText ? (
+                          <span className="flex items-center gap-2">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            Đang tạo alt text...
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-2">
+                            <Sparkles className="h-4 w-4" />
+                            🤖 Tạo Alt Text
+                          </span>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="alt-text-output">Kết quả</Label>
+                    <Textarea
+                      id="alt-text-output"
+                      value={altTextValue}
+                      onChange={(event) => {
+                        setAltTextValue(event.target.value);
+                        setAltTextCopied(false);
+                      }}
+                      placeholder="Alt text AI sẽ hiển thị tại đây. Bạn có thể chỉnh sửa thủ công."
+                      rows={4}
+                    />
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs text-muted-foreground">
+                        Độ dài hiện tại: {altTextValue.length} ký tự (khuyến nghị {ALT_TEXT_MIN_LENGTH}-{ALT_TEXT_MAX_LENGTH}).
+                      </p>
+                      <div className="flex gap-2">
+                        <Button type="button" variant="outline" onClick={handleCopyAltText} disabled={!altTextValue.trim()}>
+                          <span className="flex items-center gap-2">
+                            {altTextCopied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                            {altTextCopied ? "Đã sao chép" : "📋 Sao chép"}
+                          </span>
+                        </Button>
+                        <Button type="button" variant="secondary" onClick={handleApplyAltText} disabled={!generatedAltText}>
+                          <span className="flex items-center gap-2">
+                            <Check className="h-4 w-4" />
+                            ✓ Áp dụng
+                          </span>
+                        </Button>
+                      </div>
+                    </div>
+                    {altTextError ? (
+                      <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-200">
+                        {altTextError}
+                      </div>
+                    ) : null}
                   </div>
                 </div>
                 {extractedMetadata.title || extractedMetadata.keywords || extractedMetadata.latitude ? (
