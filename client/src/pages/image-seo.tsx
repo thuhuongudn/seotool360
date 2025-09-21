@@ -39,8 +39,8 @@ import { format } from "date-fns";
 
 type ExifRational = { numerator: number; denominator: number };
 
-const DEFAULT_LAT = 16.0544;
-const DEFAULT_LNG = 108.2022;
+const DEFAULT_LAT = 16.068484;
+const DEFAULT_LNG = 108.195472;
 const DEFAULT_ZOOM = 13;
 const MAX_FILE_SIZE_MB = 15;
 const MAX_CANVAS_DIMENSION = 4000;
@@ -49,6 +49,8 @@ const SUPPORTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const GOONG_API_KEY = "vmBdGIeUBdmUX4ARIhfa4iygOubW9A73K51syJgF";
 const GOONG_GEOCODE_ENDPOINT = "https://rsapi.goong.io/geocode";
 const SEARCH_THROTTLE_MS = 1500;
+const DEFAULT_COPYRIGHT = "nhathuocvietnhat.vn";
+const DEFAULT_ADDRESS = "224 Thái Thị Bôi, Chính Gián, Thanh Khê, Đà Nẵng";
 
 const PRESET_LOCATIONS: Array<{ label: string; lat: number; lng: number }> = [
   { label: "Đà Nẵng", lat: 16.0544, lng: 108.2022 },
@@ -157,6 +159,43 @@ function sanitizeKeywords(keywords: string): string {
     .join(", ");
 }
 
+const removeVietnameseDiacritics = (value: string): string =>
+  value
+    .replace(/đ/g, "d")
+    .replace(/Đ/g, "D")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+
+const toAsciiFallback = (value: string): string => {
+  if (!value) return "";
+  const normalized = removeVietnameseDiacritics(value);
+  return Array.from(normalized)
+    .map((char) => (char.charCodeAt(0) <= 255 ? char : "?"))
+    .join("");
+};
+
+const prepareAsciiOrTransliteration = (value: string): string => {
+  if (!value) return "";
+  if (!/[\u0080-\uFFFF]/.test(value)) {
+    return value;
+  }
+  return toAsciiFallback(value);
+};
+
+const buildSlugFromPieces = (...parts: string[]): string => {
+  const combined = parts
+    .filter((part) => typeof part === "string" && part.trim().length > 0)
+    .join("-");
+
+  if (!combined) return "";
+
+  return removeVietnameseDiacritics(combined)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+};
+
 function downloadDataUrl(dataUrl: string, filename: string) {
   const link = document.createElement("a");
   link.href = dataUrl;
@@ -177,21 +216,36 @@ function ImageSeoContent() {
     title: "",
     subject: "",
     author: "",
-    copyright: "Tất cả quyền hợp pháp thuộc website",
+    copyright: DEFAULT_COPYRIGHT,
     keywords: "",
     date: format(new Date(), "yyyy-MM-dd"),
     rating: 0,
   });
   const [rawKeywords, setRawKeywords] = useState("");
+  const [fileSlug, setFileSlug] = useState("");
   const [latitude, setLatitude] = useState(DEFAULT_LAT);
   const [longitude, setLongitude] = useState(DEFAULT_LNG);
-  const [latitudeInput, setLatitudeInput] = useState(String(DEFAULT_LAT));
-  const [longitudeInput, setLongitudeInput] = useState(String(DEFAULT_LNG));
-  const [addressQuery, setAddressQuery] = useState("Đà Nẵng, Việt Nam");
+  const [latitudeInput, setLatitudeInput] = useState(DEFAULT_LAT.toFixed(6));
+  const [longitudeInput, setLongitudeInput] = useState(DEFAULT_LNG.toFixed(6));
+  const [addressQuery, setAddressQuery] = useState(DEFAULT_ADDRESS);
   const [processedDataUrl, setProcessedDataUrl] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [lastSearchAt, setLastSearchAt] = useState<number | null>(null);
+
+  const normalizedManualSlug = useMemo(
+    () => (fileSlug.trim().length > 0 ? buildSlugFromPieces(fileSlug.trim()) : ""),
+    [fileSlug],
+  );
+  const autoSlug = useMemo(
+    () => buildSlugFromPieces(metadata.copyright, metadata.title),
+    [metadata.copyright, metadata.title],
+  );
+  const effectiveSlug = normalizedManualSlug || autoSlug;
+  const slugPreview = useMemo(() => {
+    const base = effectiveSlug || "optimized-image";
+    return base.endsWith(".jpg") ? base : `${base}.jpg`;
+  }, [effectiveSlug]);
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -213,12 +267,13 @@ function ImageSeoContent() {
         title: "",
         subject: "",
         author: "",
-        copyright: "Tất cả quyền hợp pháp thuộc website",
+        copyright: DEFAULT_COPYRIGHT,
         keywords: "",
         date: format(new Date(), "yyyy-MM-dd"),
         rating: 0,
       });
       setRawKeywords("");
+      setFileSlug("");
     }
 
     if (resetLocation) {
@@ -226,7 +281,7 @@ function ImageSeoContent() {
       setLongitude(DEFAULT_LNG);
       setLatitudeInput(String(DEFAULT_LAT));
       setLongitudeInput(String(DEFAULT_LNG));
-      setAddressQuery("Đà Nẵng, Việt Nam");
+      setAddressQuery(DEFAULT_ADDRESS);
     }
   };
 
@@ -547,7 +602,17 @@ function ImageSeoContent() {
 
     const sanitizeForProcessing = sanitizeKeywords(rawKeywords || metadata.keywords || "");
 
-    const sanitizeGpsValue = (value: number): number | null => {
+    const sanitizeLatitude = (value: number): number | null => {
+      if (typeof value !== "number" || !Number.isFinite(value)) {
+        return null;
+      }
+      if (value < -90 || value > 90) {
+        return null;
+      }
+      return value;
+    };
+
+    const sanitizeLongitude = (value: number): number | null => {
       if (typeof value !== "number" || !Number.isFinite(value)) {
         return null;
       }
@@ -739,20 +804,24 @@ function ImageSeoContent() {
       exifData["Exif"] = exifData["Exif"] || {};
       exifData["GPS"] = exifData["GPS"] || {};
 
+      const asciiTitle = prepareAsciiOrTransliteration(metadata.title);
+      const asciiAuthor = prepareAsciiOrTransliteration(metadata.author);
+      const asciiCopyright = prepareAsciiOrTransliteration(metadata.copyright);
+
       try {
-        exifData["0th"][ImageIFD.ImageDescription] = metadata.title;
-        console.log("Set ImageDescription", metadata.title);
+        exifData["0th"][ImageIFD.ImageDescription] = asciiTitle;
+        console.log("Set ImageDescription", asciiTitle);
       } catch (err) {
         console.error("Set ImageDescription failed", err);
       }
       try {
-        exifData["0th"][ImageIFD.Artist] = metadata.author;
-        console.log("Set Artist", metadata.author);
+        exifData["0th"][ImageIFD.Artist] = asciiAuthor;
+        console.log("Set Artist", asciiAuthor);
       } catch (err) {
         console.error("Set Artist failed", err);
       }
       try {
-        exifData["0th"][ImageIFD.Copyright] = metadata.copyright;
+        exifData["0th"][ImageIFD.Copyright] = asciiCopyright;
       } catch (err) {
         console.error("Set Copyright failed", err);
       }
@@ -788,8 +857,8 @@ function ImageSeoContent() {
         }
       }
 
-      const sanitizedLat = sanitizeGpsValue(latitude);
-      const sanitizedLng = sanitizeGpsValue(longitude);
+      const sanitizedLat = sanitizeLatitude(latitude);
+      const sanitizedLng = sanitizeLongitude(longitude);
       if (sanitizedLat !== null && sanitizedLng !== null) {
         const latRef = sanitizedLat >= 0 ? "N" : "S";
         const lngRef = sanitizedLng >= 0 ? "E" : "W";
@@ -802,6 +871,8 @@ function ImageSeoContent() {
             : convertGpsToRational(sanitizedLng);
           const latDms = normalizeGpsComponents(latRaw, sanitizedLat);
           const lngDms = normalizeGpsComponents(lngRaw, sanitizedLng);
+          exifData["GPS"][GPSIFD.GPSVersionID] = [2, 3, 0, 0];
+          exifData["GPS"][GPSIFD.GPSMapDatum] = "WGS-84";
           exifData["GPS"][GPSIFD.GPSLatitudeRef] = latRef;
           exifData["GPS"][GPSIFD.GPSLatitude] = latDms;
           exifData["GPS"][GPSIFD.GPSLongitudeRef] = lngRef;
@@ -873,8 +944,11 @@ function ImageSeoContent() {
       });
       return;
     }
-    const baseName = originalName ? originalName.replace(/\.[^.]+$/, "") : "optimized-image";
-    downloadDataUrl(processedDataUrl, `${baseName}-seo.jpg`);
+    const effectiveBaseSlug = effectiveSlug || `optimized-image-${Date.now()}`;
+    const normalizedBase = effectiveBaseSlug.toLowerCase().endsWith(".jpg")
+      ? effectiveBaseSlug
+      : `${effectiveBaseSlug}.jpg`;
+    downloadDataUrl(processedDataUrl, normalizedBase);
   };
 
   const ratingStars = useMemo(() => {
@@ -1061,6 +1135,21 @@ function ImageSeoContent() {
                     onChange={handleInputChange("keywords")}
                     onBlur={handleKeywordsBlur}
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="meta-slug">Tên file tải về (slug)</Label>
+                  <Input
+                    id="meta-slug"
+                    placeholder="vi-du-ten-anh-va-thuong-hieu"
+                    value={fileSlug}
+                    onChange={(event) => setFileSlug(event.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Định dạng: chữ thường, dấu gạch ngang thay khoảng trắng. Bỏ trống để tự động tạo từ bản quyền + tiêu đề.
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Tên file dự kiến: <code>{slugPreview}</code>
+                  </p>
                 </div>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <div className="space-y-2">
