@@ -37,7 +37,7 @@ import type { ChangeEvent, DragEvent } from "react";
 import type { LeafletEventHandlerFn, Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import { format } from "date-fns";
 
-type ExifRational = { numerator: number; denominator: number };
+type ExifRational = [number, number];
 
 const DEFAULT_LAT = 16.068484;
 const DEFAULT_LNG = 108.195472;
@@ -90,19 +90,31 @@ function convertGpsToRational(deg: number): ExifRational[] {
   const seconds = (minutesFloat - minutes) * 60;
 
   return [
-    { numerator: degrees, denominator: 1 },
-    { numerator: minutes, denominator: 1 },
-    { numerator: Math.round(seconds * 100), denominator: 100 },
+    [degrees, 1],
+    [minutes, 1],
+    [Math.round(seconds * 10000), 10000],
   ];
 }
 
 function convertExifGpsToDecimal(value: any, ref: any): number | undefined {
   if (!value || !Array.isArray(value.value) || !ref) return undefined;
-  const [deg, min, sec] = value.value as Array<{ numerator: number; denominator: number }>;
+  const getNumber = (entry: any) => {
+    if (!entry) return 0;
+    if (Array.isArray(entry)) {
+      const [num = 0, den = 1] = entry;
+      return Number(num) / (Number(den) || 1);
+    }
+    if (typeof entry === "object" && "numerator" in entry && "denominator" in entry) {
+      return Number(entry.numerator) / (Number(entry.denominator) || 1);
+    }
+    return Number(entry) || 0;
+  };
+
+  const [deg, min, sec] = value.value as any[];
   const multiplier = ref.description === "S" || ref.description === "W" ? -1 : 1;
-  const d = deg.numerator / deg.denominator;
-  const m = min.numerator / min.denominator;
-  const s = sec.numerator / sec.denominator;
+  const d = getNumber(deg);
+  const m = getNumber(min);
+  const s = getNumber(sec);
   return multiplier * (d + m / 60 + s / 3600);
 }
 
@@ -154,7 +166,7 @@ function makeDateTimeOriginal(date: string) {
 function sanitizeKeywords(keywords: string): string {
   return keywords
     .split(",")
-    .map((item) => item.trim())
+    .map((item) => removeVietnameseDiacritics(item.trim()))
     .filter(Boolean)
     .join(", ");
 }
@@ -626,18 +638,18 @@ function ImageSeoContent() {
       if (!Array.isArray(raw)) {
         return convertGpsToRational(originalDecimal);
       }
-      return raw.map((entry: any) => {
-        if (entry && typeof entry === "object" && "numerator" in entry && "denominator" in entry) {
-          return {
-            numerator: Math.round(entry.numerator as number),
-            denominator: Math.round((entry.denominator as number) || 1),
-          };
-        }
+      return raw.map((entry: any): ExifRational => {
         if (Array.isArray(entry)) {
           const [num = 0, den = 1] = entry;
-          return { numerator: Math.round(Number(num)), denominator: Math.round(Number(den) || 1) };
+          return [Math.round(Number(num)), Math.round(Number(den) || 1)];
         }
-        return { numerator: 0, denominator: 1 };
+        if (entry && typeof entry === "object" && "numerator" in entry && "denominator" in entry) {
+          const num = Math.round(Number(entry.numerator));
+          const den = Math.round(Number(entry.denominator) || 1);
+          return [num, den];
+        }
+        const numeric = Number(entry) || 0;
+        return [Math.round(numeric), 1];
       });
     };
 
@@ -898,6 +910,13 @@ function ImageSeoContent() {
       let finalDataUrl: string;
       try {
         finalDataUrl = piexifAny.insert(exifBytes, baseDataUrl);
+        console.log("[image-seo] piexif.insert thành công", { finalLength: finalDataUrl.length });
+        try {
+          const verifyExif = piexifAny.load(finalDataUrl);
+          console.log("[image-seo] EXIF sau insert", verifyExif.GPS);
+        } catch (verifyError) {
+          console.warn("[image-seo] Không thể load EXIF sau insert để kiểm tra", verifyError);
+        }
       } catch (insertError) {
         console.error("[image-seo] piexifAny.insert thất bại", insertError);
         throw new Error("piexif-insert");
