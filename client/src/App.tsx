@@ -98,11 +98,7 @@ function Router() {
         </ProtectedRoute>
       </Route>
       {/* Other Tool Routes */}
-      <Route path="/image-seo">
-        <ProtectedRoute>
-          <ImageSeo />
-        </ProtectedRoute>
-      </Route>
+      <Route path="/image-seo" component={ImageSeo} />
       <Route path="/qr-code" component={QrCode} />
       <Route path="/blog" component={Blog} />
       <Route component={NotFound} />
