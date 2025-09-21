@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
-import ToolPermissionGuard from "@/components/tool-permission-guard";
-import { useToolId } from "@/hooks/use-tool-id";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -1321,11 +1319,5 @@ function ImageSeoContent() {
 }
 
 export default function ImageSeo() {
-  const toolId = useToolId("image-seo");
-
-  return (
-    <ToolPermissionGuard toolId={toolId || ""} toolName="Tối ưu Metadata & Geotag ảnh">
-      <ImageSeoContent />
-    </ToolPermissionGuard>
-  );
+  return <ImageSeoContent />;
 }
