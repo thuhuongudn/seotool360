@@ -1041,8 +1041,8 @@ function ImageSeoContent() {
                 </label>
 
                 {originalName ? (
-                  <div className="flex flex-col gap-3 rounded-md border bg-background p-3 text-sm sm:flex-row sm:items-center sm:justify-between">
-                    <div className="min-w-0 flex-1">
+                  <div className="space-y-3 rounded-md border bg-background p-3 text-sm">
+                    <div className="min-w-0">
                       <p className="font-medium text-gray-900 dark:text-white truncate" title={originalName}>
                         {originalName}
                       </p>
@@ -1050,12 +1050,12 @@ function ImageSeoContent() {
                         Đã tải lên thành công – bạn có thể tiếp tục chỉnh metadata bên dưới.
                       </p>
                     </div>
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                    <div className="flex flex-col gap-2">
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => resetState({ resetMetadata: false, resetLocation: false })}
-                        className="sm:flex-shrink-0 w-full sm:w-auto"
+                        className="w-full sm:w-auto self-start"
                       >
                         <RefreshCcw className="h-4 w-4 mr-1" />
                         Đổi ảnh khác
@@ -1064,7 +1064,7 @@ function ImageSeoContent() {
                         variant="ghost"
                         size="sm"
                         onClick={() => resetState({ resetMetadata: true, resetLocation: true })}
-                        className="sm:flex-shrink-0 w-full sm:w-auto"
+                        className="w-full sm:w-auto self-start"
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
                         Xoá tất cả thông tin
