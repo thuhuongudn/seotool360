@@ -59,7 +59,7 @@ const GOONG_GEOCODE_ENDPOINT = "https://rsapi.goong.io/geocode";
 const SEARCH_THROTTLE_MS = 1500;
 const DEFAULT_COPYRIGHT = "nhathuocvietnhat.vn";
 const DEFAULT_ADDRESS = "224 Thái Thị Bôi, Chính Gián, Thanh Khê, Đà Nẵng";
-const ALT_TEXT_MIN_LENGTH = 50;
+const ALT_TEXT_MIN_LENGTH = 100;
 const ALT_TEXT_MAX_LENGTH = 125;
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
@@ -243,47 +243,24 @@ const sanitizeAltTextOutput = (value: string): string =>
     .replace(/^"|"$/g, "")
     .trim();
 
-const enforceAltTextFormat = (
-  value: string,
-  {
-    copyright,
-    fallbackKeyword,
-  }: {
-    copyright: string;
-    fallbackKeyword?: string;
-  },
-): string => {
-  const prefix = (copyright || DEFAULT_COPYRIGHT).trim();
-  if (!prefix) {
-    return sanitizeAltTextOutput(value);
-  }
+const truncateToMaxAltLength = (value: string, maxLength = ALT_TEXT_MAX_LENGTH): string => {
+  const trimmed = value.trim();
+  const chars = Array.from(trimmed);
+  if (chars.length <= maxLength) return trimmed;
 
-  let cleaned = sanitizeAltTextOutput(value);
-  if (!cleaned) {
-    return `${prefix}-alt text chưa khả dụng`;
-  }
+  const limited = chars.slice(0, maxLength);
+  let cutIndex = limited.length;
 
-  const prefixPattern = new RegExp(`^${prefix}[-–—\s]+`, "i");
-  cleaned = cleaned.replace(prefixPattern, "");
-  cleaned = cleaned.replace(/^[-–—\s]+/, "");
-  let result = `${prefix}-${cleaned}`;
-
-  if (result.length > ALT_TEXT_MAX_LENGTH) {
-    const prefixPart = `${prefix}-`;
-    const allowedLength = Math.max(ALT_TEXT_MIN_LENGTH - prefixPart.length, 0);
-    const trimmedContent = cleaned.slice(0, ALT_TEXT_MAX_LENGTH - prefixPart.length).replace(/[\s,.;:-]+$/g, "").trim();
-    result = `${prefixPart}${trimmedContent || cleaned.slice(0, allowedLength)}`;
-  }
-
-  if (result.length < ALT_TEXT_MIN_LENGTH && fallbackKeyword) {
-    const keyword = fallbackKeyword.split(",")[0]?.trim();
-    if (keyword) {
-      const appended = `${result} ${keyword}`.trim();
-      result = appended.length <= ALT_TEXT_MAX_LENGTH ? appended : result;
+  for (let i = limited.length - 1; i >= 0; i -= 1) {
+    if (/\s/.test(limited[i])) {
+      cutIndex = i;
+      break;
     }
   }
 
-  return result;
+  const truncated = limited.slice(0, cutIndex > 0 ? cutIndex : limited.length);
+  const result = truncated.join("").trim();
+  return result.length > 0 ? result : limited.join("").trim();
 };
 
 const buildSlugFromPieces = (...parts: string[]): string => {
@@ -722,30 +699,10 @@ function ImageSeoContent() {
     const keywords = keywordsForPrompt || "Không có";
     const copyright = metadata.copyright || extractedMetadata.copyright || DEFAULT_COPYRIGHT;
 
-    const promptSections = [
-      "Bạn là chuyên gia SEO và marketing. Dựa vào ảnh và thông tin sau, tạo alt text tối ưu SEO:",
-      "",
-      "Thông tin sản phẩm:",
-      `- Tiêu đề: ${title}`,
-      `- Chủ đề: ${subject}`,
-      `- Từ khóa: ${keywords}`,
-      `- Bản quyền: ${copyright}`,
-      "",
-      "Yêu cầu alt text:",
-      "1. Bắt đầu bằng định dạng \"{bản quyền}-\"",
-      "2. Mô tả chính xác nội dung ảnh",
-      "3. Ngôn ngữ tự nhiên, dễ đọc cho người dùng",
-      "4. Tối ưu SEO và chứa từ khóa quan trọng (nếu phù hợp)",
-      `5. Độ dài tối ưu từ ${ALT_TEXT_MIN_LENGTH} đến ${ALT_TEXT_MAX_LENGTH} ký tự`,
-      "6. Tuân thủ tiêu chuẩn Google",
-      "",
-      "Chỉ trả về alt text, không giải thích thêm.",
-    ];
+    const prompt = `Bạn là chuyên gia SEO & marketing. Dựa vào ảnh và thông tin sau, tạo alt text tối ưu SEO:\n\nThông tin sản phẩm:\n\n* Tiêu đề: ${title}\n* Chủ đề: ${subject}\n* Từ khóa: ${keywords}\n* Bản quyền: ${copyright}\n\nYêu cầu alt text:\n\n1. Bắt đầu bằng thông tin "{bản quyền}-" (bắt buộc)\n2. Mô tả chính xác nội dung ảnh, tập trung vào chủ thể & đặc điểm nổi bật liên quan sản phẩm, nếu ảnh là sản phẩm, thì tập trung vào thành phần và công dụng sản phẩm ở phần chủ đề và từ khoá để xây dựng mô tả (Ví dụ sai: Buonavit Baby vitamin tổng hợp nhỏ giọt 20ml mẫu mới, cho trẻ 0 tháng tuổi. Gồm lọ sản phẩm, ống và vỏ; ví dụ đúng: Buonavit Baby vitamin tổng hợp nhỏ giọt 20ml mẫu mới, cho trẻ 0 tháng tuổi. bổ sung vitamin tổng hợp cho trẻ sơ sinh) \n3. Ngôn ngữ tự nhiên, dễ đọc cho người dùng, phù hợp với ngôn ngữ trang (ví dụ tiếng Việt nếu trang tiếng Việt)\n4. Chứa từ khóa chính (nếu phù hợp tự nhiên) nhưng tránh nhồi nhét\n5. Độ dài tối ưu từ **cỡ 100 tới 125 ký tự** (bao gồm bản quyền), đủ chi tiết nhưng ngắn gọn\n6. Không bắt đầu bằng “Image of/Photo of/Ảnh của…” — vì đã rõ là alt text\n7. Nếu ảnh trang trí hoặc không có thông tin quan trọng thì alt=”” (nếu phù hợp)\n8. Tuân thủ tiêu chuẩn Google/Image SEO & tiêu chí trợ năng\n\nChỉ trả về alt text, không giải thích thêm.`;
 
     return {
-      prompt: promptSections.join("\n"),
-      copyright,
-      fallbackKeyword: keywordsForPrompt,
+      prompt,
     };
   };
 
@@ -775,7 +732,7 @@ function ImageSeoContent() {
       return;
     }
 
-    const { prompt, copyright, fallbackKeyword } = composeAltTextPrompt();
+    const { prompt } = composeAltTextPrompt();
 
     setIsGeneratingAltText(true);
     setAltTextError(null);
@@ -877,10 +834,8 @@ function ImageSeoContent() {
         throw new Error("EMPTY_RESPONSE");
       }
 
-      const formatted = enforceAltTextFormat(responseText, {
-        copyright,
-        fallbackKeyword,
-      });
+      const cleaned = sanitizeAltTextOutput(responseText);
+      const formatted = truncateToMaxAltLength(cleaned);
 
       setGeneratedAltText(formatted);
       setAltTextValue(formatted);
