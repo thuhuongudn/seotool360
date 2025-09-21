@@ -29,7 +29,8 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
   // Define which tools are free to use without authentication
   const freeTools = new Set([
     'markdown-html',
-    'qr-code'
+    'qr-code',
+    'image-seo'
   ]);
   
   const isFreeTool = freeTools.has(tool.name);
