@@ -4,6 +4,8 @@ import { storage } from "./storage";
 import { activateToolSchema, insertSocialMediaPostSchema, insertInternalLinkSuggestionSchema, insertUserToolAccessSchema, insertAdminAuditLogSchema } from "@shared/schema";
 import { createClient } from "@supabase/supabase-js";
 import { authMiddleware, requireAdmin, type AuthenticatedRequest } from "./auth-middleware";
+import { z } from "zod";
+import { generateKeywordIdeas, GoogleAdsApiError } from "./services/google-ads";
 
 // Validate required environment variables at startup
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -18,6 +20,14 @@ if (!supabaseUrl || !supabaseServiceRoleKey) {
 // Initialize Supabase admin client
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false }
+});
+
+const searchIntentRequestSchema = z.object({
+  keywords: z.array(z.string().trim()).min(1, "At least one keyword is required"),
+  language: z.string().trim().optional(),
+  geoTargets: z.array(z.string().trim().min(1)).optional(),
+  network: z.enum(["GOOGLE_SEARCH", "GOOGLE_SEARCH_AND_PARTNERS"]).optional(),
+  pageSize: z.number().int().min(1).max(1000).optional(),
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -130,6 +140,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error activating SEO tool:", error);
       res.status(500).json({ message: "Failed to activate SEO tool" });
+    }
+  });
+
+  app.post("/api/search-intent", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const validation = searchIntentRequestSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          errors: validation.error.issues,
+        });
+      }
+
+      const { keywords, language, geoTargets, network, pageSize } = validation.data;
+      const normalizedKeywords = Array.from(new Set(
+        keywords
+          .map((keyword) => keyword.trim())
+          .filter((keyword) => keyword.length > 0),
+      ));
+
+      if (normalizedKeywords.length === 0) {
+        return res.status(400).json({ message: "At least one keyword is required" });
+      }
+
+      const [profile, tools] = await Promise.all([
+        storage.getProfile(req.user.id),
+        storage.getAllSeoTools(),
+      ]);
+
+      const isAdmin = profile?.role === "admin";
+      const searchIntentTool = tools.find((tool) => tool.name === "search-intent");
+
+      if (!searchIntentTool) {
+        console.error("[SearchIntent] SEO tool definition missing");
+        return res.status(500).json({ message: "Search Intent tool is not configured" });
+      }
+
+      if (!isAdmin) {
+        const userToolAccess = await storage.getUserToolAccess(req.user.id);
+        const hasAccess = userToolAccess.some((access) => access.toolId === searchIntentTool.id);
+
+        if (!hasAccess) {
+          return res.status(403).json({
+            message: "Access denied. You don't have permission to use this tool.",
+          });
+        }
+      }
+
+      const ideaResponse = await generateKeywordIdeas({
+        keywords: normalizedKeywords,
+        language,
+        geoTargets,
+        network,
+        pageSize,
+      });
+
+      return res.json({
+        keywords: normalizedKeywords,
+        ...ideaResponse,
+      });
+    } catch (error) {
+      if (error instanceof GoogleAdsApiError) {
+        return res.status(error.status ?? 500).json({
+          message: error.message,
+          details: error.details,
+        });
+      }
+
+      console.error("[SearchIntent] Unexpected error", error);
+      return res.status(500).json({ message: "Failed to generate keyword ideas" });
     }
   });
 
