@@ -8,6 +8,7 @@ import { useToolId } from "@/hooks/use-tool-id";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -276,12 +277,19 @@ function SearchIntentContent() {
 
             <Card>
               <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div>
+                <div className="space-y-2">
                   <CardTitle>Kết quả phân tích</CardTitle>
                   {result?.meta && (
-                    <CardDescription>
-                      Ngôn ngữ: {result.meta.language} · Khu vực: {result.meta.geoTargets.join(", ")} · Mạng: {result.meta.network.replace(/_/g, " ")}
-                    </CardDescription>
+                    <Select defaultValue={`language:${result.meta.language}|geo:${result.meta.geoTargets.join(",")}`}>
+                      <SelectTrigger className="w-full sm:w-[340px]" disabled>
+                        <SelectValue placeholder="Ngôn ngữ / Khu vực" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={`language:${result.meta.language}|geo:${result.meta.geoTargets.join(",")}`}>
+                          Ngôn ngữ: {result.meta.language} · Khu vực: {result.meta.geoTargets.join(", ")}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
                   )}
                 </div>
                 {result && (
