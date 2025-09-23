@@ -271,7 +271,7 @@ function SearchIntentContent() {
                     </p>
                   </div>
 
-                  <div className="grid gap-4 sm:grid-cols-3">
+                 <div className="grid gap-4 sm:grid-cols-3">
                     <div className="space-y-1">
                       <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Ngôn ngữ</label>
                       <Select value={language} onValueChange={setLanguage}>
@@ -282,6 +282,7 @@ function SearchIntentContent() {
                           <SelectItem value="languageConstants/1040">Vietnamese (languageConstants/1040)</SelectItem>
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-muted-foreground">Vietnamese (languageConstants/1040)</p>
                     </div>
 
                     <div className="space-y-1">
@@ -294,6 +295,7 @@ function SearchIntentContent() {
                           <SelectItem value="geoTargetConstants/2704">Vietnam (geoTargetConstants/2704)</SelectItem>
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-muted-foreground">Vietnam (geoTargetConstants/2704)</p>
                     </div>
 
                     <div className="space-y-1">
@@ -307,6 +309,7 @@ function SearchIntentContent() {
                           <SelectItem value="GOOGLE_SEARCH_AND_PARTNERS">Google Search & Partners</SelectItem>
                         </SelectContent>
                       </Select>
+                      <p className="text-xs text-muted-foreground">Google Search</p>
                     </div>
                   </div>
 
@@ -324,20 +327,15 @@ function SearchIntentContent() {
             </Card>
 
             <Card>
-              <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-2">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-2 sm:max-w-[360px]">
                   <CardTitle>Kết quả phân tích</CardTitle>
                   {result?.meta && (
-                    <Select defaultValue={`language:${result.meta.language}|geo:${result.meta.geoTargets.join(",")}`}>
-                      <SelectTrigger className="w-full sm:w-[340px]" disabled>
-                        <SelectValue placeholder="Ngôn ngữ / Khu vực" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value={`language:${result.meta.language}|geo:${result.meta.geoTargets.join(",")}`}>
-                          Ngôn ngữ: {result.meta.language} · Khu vực: {result.meta.geoTargets.join(", ")}
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                      <li>Ngôn ngữ: {result.meta.language}</li>
+                      <li>Khu vực: {result.meta.geoTargets.join(", ")}</li>
+                      <li>Mạng: {result.meta.network.replace(/_/g, " ")}</li>
+                    </ul>
                   )}
                 </div>
                 {result && (
