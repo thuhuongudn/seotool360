@@ -44,6 +44,9 @@ export interface SearchIntentResponse {
 
 interface SearchIntentRequestPayload {
   keywords: string[];
+  language: string;
+  geoTargets: string[];
+  network: KeywordPlanNetwork;
 }
 
 interface ShortlistEntry extends KeywordIdeaRow {}
@@ -54,6 +57,9 @@ function SearchIntentContent() {
   const [selectedRows, setSelectedRows] = useState<ShortlistEntry[]>([]);
   const [hasCopied, setHasCopied] = useState(false);
   const [hasCopiedList, setHasCopiedList] = useState(false);
+  const [language, setLanguage] = useState("languageConstants/1040");
+  const [geoTarget, setGeoTarget] = useState("geoTargetConstants/2704");
+  const [network, setNetwork] = useState<KeywordPlanNetwork>("GOOGLE_SEARCH");
   const { toast } = useToast();
 
   const parsedKeywords = useMemo(() => parseKeywords(keywordsInput), [keywordsInput]);
@@ -121,6 +127,9 @@ function SearchIntentContent() {
 
     const payload: SearchIntentRequestPayload = {
       keywords: parsedKeywords,
+      language,
+      geoTargets: [geoTarget],
+      network,
     };
 
     mutation.mutate(payload);
@@ -260,6 +269,45 @@ function SearchIntentContent() {
                     <p className="text-xs text-muted-foreground">
                       Nhập tối đa 10-15 từ khóa mỗi lần để có kết quả chính xác nhất.
                     </p>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Ngôn ngữ</label>
+                      <Select value={language} onValueChange={setLanguage}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn ngôn ngữ" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="languageConstants/1040">Vietnamese (languageConstants/1040)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Khu vực</label>
+                      <Select value={geoTarget} onValueChange={setGeoTarget}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn khu vực" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="geoTargetConstants/2704">Vietnam (geoTargetConstants/2704)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Mạng</label>
+                      <Select value={network} onValueChange={(value) => setNetwork(value as KeywordPlanNetwork)}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn mạng" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="GOOGLE_SEARCH">Google Search</SelectItem>
+                          <SelectItem value="GOOGLE_SEARCH_AND_PARTNERS">Google Search & Partners</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
