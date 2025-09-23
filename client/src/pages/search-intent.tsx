@@ -22,6 +22,7 @@ export interface KeywordIdeaRow {
   competitionIndex: number | null;
   lowTopBid: number | null;
   highTopBid: number | null;
+  range?: { min: number | null; max: number | null } | null;
 }
 
 export interface KeywordIdeaMeta {
@@ -51,6 +52,7 @@ function SearchIntentContent() {
   const [result, setResult] = useState<SearchIntentResponse | null>(null);
   const [selectedRows, setSelectedRows] = useState<ShortlistEntry[]>([]);
   const [hasCopied, setHasCopied] = useState(false);
+  const [hasCopiedList, setHasCopiedList] = useState(false);
   const { toast } = useToast();
 
   const parsedKeywords = useMemo(() => parseKeywords(keywordsInput), [keywordsInput]);
@@ -62,12 +64,33 @@ function SearchIntentContent() {
   const mutation = useMutation({
     mutationFn: async (payload: SearchIntentRequestPayload) => {
       const response = await apiRequest("POST", "/api/search-intent", payload);
-      return (await response.json()) as SearchIntentResponse;
+      const data = (await response.json()) as SearchIntentResponse;
+
+      const rowsWithRange = data.rows.map((row) => {
+        const range = row.range;
+        if (!range || (range.min == null && range.max == null)) {
+          return row;
+        }
+
+        return {
+          ...row,
+          range: {
+            min: typeof range.min === "number" ? range.min : null,
+            max: typeof range.max === "number" ? range.max : null,
+          },
+        };
+      });
+
+      return {
+        ...data,
+        rows: rowsWithRange,
+      };
     },
     onSuccess: (data) => {
       setResult(data);
       setSelectedRows([]);
       setHasCopied(false);
+      setHasCopiedList(false);
       toast({
         title: "Đã phân tích Search Intent",
         description: `Tìm thấy ${data.rows.length} ý tưởng từ khóa`,
@@ -159,6 +182,48 @@ function SearchIntentContent() {
     }
   };
 
+  const handleCopyList = async () => {
+    if (!result || !result.rows.length) {
+      toast({
+        title: "Không có dữ liệu",
+        description: "Vui lòng phân tích trước khi sao chép.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!navigator.clipboard) {
+      toast({
+        title: "Không hỗ trợ sao chép",
+        description: "Trình duyệt của bạn không hỗ trợ clipboard API.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const payload = {
+      meta: result.meta,
+      keywords: result.keywords,
+      rows: result.rows,
+    };
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setHasCopiedList(true);
+      toast({
+        title: "Đã sao chép",
+        description: "Danh sách keyword đã được sao chép vào clipboard.",
+      });
+      setTimeout(() => setHasCopiedList(false), 2000);
+    } catch (error) {
+      toast({
+        title: "Sao chép thất bại",
+        description: error instanceof Error ? error.message : "Không thể sao chép dữ liệu.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const isSubmitting = mutation.isPending;
   const hasResults = !!result && result.rows.length > 0;
 
@@ -224,6 +289,12 @@ function SearchIntentContent() {
                     {result.rows.length} ý tưởng từ khóa
                   </p>
                 )}
+                {result && result.rows.length > 0 && (
+                  <Button type="button" variant="outline" size="sm" onClick={handleCopyList}>
+                    {hasCopiedList ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    {hasCopiedList ? "Đã sao chép danh sách" : "Copy danh sách"}
+                  </Button>
+                )}
               </CardHeader>
               <CardContent>
                 {isSubmitting && (
@@ -255,6 +326,7 @@ function SearchIntentContent() {
                         <TableHead>Điểm cạnh tranh</TableHead>
                         <TableHead>Bid thấp (₫)</TableHead>
                         <TableHead>Bid cao (₫)</TableHead>
+                        <TableHead>Range (min-max)</TableHead>
                         <TableHead className="text-right">Thao tác</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -267,6 +339,16 @@ function SearchIntentContent() {
                           <TableCell>{row.competitionIndex ?? "-"}</TableCell>
                           <TableCell>{formatCurrency(row.lowTopBid)}</TableCell>
                           <TableCell>{formatCurrency(row.highTopBid)}</TableCell>
+                          <TableCell>
+                            {row.range ? (
+                              <span>
+                                {row.range.min != null ? formatNumber(row.range.min) : "-"} –
+                                {row.range.max != null ? ` ${formatNumber(row.range.max)}` : " -"}
+                              </span>
+                            ) : (
+                              "-"
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">
                             <Button
                               type="button"

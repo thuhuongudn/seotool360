@@ -47,6 +47,8 @@ describe("normalizeIdeas", () => {
         competitionIndex: 10,
         lowTopBid: 1.5,
         highTopBid: 4.5,
+        monthlySearchVolumes: [],
+        range: null,
       },
       {
         keyword: "dha bầu",
@@ -55,6 +57,8 @@ describe("normalizeIdeas", () => {
         competitionIndex: null,
         lowTopBid: null,
         highTopBid: null,
+        monthlySearchVolumes: [],
+        range: null,
       },
     ]);
   });
