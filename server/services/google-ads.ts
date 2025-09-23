@@ -221,24 +221,6 @@ export function normalizeIdeas(
 
   const rows: KeywordIdeaRow[] = results.map((result: any) => {
     const metrics = result?.keywordIdeaMetrics ?? {};
-    const monthlyVolumesRaw = Array.isArray(metrics?.monthlySearchVolumes) ? metrics.monthlySearchVolumes : [];
-    const monthlySearchVolumes = monthlyVolumesRaw.map((entry: any) => ({
-      year: typeof entry?.year === "number" ? entry.year : null,
-      month: typeof entry?.month === "string" ? entry.month : null,
-      monthlySearches: typeof entry?.monthlySearches === "number" ? entry.monthlySearches : null,
-    }));
-
-    const numericVolumes = monthlySearchVolumes
-      .map((entry: { monthlySearches: number | null }) => (typeof entry.monthlySearches === "number" ? entry.monthlySearches : null))
-      .filter((value: number | null): value is number => value !== null);
-
-    const range = numericVolumes.length
-      ? {
-          min: Math.min(...numericVolumes),
-          max: Math.max(...numericVolumes),
-        }
-      : null;
-
     return {
       keyword: String(result?.text ?? ""),
       avgMonthlySearches: typeof metrics?.avgMonthlySearches === "number" ? metrics.avgMonthlySearches : null,
@@ -246,8 +228,6 @@ export function normalizeIdeas(
       competitionIndex: typeof metrics?.competitionIndex === "number" ? metrics.competitionIndex : null,
       lowTopBid: microsToUnits(metrics?.lowTopOfPageBidMicros),
       highTopBid: microsToUnits(metrics?.highTopOfPageBidMicros),
-      monthlySearchVolumes,
-      range,
     };
   });
 
