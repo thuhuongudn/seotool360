@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, PlusCircle, Trash2, Copy, CheckCircle2 } from "lucide-react";
 import Header from "@/components/header";
@@ -13,6 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatNumber, parseKeywords } from "@/lib/search-intent-utils";
+
 
 export type KeywordPlanNetwork = "GOOGLE_SEARCH" | "GOOGLE_SEARCH_AND_PARTNERS";
 
@@ -62,6 +63,7 @@ function SearchIntentContent() {
   const [geoTarget, setGeoTarget] = useState("geoTargetConstants/2704");
   const [network, setNetwork] = useState<KeywordPlanNetwork>("GOOGLE_SEARCH");
   const { toast } = useToast();
+  const shortlistRef = useRef<HTMLDivElement>(null);
 
   const parsedKeywords = useMemo(() => parseKeywords(keywordsInput), [keywordsInput]);
   const shortlistKeywordSet = useMemo(
@@ -182,11 +184,27 @@ function SearchIntentContent() {
     mutation.mutate(payload);
   };
 
+  // const handleAddToShortlist = (row: KeywordIdeaRow) => {
+  //   if (shortlistKeywordSet.has(row.keyword.toLowerCase())) {
+  //     return;
+  //   }
+  //   setSelectedRows((current) => [...current, row]);
+  // };
+
   const handleAddToShortlist = (row: KeywordIdeaRow) => {
     if (shortlistKeywordSet.has(row.keyword.toLowerCase())) {
       return;
     }
-    setSelectedRows((current) => [...current, row]);
+    setSelectedRows((current) => {
+      const updated = [...current, row];
+      // scroll sau 1 tick để DOM update xong
+      setTimeout(() => {
+        if (shortlistRef.current) {
+          shortlistRef.current.scrollTop = shortlistRef.current.scrollHeight;
+        }
+      }, 0);
+      return updated;
+    });
   };
 
   const handleRemoveFromShortlist = (keyword: string) => {
@@ -529,7 +547,7 @@ function SearchIntentContent() {
                   )}
                 </div>
 
-                <div className="space-y-3 max-h-[288px] overflow-y-auto pr-1">
+                <div ref={shortlistRef} className="space-y-3 max-h-[288px] overflow-y-auto pr-1">
                   {selectedRows.length === 0 && (
                     <p className="text-sm text-muted-foreground">
                       Chưa có từ khóa nào. Hãy thêm từ kết quả bên phải.
