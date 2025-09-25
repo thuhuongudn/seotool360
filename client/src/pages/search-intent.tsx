@@ -54,6 +54,7 @@ interface ShortlistEntry extends KeywordIdeaRow {}
 function SearchIntentContent() {
   const [keywordsInput, setKeywordsInput] = useState("");
   const [result, setResult] = useState<SearchIntentResponse | null>(null);
+  const [historicalResult, setHistoricalResult] = useState<SearchIntentResponse | null>(null);
   const [selectedRows, setSelectedRows] = useState<ShortlistEntry[]>([]);
   const [hasCopied, setHasCopied] = useState(false);
   const [hasCopiedList, setHasCopiedList] = useState(false);
@@ -113,6 +114,45 @@ function SearchIntentContent() {
     },
   });
 
+  const mutationHistorical = useMutation({
+    mutationFn: async (payload: SearchIntentRequestPayload) => {
+      const response = await apiRequest("POST", "/api/search-intent?mode=historical", payload);
+      const data = (await response.json()) as SearchIntentResponse;
+  
+      // giữ logic "range" như cũ cho an toàn
+      const rowsWithRange = data.rows.map((row) => {
+        const range = row.range;
+        if (!range || (range.min == null && range.max == null)) return row;
+        return {
+          ...row,
+          range: {
+            min: typeof range.min === "number" ? range.min : null,
+            max: typeof range.max === "number" ? range.max : null,
+          },
+        };
+      });
+  
+      return { ...data, rows: rowsWithRange };
+    },
+    onSuccess: (data) => {
+      // setResult(data);
+      console.log("HistoricalResult:", data);
+      setHistoricalResult(data);
+      toast({
+        title: "Đã phân tích Historical Metrics",
+        description: `Nhận ${data.rows.length} kết quả`,
+      });
+    },
+    onError: (error) => {
+      const description = error instanceof Error ? error.message : "Không thể phân tích historical metrics.";
+      toast({
+        title: "Có lỗi xảy ra",
+        description,
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -124,7 +164,14 @@ function SearchIntentContent() {
       });
       return;
     }
-
+    if (parsedKeywords.length > 10) {
+      toast({ 
+        title: "Quá nhiều từ khóa",
+        description: "Vui lòng nhập tối đa 10 từ khóa.",
+        variant: "destructive",
+      });
+      return;
+    }
     const payload: SearchIntentRequestPayload = {
       keywords: parsedKeywords,
       language,
@@ -150,6 +197,36 @@ function SearchIntentContent() {
     setSelectedRows([]);
   };
 
+  const handleAnalyzeSelected = () => {
+    if (selectedRows.length === 0) {
+      toast({
+        title: "Chưa chọn keyword",
+        description: "Hãy thêm ít nhất một keyword vào danh sách, hệ thống sẽ dùng keyword đầu tiên để test.",
+        variant: "destructive",
+      });
+      return;
+    }
+    setHistoricalResult(null);
+    const first = selectedRows[0]?.keyword?.trim();
+    if (!first) {
+      toast({
+        title: "Keyword không hợp lệ",
+        description: "Không lấy được keyword đầu tiên từ danh sách đã chọn.",
+        variant: "destructive",
+      });
+      return;
+    }
+  
+    const payload: SearchIntentRequestPayload = {
+      keywords: [first],
+      language,
+      geoTargets: [geoTarget],
+      network,
+    };
+  
+    mutationHistorical.mutate(payload);
+  };
+
   const handleCopyJson = async () => {
     if (!navigator.clipboard) {
       toast({
@@ -169,11 +246,14 @@ function SearchIntentContent() {
       return;
     }
 
-    const payload = {
-      keywords: result?.keywords || parsedKeywords,
-      meta: result?.meta,
-      selected: selectedRows,
-    };
+    const payload = selectedRows.map((k) => ({
+      keyword: k.keyword,
+      avgMonthlySearches: k.avgMonthlySearches,
+      competition: k.competition,
+      competitionIndex: k.competitionIndex,
+      lowTopBid: k.lowTopBid,
+      highTopBid: k.highTopBid,
+    }));
 
     try {
       await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
@@ -309,7 +389,10 @@ function SearchIntentContent() {
                           <SelectItem value="GOOGLE_SEARCH_AND_PARTNERS">Google Search & Partners</SelectItem>
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">Google Search</p>
+                      {/* <p className="text-xs text-muted-foreground">Google Search</p> */}
+                      <p className="text-xs text-muted-foreground">
+                        {network === "GOOGLE_SEARCH" ? "Google Search" : "Google Search & Partners"}
+                      </p>
                     </div>
                   </div>
 
@@ -380,7 +463,7 @@ function SearchIntentContent() {
                         <TableHead>Điểm cạnh tranh</TableHead>
                         <TableHead>Bid thấp (₫)</TableHead>
                         <TableHead>Bid cao (₫)</TableHead>
-                        <TableHead>Range (min-max)</TableHead>
+                        {/* <TableHead>Range (min-max)</TableHead> */}
                         <TableHead className="text-right">Thao tác</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -393,7 +476,7 @@ function SearchIntentContent() {
                           <TableCell>{row.competitionIndex ?? "-"}</TableCell>
                           <TableCell>{formatCurrency(row.lowTopBid)}</TableCell>
                           <TableCell>{formatCurrency(row.highTopBid)}</TableCell>
-                          <TableCell>
+                          {/* <TableCell>
                             {row.range ? (
                               <span>
                                 {row.range.min != null ? formatNumber(row.range.min) : "-"} –
@@ -402,7 +485,7 @@ function SearchIntentContent() {
                             ) : (
                               "-"
                             )}
-                          </TableCell>
+                          </TableCell> */}
                           <TableCell className="text-right">
                             <Button
                               type="button"
@@ -424,8 +507,9 @@ function SearchIntentContent() {
             </Card>
           </div>
 
-          <aside className="space-y-4">
-            <Card className="sticky top-24">
+          <aside>
+            <div className="sticky top-10 space-y-4">
+            <Card>
               <CardHeader>
                 <CardTitle>Danh sách đã chọn</CardTitle>
                 <CardDescription>
@@ -445,7 +529,7 @@ function SearchIntentContent() {
                   )}
                 </div>
 
-                <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
+                <div className="space-y-3 max-h-[288px] overflow-y-auto pr-1">
                   {selectedRows.length === 0 && (
                     <p className="text-sm text-muted-foreground">
                       Chưa có từ khóa nào. Hãy thêm từ kết quả bên phải.
@@ -481,8 +565,65 @@ function SearchIntentContent() {
                   {hasCopied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   {hasCopied ? "Đã sao chép" : "Copy JSON"}
                 </Button>
+                {/* <Button
+                  type="button"
+                  className="w-full"
+                  variant="secondary"
+                  onClick={handleAnalyzeSelected}
+                  disabled={selectedRows.length === 0 || mutationHistorical.isPending}
+                >
+                  {mutationHistorical.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
+                  Phân tích keyword đã chọn
+                </Button>  */}
               </CardContent>
             </Card>
+            <Card>
+  <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-2 sm:max-w-[360px]">
+      <CardTitle>Review keyword đã chọn</CardTitle>
+    </div>
+    <p className="text-sm text-muted-foreground">
+      {selectedRows.length} dòng dữ liệu
+    </p>
+  </CardHeader>
+  <CardContent>
+    {selectedRows.length === 0 ? (
+      <div className="py-6 text-center text-sm text-muted-foreground">
+        Chưa có keyword nào được chọn. Hãy thêm từ kết quả phân tích ở bên trái.
+      </div>
+    ) : (
+      <div className="max-h-[360px] overflow-y-auto pr-1">
+        <Table>
+          <TableHeader className="sticky top-0 bg-background">
+            <TableRow>
+              <TableHead>Từ khóa</TableHead>
+              <TableHead>Số lượt tìm kiếm TB</TableHead>
+              <TableHead>Độ cạnh tranh</TableHead>
+              <TableHead>Điểm cạnh tranh</TableHead>
+              <TableHead>Bid thấp (₫)</TableHead>
+              <TableHead>Bid cao (₫)</TableHead>
+            </TableRow>
+            </TableHeader>
+          <TableBody>
+            {selectedRows.map((row) => (
+              <TableRow key={`hist-${row.keyword}`}>
+                <TableCell className="font-medium">{row.keyword}</TableCell>
+                <TableCell>{formatNumber(row.avgMonthlySearches)}</TableCell>
+                <TableCell className="capitalize">
+                  {row.competition ? row.competition.toLowerCase() : "-"}
+                </TableCell>
+                <TableCell>{row.competitionIndex ?? "-"}</TableCell>
+                <TableCell>{formatCurrency(row.lowTopBid)}</TableCell>
+                <TableCell>{formatCurrency(row.highTopBid)}</TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    )}
+  </CardContent>
+  </Card>
+  </div>    
           </aside>
         </div>
       </main>

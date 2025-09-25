@@ -5,7 +5,7 @@ import { activateToolSchema, insertSocialMediaPostSchema, insertInternalLinkSugg
 import { createClient } from "@supabase/supabase-js";
 import { authMiddleware, requireAdmin, type AuthenticatedRequest } from "./auth-middleware";
 import { z } from "zod";
-import { generateKeywordIdeas, GoogleAdsApiError } from "./services/google-ads";
+import { generateKeywordIdeas, generateKeywordHistoricalMetrics, GoogleAdsApiError } from "./services/google-ads";
 
 // Validate required environment variables at startup
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -191,19 +191,44 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
         }
       }
+      const mode =
+      String((req.query?.mode ?? req.body?.mode) || "ideas").toLowerCase() === "historical"
+        ? "historical"
+        : "ideas";
+    
+    const serviceFn = mode === "historical"
+      ? generateKeywordHistoricalMetrics
+      : generateKeywordIdeas;
 
-      const ideaResponse = await generateKeywordIdeas({
-        keywords: normalizedKeywords,
-        language,
-        geoTargets,
-        network,
-        pageSize,
-      });
+    console.log("[SearchIntent] Mode selected:", mode);
+    
+    const ideaResponse = await serviceFn({
+      keywords: normalizedKeywords,
+      language,
+      geoTargets,
+      network,
+      pageSize,
+    });
+    
+    return res.json({
+      keywords: normalizedKeywords,
+      mode,               // (tuỳ chọn) trả về để dễ debug
+      ...ideaResponse,
+    });
 
-      return res.json({
-        keywords: normalizedKeywords,
-        ...ideaResponse,
-      });
+
+      // const ideaResponse = await generateKeywordIdeas({
+      //   keywords: normalizedKeywords,
+      //   language,
+      //   geoTargets,
+      //   network,
+      //   pageSize,
+      // });
+
+      // return res.json({
+      //   keywords: normalizedKeywords,
+      //   ...ideaResponse,
+      // });
     } catch (error) {
       if (error instanceof GoogleAdsApiError) {
         return res.status(error.status ?? 500).json({
