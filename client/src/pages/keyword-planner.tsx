@@ -37,13 +37,13 @@ export interface KeywordIdeaMeta {
   pageSize?: number;
 }
 
-export interface SearchIntentResponse {
+export interface KeywordPlannerResponse {
   keywords: string[];
   meta: KeywordIdeaMeta;
   rows: KeywordIdeaRow[];
 }
 
-interface SearchIntentRequestPayload {
+interface KeywordPlannerRequestPayload {
   keywords: string[];
   language: string;
   geoTargets: string[];
@@ -52,10 +52,9 @@ interface SearchIntentRequestPayload {
 
 interface ShortlistEntry extends KeywordIdeaRow {}
 
-function SearchIntentContent() {
+function KeywordPlannerContent() {
   const [keywordsInput, setKeywordsInput] = useState("");
-  const [result, setResult] = useState<SearchIntentResponse | null>(null);
-  const [historicalResult, setHistoricalResult] = useState<SearchIntentResponse | null>(null);
+  const [result, setResult] = useState<KeywordPlannerResponse | null>(null);
   const [selectedRows, setSelectedRows] = useState<ShortlistEntry[]>([]);
   const [hasCopied, setHasCopied] = useState(false);
   const [hasCopiedList, setHasCopiedList] = useState(false);
@@ -72,9 +71,9 @@ function SearchIntentContent() {
   );
 
   const mutation = useMutation({
-    mutationFn: async (payload: SearchIntentRequestPayload) => {
+    mutationFn: async (payload: KeywordPlannerRequestPayload) => {
       const response = await apiRequest("POST", "/api/keyword-planner", payload);
-      const data = (await response.json()) as SearchIntentResponse;
+      const data = (await response.json()) as KeywordPlannerResponse;
 
       const rowsWithRange = data.rows.map((row) => {
         const range = row.range;
@@ -102,51 +101,12 @@ function SearchIntentContent() {
       setHasCopied(false);
       setHasCopiedList(false);
       toast({
-        title: "Đã phân tích Search Intent",
+        title: "Đã phân tích Keyword Planner",
         description: `Tìm thấy ${data.rows.length} ý tưởng từ khóa`,
       });
     },
     onError: (error) => {
-      const description = error instanceof Error ? error.message : "Không thể phân tích search intent.";
-      toast({
-        title: "Có lỗi xảy ra",
-        description,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const mutationHistorical = useMutation({
-    mutationFn: async (payload: SearchIntentRequestPayload) => {
-      const response = await apiRequest("POST", "/api/search-intent", payload);
-      const data = (await response.json()) as SearchIntentResponse;
-  
-      // giữ logic "range" như cũ cho an toàn
-      const rowsWithRange = data.rows.map((row) => {
-        const range = row.range;
-        if (!range || (range.min == null && range.max == null)) return row;
-        return {
-          ...row,
-          range: {
-            min: typeof range.min === "number" ? range.min : null,
-            max: typeof range.max === "number" ? range.max : null,
-          },
-        };
-      });
-  
-      return { ...data, rows: rowsWithRange };
-    },
-    onSuccess: (data) => {
-      // setResult(data);
-      console.log("HistoricalResult:", data);
-      setHistoricalResult(data);
-      toast({
-        title: "Đã phân tích Historical Metrics",
-        description: `Nhận ${data.rows.length} kết quả`,
-      });
-    },
-    onError: (error) => {
-      const description = error instanceof Error ? error.message : "Không thể phân tích historical metrics.";
+      const description = error instanceof Error ? error.message : "Không thể phân tích keyword planner.";
       toast({
         title: "Có lỗi xảy ra",
         description,
@@ -166,15 +126,15 @@ function SearchIntentContent() {
       });
       return;
     }
-    if (parsedKeywords.length > 10) {
-      toast({ 
+    if (parsedKeywords.length > 15) {
+      toast({
         title: "Quá nhiều từ khóa",
-        description: "Vui lòng nhập tối đa 10 từ khóa.",
+        description: "Vui lòng nhập tối đa 15 từ khóa.",
         variant: "destructive",
       });
       return;
     }
-    const payload: SearchIntentRequestPayload = {
+    const payload: KeywordPlannerRequestPayload = {
       keywords: parsedKeywords,
       language,
       geoTargets: [geoTarget],
@@ -183,13 +143,6 @@ function SearchIntentContent() {
 
     mutation.mutate(payload);
   };
-
-  // const handleAddToShortlist = (row: KeywordIdeaRow) => {
-  //   if (shortlistKeywordSet.has(row.keyword.toLowerCase())) {
-  //     return;
-  //   }
-  //   setSelectedRows((current) => [...current, row]);
-  // };
 
   const handleAddToShortlist = (row: KeywordIdeaRow) => {
     if (shortlistKeywordSet.has(row.keyword.toLowerCase())) {
@@ -213,36 +166,6 @@ function SearchIntentContent() {
 
   const handleClearShortlist = () => {
     setSelectedRows([]);
-  };
-
-  const handleAnalyzeSelected = () => {
-    if (selectedRows.length === 0) {
-      toast({
-        title: "Chưa chọn keyword",
-        description: "Hãy thêm ít nhất một keyword vào danh sách, hệ thống sẽ dùng keyword đầu tiên để test.",
-        variant: "destructive",
-      });
-      return;
-    }
-    setHistoricalResult(null);
-    const first = selectedRows[0]?.keyword?.trim();
-    if (!first) {
-      toast({
-        title: "Keyword không hợp lệ",
-        description: "Không lấy được keyword đầu tiên từ danh sách đã chọn.",
-        variant: "destructive",
-      });
-      return;
-    }
-  
-    const payload: SearchIntentRequestPayload = {
-      keywords: [first],
-      language,
-      geoTargets: [geoTarget],
-      network,
-    };
-  
-    mutationHistorical.mutate(payload);
   };
 
   const handleCopyJson = async () => {
@@ -340,15 +263,15 @@ function SearchIntentContent() {
       <Header />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PageNavigation breadcrumbItems={[{ label: "Search Intent" }]} backLink="/" />
+        <PageNavigation breadcrumbItems={[{ label: "Keyword Planner" }]} backLink="/" />
 
         <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
           <div className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Phân tích Search Intent</CardTitle>
+                <CardTitle>Keyword Planner - Tìm ý tưởng từ khóa</CardTitle>
                 <CardDescription>
-                  Nhập danh sách từ khóa (phân tách bằng dấu phẩy) để khám phá search intent, lượng tìm kiếm và mức độ cạnh tranh.
+                  Nhập danh sách từ khóa (phân tách bằng dấu phẩy) để khám phá ý tưởng từ khóa mới, lượng tìm kiếm và mức độ cạnh tranh từ Google Keyword Planner.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -407,7 +330,6 @@ function SearchIntentContent() {
                           <SelectItem value="GOOGLE_SEARCH_AND_PARTNERS">Google Search & Partners</SelectItem>
                         </SelectContent>
                       </Select>
-                      {/* <p className="text-xs text-muted-foreground">Google Search</p> */}
                       <p className="text-xs text-muted-foreground">
                         {network === "GOOGLE_SEARCH" ? "Google Search" : "Google Search & Partners"}
                       </p>
@@ -420,7 +342,7 @@ function SearchIntentContent() {
                     </p>
                     <Button type="submit" disabled={isSubmitting || parsedKeywords.length === 0}>
                       {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                      Phân tích ngay
+                      Tìm ý tưởng từ khóa
                     </Button>
                   </div>
                 </form>
@@ -430,7 +352,7 @@ function SearchIntentContent() {
             <Card>
               <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-2 sm:max-w-[360px]">
-                  <CardTitle>Kết quả phân tích</CardTitle>
+                  <CardTitle>Ý tưởng từ khóa từ Google</CardTitle>
                   {result?.meta && (
                     <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
                       <li>Ngôn ngữ: {result.meta.language}</li>
@@ -455,13 +377,13 @@ function SearchIntentContent() {
                 {isSubmitting && (
                   <div className="flex flex-col items-center justify-center py-12 text-center">
                     <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-                    <p className="text-sm text-muted-foreground">Đang phân tích search intent...</p>
+                    <p className="text-sm text-muted-foreground">Đang tìm ý tưởng từ khóa...</p>
                   </div>
                 )}
 
                 {!isSubmitting && !result && (
                   <div className="py-12 text-center text-sm text-muted-foreground">
-                    Nhập từ khóa và bấm "Phân tích ngay" để xem kết quả.
+                    Nhập từ khóa và bấm "Tìm ý tưởng từ khóa" để xem kết quả.
                   </div>
                 )}
 
@@ -481,7 +403,6 @@ function SearchIntentContent() {
                         <TableHead>Điểm cạnh tranh</TableHead>
                         <TableHead>Bid thấp (₫)</TableHead>
                         <TableHead>Bid cao (₫)</TableHead>
-                        {/* <TableHead>Range (min-max)</TableHead> */}
                         <TableHead className="text-right">Thao tác</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -494,16 +415,6 @@ function SearchIntentContent() {
                           <TableCell>{row.competitionIndex ?? "-"}</TableCell>
                           <TableCell>{formatCurrency(row.lowTopBid)}</TableCell>
                           <TableCell>{formatCurrency(row.highTopBid)}</TableCell>
-                          {/* <TableCell>
-                            {row.range ? (
-                              <span>
-                                {row.range.min != null ? formatNumber(row.range.min) : "-"} –
-                                {row.range.max != null ? ` ${formatNumber(row.range.max)}` : " -"}
-                              </span>
-                            ) : (
-                              "-"
-                            )}
-                          </TableCell> */}
                           <TableCell className="text-right">
                             <Button
                               type="button"
@@ -583,16 +494,6 @@ function SearchIntentContent() {
                   {hasCopied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                   {hasCopied ? "Đã sao chép" : "Copy JSON"}
                 </Button>
-                {/* <Button
-                  type="button"
-                  className="w-full"
-                  variant="secondary"
-                  onClick={handleAnalyzeSelected}
-                  disabled={selectedRows.length === 0 || mutationHistorical.isPending}
-                >
-                  {mutationHistorical.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <PlusCircle className="h-4 w-4" />}
-                  Phân tích keyword đã chọn
-                </Button>  */}
               </CardContent>
             </Card>
             <Card>
@@ -624,7 +525,7 @@ function SearchIntentContent() {
             </TableHeader>
           <TableBody>
             {selectedRows.map((row) => (
-              <TableRow key={`hist-${row.keyword}`}>
+              <TableRow key={`selected-${row.keyword}`}>
                 <TableCell className="font-medium">{row.keyword}</TableCell>
                 <TableCell>{formatNumber(row.avgMonthlySearches)}</TableCell>
                 <TableCell className="capitalize">
@@ -641,7 +542,7 @@ function SearchIntentContent() {
     )}
   </CardContent>
   </Card>
-  </div>    
+  </div>
           </aside>
         </div>
       </main>
@@ -656,23 +557,23 @@ function LoadingToolShell() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
         <div className="flex flex-col items-center justify-center gap-4 text-center">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-sm text-muted-foreground">Đang tải công cụ Search Intent...</p>
+          <p className="text-sm text-muted-foreground">Đang tải công cụ Keyword Planner...</p>
         </div>
       </main>
     </div>
   );
 }
 
-export default function SearchIntent() {
-  const toolId = useToolId("search-intent");
+export default function KeywordPlanner() {
+  const toolId = useToolId("keyword-planner");
 
   if (!toolId) {
     return <LoadingToolShell />;
   }
 
   return (
-    <ToolPermissionGuard toolId={toolId} toolName="Search Intent">
-      <SearchIntentContent />
+    <ToolPermissionGuard toolId={toolId} toolName="Keyword Planner">
+      <KeywordPlannerContent />
     </ToolPermissionGuard>
   );
 }

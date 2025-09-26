@@ -14,8 +14,9 @@ import { useAuth } from "@/contexts/auth-context";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const contentSeoItems = [
-  { label: "Topical Map", href: "/topical-map" },
+  { label: "Keyword Planner", href: "/keyword-planner" },
   { label: "Search Intent", href: "/search-intent" },
+  { label: "Topical Map", href: "/topical-map" },
   { label: "Gợi ý internal link", href: "/internal-link-helper" },
   { label: "Viết Lại Bài", href: "/article-rewriter" },
   { label: "Viết bài MXH", href: "/social-media-writer" },
