@@ -73,7 +73,7 @@ function SearchIntentContent() {
 
   const mutation = useMutation({
     mutationFn: async (payload: SearchIntentRequestPayload) => {
-      const response = await apiRequest("POST", "/api/search-intent", payload);
+      const response = await apiRequest("POST", "/api/keyword-planner", payload);
       const data = (await response.json()) as SearchIntentResponse;
 
       const rowsWithRange = data.rows.map((row) => {
@@ -118,7 +118,7 @@ function SearchIntentContent() {
 
   const mutationHistorical = useMutation({
     mutationFn: async (payload: SearchIntentRequestPayload) => {
-      const response = await apiRequest("POST", "/api/search-intent?mode=historical", payload);
+      const response = await apiRequest("POST", "/api/search-intent", payload);
       const data = (await response.json()) as SearchIntentResponse;
   
       // giữ logic "range" như cũ cho an toàn
@@ -664,14 +664,14 @@ function LoadingToolShell() {
 }
 
 export default function SearchIntent() {
-  const toolId = useToolId("search-intent");
+  const toolId = useToolId("keyword-planner");
 
   if (!toolId) {
     return <LoadingToolShell />;
   }
 
   return (
-    <ToolPermissionGuard toolId={toolId} toolName="Search Intent">
+    <ToolPermissionGuard toolId={toolId} toolName="Keyword Planner">
       <SearchIntentContent />
     </ToolPermissionGuard>
   );
