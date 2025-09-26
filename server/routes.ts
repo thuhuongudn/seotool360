@@ -5,7 +5,7 @@ import { activateToolSchema, insertSocialMediaPostSchema, insertInternalLinkSugg
 import { createClient } from "@supabase/supabase-js";
 import { authMiddleware, requireAdmin, type AuthenticatedRequest } from "./auth-middleware";
 import { z } from "zod";
-import { generateKeywordIdeas, GoogleAdsApiError } from "./services/google-ads";
+import { generateKeywordIdeas, generateKeywordHistoricalMetrics, GoogleAdsApiError } from "./services/google-ads";
 
 // Validate required environment variables at startup
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -22,13 +22,58 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
-const searchIntentRequestSchema = z.object({
+// Zod schemas for keyword planner and search intent
+const keywordPlannerRequestSchema = z.object({
   keywords: z.array(z.string().trim()).min(1, "At least one keyword is required"),
   language: z.string().trim().optional(),
   geoTargets: z.array(z.string().trim().min(1)).optional(),
   network: z.enum(["GOOGLE_SEARCH", "GOOGLE_SEARCH_AND_PARTNERS"]).optional(),
   pageSize: z.number().int().min(1).max(1000).optional(),
 });
+
+const searchIntentHistoricalRequestSchema = z.object({
+  keywords: z.array(z.string().trim()).length(1, "Exactly one keyword is required for historical analysis"),
+  language: z.string().trim().optional(),
+  geoTargets: z.array(z.string().trim().min(1)).optional(),
+  network: z.enum(["GOOGLE_SEARCH", "GOOGLE_SEARCH_AND_PARTNERS"]).optional(),
+  pageSize: z.number().int().min(1).max(1000).optional(),
+});
+
+
+// Utility helpers
+function normalizeKeywords(keywords: string[]): string[] {
+  return Array.from(new Set(
+    keywords
+      .map((keyword) => keyword.trim())
+      .filter((keyword) => keyword.length > 0),
+  ));
+}
+
+async function assertToolAccessOrAdmin(
+  userId: string,
+  toolName: string
+): Promise<{ isAdmin: boolean; hasAccess: boolean; tool?: any }> {
+  const [profile, tools] = await Promise.all([
+    storage.getProfile(userId),
+    storage.getAllSeoTools(),
+  ]);
+
+  const isAdmin = profile?.role === "admin";
+  const tool = tools.find((t) => t.name === toolName);
+
+  if (!tool) {
+    throw new Error(`Tool "${toolName}" is not configured`);
+  }
+
+  if (isAdmin) {
+    return { isAdmin: true, hasAccess: true, tool };
+  }
+
+  const userToolAccess = await storage.getUserToolAccess(userId);
+  const hasAccess = userToolAccess.some((access) => access.toolId === tool.id);
+
+  return { isAdmin: false, hasAccess, tool };
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get all SEO tools
@@ -143,13 +188,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // UPDATED: Search Intent endpoint - restricted to Historical analysis only
   app.post("/api/search-intent", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (!req.user) {
         return res.status(401).json({ message: "Authentication required" });
       }
 
-      const validation = searchIntentRequestSchema.safeParse(req.body);
+      // Check legacy mode parameter and deprecation warning
+      const legacyMode = String((req.query?.mode ?? req.body?.mode) || "historical").toLowerCase();
+      if (legacyMode === "ideas") {
+        console.warn("[SearchIntent] Legacy mode=ideas detected, sending 410 Gone");
+        return res.status(410).json({
+          message: "Moved: use /api/keyword-planner for ideas",
+          redirect: "/api/keyword-planner"
+        });
+      }
+
+      console.log("[SearchIntent] Mode locked to historical");
+
+      // Validate using historical schema (exactly 1 keyword)
+      const validation = searchIntentHistoricalRequestSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          message: "Invalid request data for historical analysis",
+          errors: validation.error.issues,
+        });
+      }
+
+      const { keywords, language, geoTargets, network, pageSize } = validation.data;
+      const normalizedKeywords = normalizeKeywords(keywords);
+
+      if (normalizedKeywords.length !== 1) {
+        return res.status(400).json({
+          message: "Exactly one keyword is required for historical analysis"
+        });
+      }
+
+      console.log("[SearchIntent] HIT", { user: req.user.id, keyword: normalizedKeywords[0] });
+
+      // RBAC: Check tool access for "search-intent" (fallback to "keyword-planner")
+      let hasAccess = false;
+      try {
+        const result = await assertToolAccessOrAdmin(req.user.id, "search-intent");
+        hasAccess = result.hasAccess;
+      } catch (searchIntentError) {
+        console.log("[SearchIntent] Fallback to keyword-planner tool check");
+        try {
+          const result = await assertToolAccessOrAdmin(req.user.id, "keyword-planner");
+          hasAccess = result.hasAccess;
+        } catch (keywordPlannerError) {
+          console.error("[SearchIntent] No valid tool found");
+          return res.status(500).json({ message: "Search Intent tool is not configured" });
+        }
+      }
+
+      if (!hasAccess) {
+        return res.status(403).json({
+          message: "Access denied. You don't have permission to use this tool.",
+        });
+      }
+
+      const historicalResponse = await generateKeywordHistoricalMetrics({
+        keywords: normalizedKeywords,
+        language,
+        geoTargets,
+        network,
+        pageSize,
+      });
+
+      res.setHeader("X-SearchIntent-Mode", "historical");
+      return res.json({
+        keywords: normalizedKeywords,
+        mode: "historical",
+        ...historicalResponse,
+      });
+
+    } catch (error) {
+      if (error instanceof GoogleAdsApiError) {
+        return res.status(error.status ?? 500).json({
+          message: error.message,
+          details: error.details,
+        });
+      }
+
+      console.error("[SearchIntent] Unexpected error", error);
+      return res.status(500).json({ message: "Failed to generate historical metrics" });
+    }
+  });
+
+  // NEW: Keyword Planner endpoint for Ideas
+  app.post("/api/keyword-planner", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const validation = keywordPlannerRequestSchema.safeParse(req.body);
       if (!validation.success) {
         return res.status(400).json({
           message: "Invalid request data",
@@ -158,38 +293,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { keywords, language, geoTargets, network, pageSize } = validation.data;
-      const normalizedKeywords = Array.from(new Set(
-        keywords
-          .map((keyword) => keyword.trim())
-          .filter((keyword) => keyword.length > 0),
-      ));
+      const normalizedKeywords = normalizeKeywords(keywords);
 
       if (normalizedKeywords.length === 0) {
         return res.status(400).json({ message: "At least one keyword is required" });
       }
 
-      const [profile, tools] = await Promise.all([
-        storage.getProfile(req.user.id),
-        storage.getAllSeoTools(),
-      ]);
+      console.log("[KeywordPlanner] HIT", { user: req.user.id, n: normalizedKeywords.length });
 
-      const isAdmin = profile?.role === "admin";
-      const searchIntentTool = tools.find((tool) => tool.name === "search-intent");
-
-      if (!searchIntentTool) {
-        console.error("[SearchIntent] SEO tool definition missing");
-        return res.status(500).json({ message: "Search Intent tool is not configured" });
-      }
-
-      if (!isAdmin) {
-        const userToolAccess = await storage.getUserToolAccess(req.user.id);
-        const hasAccess = userToolAccess.some((access) => access.toolId === searchIntentTool.id);
-
-        if (!hasAccess) {
-          return res.status(403).json({
-            message: "Access denied. You don't have permission to use this tool.",
-          });
-        }
+      // RBAC: Check tool access for "keyword-planner"
+      const { hasAccess } = await assertToolAccessOrAdmin(req.user.id, "keyword-planner");
+      if (!hasAccess) {
+        return res.status(403).json({
+          message: "Access denied. You don't have permission to use this tool.",
+        });
       }
 
       const ideaResponse = await generateKeywordIdeas({
@@ -200,10 +317,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pageSize,
       });
 
+      res.setHeader("X-SearchIntent-Mode", "ideas");
       return res.json({
         keywords: normalizedKeywords,
+        mode: "ideas",
         ...ideaResponse,
       });
+
     } catch (error) {
       if (error instanceof GoogleAdsApiError) {
         return res.status(error.status ?? 500).json({
@@ -212,7 +332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.error("[SearchIntent] Unexpected error", error);
+      console.error("[KeywordPlanner] Unexpected error", error);
       return res.status(500).json({ message: "Failed to generate keyword ideas" });
     }
   });

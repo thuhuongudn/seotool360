@@ -43,6 +43,7 @@ export interface KeywordIdeaMeta {
   requestedKeywordCount: number;
   requestedAt: string;
   pageSize?: number;
+  mode?: "ideas" | "historical";
 }
 
 export interface KeywordIdeaResponse {
@@ -96,11 +97,20 @@ function getRequiredEnv(name: string): string {
 /**
  * Convert micro currency values to standard units (divide by 1e6).
  */
-function microsToUnits(value: number | null | undefined): number | null {
-  if (typeof value !== "number" || Number.isNaN(value)) {
-    return null;
+
+function toNumber(val: unknown): number | null {
+  if (typeof val === "number" && !Number.isNaN(val)) return val;
+  if (typeof val === "string") {
+    const s = val.trim();
+    if (s !== "" && /^-?\d+(\.\d+)?$/.test(s)) return Number(s);
   }
-  return Math.round((value / 1_000_000) * 100) / 100;
+  return null;
+}
+
+function microsToUnits(value: unknown): number | null {
+  const n = toNumber(value);
+  if (n == null) return null;
+  return Math.round((n / 1_000_000) * 100) / 100;
 }
 
 /**
@@ -223,9 +233,9 @@ export function normalizeIdeas(
     const metrics = result?.keywordIdeaMetrics ?? {};
     return {
       keyword: String(result?.text ?? ""),
-      avgMonthlySearches: typeof metrics?.avgMonthlySearches === "number" ? metrics.avgMonthlySearches : null,
+      avgMonthlySearches: toNumber(metrics?.avgMonthlySearches),
       competition: typeof metrics?.competition === "string" ? metrics.competition : null,
-      competitionIndex: typeof metrics?.competitionIndex === "number" ? metrics.competitionIndex : null,
+      competitionIndex: toNumber(metrics?.competitionIndex),
       lowTopBid: microsToUnits(metrics?.lowTopOfPageBidMicros),
       highTopBid: microsToUnits(metrics?.highTopOfPageBidMicros),
     };
@@ -240,6 +250,66 @@ export function normalizeIdeas(
       requestedKeywordCount: data?.results?.length ?? rows.length,
       requestedAt: new Date().toISOString(),
       pageSize,
+      mode: "ideas",
+    },
+    rows,
+  };
+}
+
+
+/**
+ * Normalize Histical the Google Ads API response into a UI-friendly structure.
+ */
+
+export function normalizeHistorical(
+  data: any,
+  language: string,
+  geoTargets: string[],
+  network: KeywordPlanNetwork,
+  pageSize?: number,
+  onlyKeywords?: string[],
+): KeywordIdeaResponse {
+  // const results = Array.isArray(data?.results) ? data.results : [];
+  const sourceResults = Array.isArray(data?.results) ? data.results : [];
+  const results =
+    Array.isArray(onlyKeywords) && onlyKeywords.length > 0
+      ? sourceResults.filter((r: any) => {
+          const t = String(r?.text ?? "").trim().toLowerCase();
+          return onlyKeywords.some((k) => String(k).trim().toLowerCase() === t);
+        })
+      : sourceResults;
+  const rows: KeywordIdeaRow[] = results.map((result: any) => {
+    const metrics = result?.keywordMetrics ?? {};
+    const monthly =
+    Array.isArray(metrics?.monthlySearchVolumes)
+      ? metrics.monthlySearchVolumes.map((m: any) => ({
+          year: toNumber(m?.year),
+          month: typeof m?.month === "string" ? m.month : (m?.month != null ? String(m.month) : null),
+          monthlySearches: toNumber(m?.monthlySearches),
+        }))
+      : undefined;
+  
+  return {
+    keyword: `${String(result?.text ?? "")}`,
+    avgMonthlySearches: toNumber(metrics?.avgMonthlySearches),
+    competition: typeof metrics?.competition === "string" ? metrics.competition : null,
+    competitionIndex: toNumber(metrics?.competitionIndex),
+    lowTopBid: microsToUnits(metrics?.lowTopOfPageBidMicros),
+    highTopBid: microsToUnits(metrics?.highTopOfPageBidMicros),
+    monthlySearchVolumes: monthly,
+  };
+  });
+
+  return {
+    meta: {
+      language,
+      geoTargets,
+      network,
+      totalResults: rows.length,
+      requestedKeywordCount: data?.results?.length ?? rows.length,
+      requestedAt: new Date().toISOString(),
+      pageSize,
+      mode: "historical",
     },
     rows,
   };
@@ -304,6 +374,63 @@ export async function generateKeywordIdeas(options: GenerateKeywordIdeasOptions)
 
   const json = await response.json();
   return normalizeIdeas(json, language, geoTargets, network, pageSize);
+}
+
+export async function generateKeywordHistoricalMetrics(
+  options: GenerateKeywordIdeasOptions,
+): Promise<KeywordIdeaResponse> {
+  const keywords = dedupeKeywords(options.keywords);
+  if (keywords.length === 0) {
+    throw new GoogleAdsApiError("At least one keyword is required to generate historical metrics", 400);
+  }
+
+  const { access_token } = await getAccessToken();
+  const developerToken = getRequiredEnv("DEV_TOKEN");
+  const customerId = getRequiredEnv("CUSTOMER_ID");
+  const managerId = process.env.MANAGER_ID;
+
+  const language = options.language || DEFAULT_LANGUAGE;
+  const geoTargets = options.geoTargets?.length ? options.geoTargets : DEFAULT_GEO_TARGETS;
+  const network: KeywordPlanNetwork = options.network || "GOOGLE_SEARCH";
+  const pageSize = options.pageSize;
+
+  const url = `https://googleads.googleapis.com/${DEFAULT_API_VERSION}/customers/${customerId}:generateKeywordHistoricalMetrics`;
+  const headers: HeadersInit = {
+    Authorization: `Bearer ${access_token}`,
+    "developer-token": developerToken,
+    "Content-Type": "application/json",
+  };
+  if (managerId) (headers as any)["login-customer-id"] = managerId;
+
+  const body = JSON.stringify({
+    customerId,
+    language,
+    geoTargetConstants: geoTargets,
+    keywordPlanNetwork: network,
+    keywords,
+    ...(pageSize ? { pageSize } : {}),
+    // historicalMetricsOptions: { includeAverageCpc: true } // bật nếu cần
+  });
+
+  const response = await fetchWithRetry(url, { method: "POST", headers, body });
+  if (!response.ok) {
+    const errorPayload = await safeJson(response);
+    console.error("[SearchIntent] Google Ads API error (historical)", {
+      status: response.status,
+      statusText: response.statusText,
+      error: summarizeError(errorPayload),
+    });
+    throw new GoogleAdsApiError("Google Ads API request failed (historical)", response.status, summarizeError(errorPayload));
+  }
+
+  const json = await response.json();
+  // Debug log: in toàn bộ response từ Google Ads API Historical
+    console.dir(
+      { histRawResponse: json },
+      { depth: null, maxArrayLength: null }
+    );
+  // return normalizeHistorical(json, language, geoTargets, network, pageSize);
+  return normalizeHistorical(json, language, geoTargets, network, pageSize, keywords);
 }
 
 function dedupeKeywords(keywords: string[]): string[] {

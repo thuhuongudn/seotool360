@@ -77,6 +77,7 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
 
     // Define tool routes first
     const toolRoutes: { [key: string]: string } = {
+      'keyword-planner': '/keyword-planner',
       'markdown-html': '/markdown-converter',
       'social-media': '/social-media-writer',
       'topical-map': '/topical-map',

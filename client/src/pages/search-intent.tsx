@@ -1,20 +1,120 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Trash2, Copy, CheckCircle2 } from "lucide-react";
+import { useLocation } from "wouter";
+import { Loader2, Copy, BarChart3 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import ToolPermissionGuard from "@/components/tool-permission-guard";
 import { useToolId } from "@/hooks/use-tool-id";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { formatCurrency, formatNumber, parseKeywords } from "@/lib/search-intent-utils";
+import { formatCurrency, formatNumber } from "@/lib/search-intent-utils";
+
+// Chart component for monthly search trends
+interface MonthlyTrendsChartProps {
+  monthlyVolumes: MonthlySearchVolume[];
+}
+
+function MonthlyTrendsChart({ monthlyVolumes }: MonthlyTrendsChartProps) {
+  const chartData = useMemo(() => {
+    if (!monthlyVolumes || monthlyVolumes.length === 0) return [];
+
+    return monthlyVolumes.map((volume) => {
+      const monthNames = {
+        'JANUARY': 'Tháng 1',
+        'FEBRUARY': 'Tháng 2',
+        'MARCH': 'Tháng 3',
+        'APRIL': 'Tháng 4',
+        'MAY': 'Tháng 5',
+        'JUNE': 'Tháng 6',
+        'JULY': 'Tháng 7',
+        'AUGUST': 'Tháng 8',
+        'SEPTEMBER': 'Tháng 9',
+        'OCTOBER': 'Tháng 10',
+        'NOVEMBER': 'Tháng 11',
+        'DECEMBER': 'Tháng 12'
+      } as const;
+
+      const searches = parseInt(volume.monthlySearches) || 0;
+
+      return {
+        month: monthNames[volume.month as keyof typeof monthNames] || volume.month,
+        searches,
+        period: `${monthNames[volume.month as keyof typeof monthNames]} ${volume.year}`,
+        fullDate: `${volume.year}-${String(Object.keys(monthNames).indexOf(volume.month) + 1).padStart(2, '0')}`
+      };
+    }).sort((a, b) => a.fullDate.localeCompare(b.fullDate));
+  }, [monthlyVolumes]);
+
+  if (chartData.length === 0) {
+    return null;
+  }
+
+  // Calculate color based on value for better visual appeal
+  const maxValue = Math.max(...chartData.map(d => d.searches));
+
+  return (
+    <div className="w-full h-80 mt-6">
+      <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+        Xu hướng tìm kiếm theo tháng
+      </h3>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+          <XAxis
+            dataKey="month"
+            stroke="#6b7280"
+            fontSize={12}
+            angle={-45}
+            textAnchor="end"
+            height={60}
+          />
+          <YAxis
+            stroke="#6b7280"
+            fontSize={12}
+            tickFormatter={(value) => formatNumber(value)}
+          />
+          <Tooltip
+            formatter={(value: any) => [formatNumber(value), "Lượt tìm kiếm"]}
+            labelFormatter={(label, payload) => {
+              if (payload && payload[0]) {
+                return payload[0].payload.period;
+              }
+              return label;
+            }}
+            contentStyle={{
+              backgroundColor: 'white',
+              border: '1px solid #e5e7eb',
+              borderRadius: '8px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            }}
+          />
+          <Bar dataKey="searches" radius={[4, 4, 0, 0]}>
+            {chartData.map((entry, index) => {
+              // Color intensity based on value
+              const intensity = entry.searches / maxValue;
+              const color = `hsl(264, 83%, ${85 - intensity * 30}%)`; // Purple gradient
+              return <Cell key={`cell-${index}`} fill={color} />;
+            })}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 export type KeywordPlanNetwork = "GOOGLE_SEARCH" | "GOOGLE_SEARCH_AND_PARTNERS";
+
+export interface MonthlySearchVolume {
+  month: string;
+  year: string;
+  monthlySearches: string;
+}
 
 export interface KeywordIdeaRow {
   keyword: string;
@@ -24,6 +124,7 @@ export interface KeywordIdeaRow {
   lowTopBid: number | null;
   highTopBid: number | null;
   range?: { min: number | null; max: number | null } | null;
+  monthlySearchVolumes?: MonthlySearchVolume[];
 }
 
 export interface KeywordIdeaMeta {
@@ -49,24 +150,17 @@ interface SearchIntentRequestPayload {
   network: KeywordPlanNetwork;
 }
 
-interface ShortlistEntry extends KeywordIdeaRow {}
 
 function SearchIntentContent() {
-  const [keywordsInput, setKeywordsInput] = useState("");
+  const [keywordInput, setKeywordInput] = useState("");
   const [result, setResult] = useState<SearchIntentResponse | null>(null);
-  const [selectedRows, setSelectedRows] = useState<ShortlistEntry[]>([]);
-  const [hasCopied, setHasCopied] = useState(false);
-  const [hasCopiedList, setHasCopiedList] = useState(false);
   const [language, setLanguage] = useState("languageConstants/1040");
   const [geoTarget, setGeoTarget] = useState("geoTargetConstants/2704");
   const [network, setNetwork] = useState<KeywordPlanNetwork>("GOOGLE_SEARCH");
   const { toast } = useToast();
+  const [location] = useLocation();
 
-  const parsedKeywords = useMemo(() => parseKeywords(keywordsInput), [keywordsInput]);
-  const shortlistKeywordSet = useMemo(
-    () => new Set(selectedRows.map((row) => row.keyword.toLowerCase())),
-    [selectedRows],
-  );
+  const trimmedKeyword = useMemo(() => keywordInput.trim(), [keywordInput]);
 
   const mutation = useMutation({
     mutationFn: async (payload: SearchIntentRequestPayload) => {
@@ -95,16 +189,13 @@ function SearchIntentContent() {
     },
     onSuccess: (data) => {
       setResult(data);
-      setSelectedRows([]);
-      setHasCopied(false);
-      setHasCopiedList(false);
       toast({
-        title: "Đã phân tích Search Intent",
-        description: `Tìm thấy ${data.rows.length} ý tưởng từ khóa`,
+        title: "Đã phân tích Historical Metrics",
+        description: `Tìm thấy dữ liệu cho từ khóa: ${data.keywords[0]}`,
       });
     },
     onError: (error) => {
-      const description = error instanceof Error ? error.message : "Không thể phân tích search intent.";
+      const description = error instanceof Error ? error.message : "Không thể phân tích historical metrics.";
       toast({
         title: "Có lỗi xảy ra",
         description,
@@ -113,20 +204,57 @@ function SearchIntentContent() {
     },
   });
 
+  // Parse query params và auto-populate + submit
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const queryKeyword = searchParams.get('q');
+
+    console.log('🔍 [SearchIntent] Location changed:', location);
+    console.log('🔍 [SearchIntent] Full URL:', window.location.href);
+    console.log('🔍 [SearchIntent] Search params:', window.location.search);
+    console.log('🔍 [SearchIntent] Query keyword:', queryKeyword);
+
+    if (queryKeyword) {
+      const decodedKeyword = decodeURIComponent(queryKeyword);
+      console.log('🔍 [SearchIntent] Decoded keyword:', decodedKeyword);
+
+      // Set keyword input
+      setKeywordInput(decodedKeyword);
+
+      // Auto-submit if keyword is valid
+      if (decodedKeyword.trim().length > 0) {
+        const payload: SearchIntentRequestPayload = {
+          keywords: [decodedKeyword.trim()],
+          language,
+          geoTargets: [geoTarget],
+          network,
+        };
+
+        console.log('🔍 [SearchIntent] Auto-submitting with payload:', payload);
+        console.log('🔍 [SearchIntent] Mutation isPending:', mutation.isPending);
+
+        // Small delay to ensure input is set and avoid any race conditions
+        setTimeout(() => {
+          mutation.mutate(payload);
+        }, 100);
+      }
+    }
+  }, [location, language, geoTarget, network]);
+
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (parsedKeywords.length === 0) {
+    if (trimmedKeyword.length === 0) {
       toast({
         title: "Chưa có từ khóa",
-        description: "Vui lòng nhập ít nhất một từ khóa (phân tách bằng dấu phẩy).",
+        description: "Vui lòng nhập một từ khóa để phân tích historical metrics.",
         variant: "destructive",
       });
       return;
     }
 
     const payload: SearchIntentRequestPayload = {
-      keywords: parsedKeywords,
+      keywords: [trimmedKeyword],
       language,
       geoTargets: [geoTarget],
       network,
@@ -135,64 +263,7 @@ function SearchIntentContent() {
     mutation.mutate(payload);
   };
 
-  const handleAddToShortlist = (row: KeywordIdeaRow) => {
-    if (shortlistKeywordSet.has(row.keyword.toLowerCase())) {
-      return;
-    }
-    setSelectedRows((current) => [...current, row]);
-  };
-
-  const handleRemoveFromShortlist = (keyword: string) => {
-    setSelectedRows((current) => current.filter((entry) => entry.keyword !== keyword));
-  };
-
-  const handleClearShortlist = () => {
-    setSelectedRows([]);
-  };
-
-  const handleCopyJson = async () => {
-    if (!navigator.clipboard) {
-      toast({
-        title: "Không hỗ trợ sao chép",
-        description: "Trình duyệt của bạn không hỗ trợ clipboard API.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (selectedRows.length === 0) {
-      toast({
-        title: "Danh sách trống",
-        description: "Vui lòng thêm ít nhất một từ khóa vào danh sách bên trái trước khi sao chép.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const payload = {
-      keywords: result?.keywords || parsedKeywords,
-      meta: result?.meta,
-      selected: selectedRows,
-    };
-
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-      setHasCopied(true);
-      toast({
-        title: "Đã sao chép",
-        description: "Danh sách từ khóa đã được sao chép vào clipboard.",
-      });
-      setTimeout(() => setHasCopied(false), 2000);
-    } catch (error) {
-      toast({
-        title: "Sao chép thất bại",
-        description: error instanceof Error ? error.message : "Không thể sao chép dữ liệu.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handleCopyList = async () => {
+  const handleCopyResult = async () => {
     if (!result || !result.rows.length) {
       toast({
         title: "Không có dữ liệu",
@@ -219,12 +290,10 @@ function SearchIntentContent() {
 
     try {
       await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-      setHasCopiedList(true);
       toast({
         title: "Đã sao chép",
-        description: "Danh sách keyword đã được sao chép vào clipboard.",
+        description: "Dữ liệu historical metrics đã được sao chép vào clipboard.",
       });
-      setTimeout(() => setHasCopiedList(false), 2000);
     } catch (error) {
       toast({
         title: "Sao chép thất bại",
@@ -244,247 +313,178 @@ function SearchIntentContent() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PageNavigation breadcrumbItems={[{ label: "Search Intent" }]} backLink="/" />
 
-        <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Phân tích Search Intent</CardTitle>
-                <CardDescription>
-                  Nhập danh sách từ khóa (phân tách bằng dấu phẩy) để khám phá search intent, lượng tìm kiếm và mức độ cạnh tranh.
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form className="space-y-4" onSubmit={handleSubmit}>
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="keywords">
-                      Từ khóa cần phân tích
-                    </label>
-                    <Textarea
-                      id="keywords"
-                      placeholder="Ví dụ: elevit, dha bầu, canxi bioisland"
-                      value={keywordsInput}
-                      onChange={(event) => setKeywordsInput(event.target.value)}
-                      rows={4}
+        {/* Tool Description Section */}
+        <section className="text-center mb-10">
+          <span className="inline-flex items-center gap-2 rounded-full bg-purple-600/10 px-4 py-1 text-sm font-medium text-purple-600 mb-4">
+            <BarChart3 className="h-4 w-4" />
+            Google Historical Metrics
+          </span>
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
+            Phân tích <span className="text-purple-600">Search Intent</span> của từ khóa
+          </h1>
+          <p className="text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
+            Khám phá chi tiết lịch sử tìm kiếm, độ cạnh tranh và xu hướng theo thời gian của một từ khóa cụ thể từ Google Ads Historical Metrics API.
+          </p>
+        </section>
+
+        {/* Search Section */}
+        <div className="max-w-4xl mx-auto mb-12">
+          <Card>
+            <CardContent className="p-6">
+              <form className="space-y-4" onSubmit={handleSubmit}>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-gray-700 dark:text-gray-200" htmlFor="keyword">
+                    Từ khóa cần phân tích
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="keyword"
+                      type="text"
+                      placeholder="Ví dụ: elevit bà bầu"
+                      value={keywordInput}
+                      onChange={(event) => setKeywordInput(event.target.value)}
+                      className="w-full px-4 py-3 border border-input rounded-lg text-base focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                     />
-                    <p className="text-xs text-muted-foreground">
-                      Nhập tối đa 10-15 từ khóa mỗi lần để có kết quả chính xác nhất.
-                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Chỉ nhập một từ khóa duy nhất để phân tích historical metrics chi tiết.
+                  </p>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Ngôn ngữ</label>
+                    <Select value={language} onValueChange={setLanguage}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn ngôn ngữ" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="languageConstants/1040">Vietnamese (languageConstants/1040)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                 <div className="grid gap-4 sm:grid-cols-3">
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Ngôn ngữ</label>
-                      <Select value={language} onValueChange={setLanguage}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Chọn ngôn ngữ" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="languageConstants/1040">Vietnamese (languageConstants/1040)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">Vietnamese (languageConstants/1040)</p>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Khu vực</label>
-                      <Select value={geoTarget} onValueChange={setGeoTarget}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Chọn khu vực" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="geoTargetConstants/2704">Vietnam (geoTargetConstants/2704)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">Vietnam (geoTargetConstants/2704)</p>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Mạng</label>
-                      <Select value={network} onValueChange={(value) => setNetwork(value as KeywordPlanNetwork)}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Chọn mạng" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="GOOGLE_SEARCH">Google Search</SelectItem>
-                          <SelectItem value="GOOGLE_SEARCH_AND_PARTNERS">Google Search & Partners</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">Google Search</p>
-                    </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Khu vực</label>
+                    <Select value={geoTarget} onValueChange={setGeoTarget}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn khu vực" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="geoTargetConstants/2704">Vietnam (geoTargetConstants/2704)</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
 
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-sm text-muted-foreground">
-                      Tổng số từ khóa hợp lệ: <span className="font-semibold text-primary">{parsedKeywords.length}</span>
-                    </p>
-                    <Button type="submit" disabled={isSubmitting || parsedKeywords.length === 0}>
-                      {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                      Phân tích ngay
-                    </Button>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-700 dark:text-gray-200">Mạng</label>
+                    <Select value={network} onValueChange={(value) => setNetwork(value as KeywordPlanNetwork)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn mạng" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="GOOGLE_SEARCH">Google Search</SelectItem>
+                        <SelectItem value="GOOGLE_SEARCH_AND_PARTNERS">Google Search & Partners</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
-                </form>
+                </div>
+
+                <div className="text-center">
+                  <Button type="submit" disabled={isSubmitting || trimmedKeyword.length === 0} size="lg" className="px-8">
+                    {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    Phân tích Search Intent
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Results Section */}
+        {isSubmitting && (
+          <div className="max-w-4xl mx-auto">
+            <Card>
+              <CardContent className="p-12">
+                <div className="flex flex-col items-center justify-center text-center">
+                  <Loader2 className="h-8 w-8 animate-spin text-purple-600 mb-3" />
+                  <p className="text-sm text-muted-foreground">Đang phân tích search intent...</p>
+                </div>
               </CardContent>
             </Card>
+          </div>
+        )}
 
+        {!isSubmitting && result && (
+          <div className="max-w-6xl mx-auto">
             <Card>
-              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-2 sm:max-w-[360px]">
+              <CardHeader className="flex flex-row items-center justify-between">
+                <div>
                   <CardTitle>Kết quả phân tích</CardTitle>
-                  {result?.meta && (
-                    <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                      <li>Ngôn ngữ: {result.meta.language}</li>
-                      <li>Khu vực: {result.meta.geoTargets.join(", ")}</li>
-                      <li>Mạng: {result.meta.network.replace(/_/g, " ")}</li>
-                    </ul>
-                  )}
+                  <CardDescription>
+                    Từ khóa: <strong>{result.keywords[0]}</strong> |
+                    {result.meta && (
+                      <span>
+                        {' '}Ngôn ngữ: {result.meta.language} |
+                        Khu vực: {result.meta.geoTargets.join(", ")} |
+                        Mạng: {result.meta.network.replace(/_/g, " ")}
+                      </span>
+                    )}
+                  </CardDescription>
                 </div>
-                {result && (
-                  <p className="text-sm text-muted-foreground">
-                    {result.rows.length} ý tưởng từ khóa
-                  </p>
-                )}
-                {result && result.rows.length > 0 && (
-                  <Button type="button" variant="outline" size="sm" onClick={handleCopyList}>
-                    {hasCopiedList ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                    {hasCopiedList ? "Đã sao chép danh sách" : "Copy danh sách"}
-                  </Button>
-                )}
+                <Button onClick={handleCopyResult} variant="outline" size="sm">
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy JSON
+                </Button>
               </CardHeader>
               <CardContent>
-                {isSubmitting && (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-                    <p className="text-sm text-muted-foreground">Đang phân tích search intent...</p>
-                  </div>
-                )}
+                {hasResults ? (
+                  <div className="space-y-6">
+                    {/* Monthly Trends Chart */}
+                    {result.rows.length > 0 && result.rows[0].monthlySearchVolumes && (
+                      <MonthlyTrendsChart monthlyVolumes={result.rows[0].monthlySearchVolumes} />
+                    )}
 
-                {!isSubmitting && !result && (
+                    {/* Data Table */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                        Chi tiết dữ liệu
+                      </h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Từ khóa</TableHead>
+                            <TableHead>Số lượt tìm kiếm TB</TableHead>
+                            <TableHead>Độ cạnh tranh</TableHead>
+                            <TableHead>Điểm cạnh tranh</TableHead>
+                            <TableHead>Bid thấp (₫)</TableHead>
+                            <TableHead>Bid cao (₫)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {result.rows.map((row, index) => (
+                            <TableRow key={`${row.keyword}-${index}`}>
+                              <TableCell className="font-medium">{row.keyword}</TableCell>
+                              <TableCell>{formatNumber(row.avgMonthlySearches)}</TableCell>
+                              <TableCell className="capitalize">{row.competition ? row.competition.toLowerCase() : "-"}</TableCell>
+                              <TableCell>{row.competitionIndex ?? "-"}</TableCell>
+                              <TableCell>{formatCurrency(row.lowTopBid)}</TableCell>
+                              <TableCell>{formatCurrency(row.highTopBid)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                ) : (
                   <div className="py-12 text-center text-sm text-muted-foreground">
-                    Nhập từ khóa và bấm "Phân tích ngay" để xem kết quả.
+                    Không có dữ liệu historical metrics cho từ khóa này.
                   </div>
-                )}
-
-                {!isSubmitting && result && result.rows.length === 0 && (
-                  <div className="py-12 text-center text-sm text-muted-foreground">
-                    Không có ý tưởng từ khóa nào được trả về. Hãy thử bộ từ khóa khác.
-                  </div>
-                )}
-
-                {hasResults && (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Từ khóa</TableHead>
-                        <TableHead>Số lượt tìm kiếm TB</TableHead>
-                        <TableHead>Độ cạnh tranh</TableHead>
-                        <TableHead>Điểm cạnh tranh</TableHead>
-                        <TableHead>Bid thấp (₫)</TableHead>
-                        <TableHead>Bid cao (₫)</TableHead>
-                        <TableHead>Range (min-max)</TableHead>
-                        <TableHead className="text-right">Thao tác</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {result.rows.map((row) => (
-                        <TableRow key={row.keyword}>
-                          <TableCell className="font-medium">{row.keyword}</TableCell>
-                          <TableCell>{formatNumber(row.avgMonthlySearches)}</TableCell>
-                          <TableCell className="capitalize">{row.competition ? row.competition.toLowerCase() : "-"}</TableCell>
-                          <TableCell>{row.competitionIndex ?? "-"}</TableCell>
-                          <TableCell>{formatCurrency(row.lowTopBid)}</TableCell>
-                          <TableCell>{formatCurrency(row.highTopBid)}</TableCell>
-                          <TableCell>
-                            {row.range ? (
-                              <span>
-                                {row.range.min != null ? formatNumber(row.range.min) : "-"} –
-                                {row.range.max != null ? ` ${formatNumber(row.range.max)}` : " -"}
-                              </span>
-                            ) : (
-                              "-"
-                            )}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleAddToShortlist(row)}
-                              disabled={shortlistKeywordSet.has(row.keyword.toLowerCase())}
-                            >
-                              <PlusCircle className="h-4 w-4" />
-                              Thêm
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
                 )}
               </CardContent>
             </Card>
           </div>
-
-          <aside className="space-y-4">
-            <Card className="sticky top-24">
-              <CardHeader>
-                <CardTitle>Danh sách đã chọn</CardTitle>
-                <CardDescription>
-                  Chọn những từ khóa phù hợp để xuất JSON phục vụ phân tích sâu hơn.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    Đã chọn: <span className="font-semibold text-primary">{selectedRows.length}</span>
-                  </p>
-                  {selectedRows.length > 0 && (
-                    <Button type="button" variant="ghost" size="sm" onClick={handleClearShortlist}>
-                      <Trash2 className="h-4 w-4" />
-                      Xóa hết
-                    </Button>
-                  )}
-                </div>
-
-                <div className="space-y-3 max-h-[380px] overflow-y-auto pr-1">
-                  {selectedRows.length === 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      Chưa có từ khóa nào. Hãy thêm từ kết quả bên phải.
-                    </p>
-                  )}
-
-                  {selectedRows.map((entry) => (
-                    <div key={entry.keyword} className="rounded-lg border border-border p-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="font-semibold text-sm text-gray-900 dark:text-gray-100">
-                            {entry.keyword}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            Tìm kiếm TB: {formatNumber(entry.avgMonthlySearches)} · Độ cạnh tranh: {entry.competition ?? "-"}
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => handleRemoveFromShortlist(entry.keyword)}
-                          aria-label={`Xóa ${entry.keyword} khỏi danh sách`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <Button type="button" className="w-full" onClick={handleCopyJson} disabled={selectedRows.length === 0}>
-                  {hasCopied ? <CheckCircle2 className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                  {hasCopied ? "Đã sao chép" : "Copy JSON"}
-                </Button>
-              </CardContent>
-            </Card>
-          </aside>
-        </div>
+        )}
       </main>
     </div>
   );
