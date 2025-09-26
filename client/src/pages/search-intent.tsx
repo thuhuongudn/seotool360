@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, Copy, BarChart3 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import ToolPermissionGuard from "@/components/tool-permission-guard";
@@ -13,8 +14,106 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatNumber } from "@/lib/search-intent-utils";
 
+// Chart component for monthly search trends
+interface MonthlyTrendsChartProps {
+  monthlyVolumes: MonthlySearchVolume[];
+}
+
+function MonthlyTrendsChart({ monthlyVolumes }: MonthlyTrendsChartProps) {
+  const chartData = useMemo(() => {
+    if (!monthlyVolumes || monthlyVolumes.length === 0) return [];
+
+    return monthlyVolumes.map((volume) => {
+      const monthNames = {
+        'JANUARY': 'Tháng 1',
+        'FEBRUARY': 'Tháng 2',
+        'MARCH': 'Tháng 3',
+        'APRIL': 'Tháng 4',
+        'MAY': 'Tháng 5',
+        'JUNE': 'Tháng 6',
+        'JULY': 'Tháng 7',
+        'AUGUST': 'Tháng 8',
+        'SEPTEMBER': 'Tháng 9',
+        'OCTOBER': 'Tháng 10',
+        'NOVEMBER': 'Tháng 11',
+        'DECEMBER': 'Tháng 12'
+      } as const;
+
+      const searches = parseInt(volume.monthlySearches) || 0;
+
+      return {
+        month: monthNames[volume.month as keyof typeof monthNames] || volume.month,
+        searches,
+        period: `${monthNames[volume.month as keyof typeof monthNames]} ${volume.year}`,
+        fullDate: `${volume.year}-${String(Object.keys(monthNames).indexOf(volume.month) + 1).padStart(2, '0')}`
+      };
+    }).sort((a, b) => a.fullDate.localeCompare(b.fullDate));
+  }, [monthlyVolumes]);
+
+  if (chartData.length === 0) {
+    return null;
+  }
+
+  // Calculate color based on value for better visual appeal
+  const maxValue = Math.max(...chartData.map(d => d.searches));
+
+  return (
+    <div className="w-full h-80 mt-6">
+      <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+        Xu hướng tìm kiếm theo tháng
+      </h3>
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
+          <XAxis
+            dataKey="month"
+            stroke="#6b7280"
+            fontSize={12}
+            angle={-45}
+            textAnchor="end"
+            height={60}
+          />
+          <YAxis
+            stroke="#6b7280"
+            fontSize={12}
+            tickFormatter={(value) => formatNumber(value)}
+          />
+          <Tooltip
+            formatter={(value: any) => [formatNumber(value), "Lượt tìm kiếm"]}
+            labelFormatter={(label, payload) => {
+              if (payload && payload[0]) {
+                return payload[0].payload.period;
+              }
+              return label;
+            }}
+            contentStyle={{
+              backgroundColor: 'white',
+              border: '1px solid #e5e7eb',
+              borderRadius: '8px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+            }}
+          />
+          <Bar dataKey="searches" radius={[4, 4, 0, 0]}>
+            {chartData.map((entry, index) => {
+              // Color intensity based on value
+              const intensity = entry.searches / maxValue;
+              const color = `hsl(264, 83%, ${85 - intensity * 30}%)`; // Purple gradient
+              return <Cell key={`cell-${index}`} fill={color} />;
+            })}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 export type KeywordPlanNetwork = "GOOGLE_SEARCH" | "GOOGLE_SEARCH_AND_PARTNERS";
+
+export interface MonthlySearchVolume {
+  month: string;
+  year: string;
+  monthlySearches: string;
+}
 
 export interface KeywordIdeaRow {
   keyword: string;
@@ -24,6 +123,7 @@ export interface KeywordIdeaRow {
   lowTopBid: number | null;
   highTopBid: number | null;
   range?: { min: number | null; max: number | null } | null;
+  monthlySearchVolumes?: MonthlySearchVolume[];
 }
 
 export interface KeywordIdeaMeta {
@@ -300,30 +400,43 @@ function SearchIntentContent() {
               </CardHeader>
               <CardContent>
                 {hasResults ? (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Từ khóa</TableHead>
-                        <TableHead>Số lượt tìm kiếm TB</TableHead>
-                        <TableHead>Độ cạnh tranh</TableHead>
-                        <TableHead>Điểm cạnh tranh</TableHead>
-                        <TableHead>Bid thấp (₫)</TableHead>
-                        <TableHead>Bid cao (₫)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {result.rows.map((row, index) => (
-                        <TableRow key={`${row.keyword}-${index}`}>
-                          <TableCell className="font-medium">{row.keyword}</TableCell>
-                          <TableCell>{formatNumber(row.avgMonthlySearches)}</TableCell>
-                          <TableCell className="capitalize">{row.competition ? row.competition.toLowerCase() : "-"}</TableCell>
-                          <TableCell>{row.competitionIndex ?? "-"}</TableCell>
-                          <TableCell>{formatCurrency(row.lowTopBid)}</TableCell>
-                          <TableCell>{formatCurrency(row.highTopBid)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                  <div className="space-y-6">
+                    {/* Monthly Trends Chart */}
+                    {result.rows.length > 0 && result.rows[0].monthlySearchVolumes && (
+                      <MonthlyTrendsChart monthlyVolumes={result.rows[0].monthlySearchVolumes} />
+                    )}
+
+                    {/* Data Table */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">
+                        Chi tiết dữ liệu
+                      </h3>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Từ khóa</TableHead>
+                            <TableHead>Số lượt tìm kiếm TB</TableHead>
+                            <TableHead>Độ cạnh tranh</TableHead>
+                            <TableHead>Điểm cạnh tranh</TableHead>
+                            <TableHead>Bid thấp (₫)</TableHead>
+                            <TableHead>Bid cao (₫)</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {result.rows.map((row, index) => (
+                            <TableRow key={`${row.keyword}-${index}`}>
+                              <TableCell className="font-medium">{row.keyword}</TableCell>
+                              <TableCell>{formatNumber(row.avgMonthlySearches)}</TableCell>
+                              <TableCell className="capitalize">{row.competition ? row.competition.toLowerCase() : "-"}</TableCell>
+                              <TableCell>{row.competitionIndex ?? "-"}</TableCell>
+                              <TableCell>{formatCurrency(row.lowTopBid)}</TableCell>
+                              <TableCell>{formatCurrency(row.highTopBid)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
                 ) : (
                   <div className="py-12 text-center text-sm text-muted-foreground">
                     Không có dữ liệu historical metrics cho từ khóa này.

@@ -290,7 +290,7 @@ export function normalizeHistorical(
       : undefined;
   
   return {
-    keyword: `${String(result?.text ?? "")} + metric`,
+    keyword: `${String(result?.text ?? "")}`,
     avgMonthlySearches: toNumber(metrics?.avgMonthlySearches),
     competition: typeof metrics?.competition === "string" ? metrics.competition : null,
     competitionIndex: toNumber(metrics?.competitionIndex),
