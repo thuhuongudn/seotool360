@@ -1,6 +1,6 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, PlusCircle, Trash2, Copy, CheckCircle2 } from "lucide-react";
+import { Loader2, PlusCircle, Trash2, Copy, CheckCircle2, Search } from "lucide-react";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import ToolPermissionGuard from "@/components/tool-permission-guard";
@@ -264,6 +264,20 @@ function KeywordPlannerContent() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PageNavigation breadcrumbItems={[{ label: "Keyword Planner" }]} backLink="/" />
+
+        {/* Tool Description Section */}
+        <section className="text-center mb-10">
+          <span className="inline-flex items-center gap-2 rounded-full bg-blue-600/10 px-4 py-1 text-sm font-medium text-blue-600 mb-4">
+            <Search className="h-4 w-4" />
+            Google Keyword Planner Tool
+          </span>
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
+            Tìm <span className="text-blue-600">ý tưởng từ khóa</span> từ Google Keyword Planner
+          </h1>
+          <p className="text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
+            Khám phá hàng nghìn ý tưởng từ khóa mới từ Google Keyword Planner API. Phân tích lượng tìm kiếm, độ cạnh tranh và chi phí quảng cáo để xây dựng chiến lược SEO hiệu quả.
+          </p>
+        </section>
 
         <div className="grid gap-6 lg:grid-cols-[2fr,1fr]">
           <div className="space-y-6">
