@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { Loader2, Copy, BarChart3 } from "lucide-react";
@@ -162,31 +162,6 @@ function SearchIntentContent() {
 
   const trimmedKeyword = useMemo(() => keywordInput.trim(), [keywordInput]);
 
-  // Parse query params và auto-populate + submit
-  useEffect(() => {
-    const searchParams = new URLSearchParams(location.split('?')[1] || '');
-    const queryKeyword = searchParams.get('q');
-
-    if (queryKeyword) {
-      const decodedKeyword = decodeURIComponent(queryKeyword);
-      setKeywordInput(decodedKeyword);
-
-      // Auto-submit sau khi set keyword
-      setTimeout(() => {
-        const payload: SearchIntentRequestPayload = {
-          keywords: [decodedKeyword.trim()],
-          language,
-          geoTargets: [geoTarget],
-          network,
-        };
-
-        if (decodedKeyword.trim().length > 0) {
-          mutation.mutate(payload);
-        }
-      }, 100); // Small delay để đảm bảo state đã update
-    }
-  }, [location]); // Chỉ phụ thuộc vào location để tránh infinite loop
-
   const mutation = useMutation({
     mutationFn: async (payload: SearchIntentRequestPayload) => {
       const response = await apiRequest("POST", "/api/search-intent", payload);
@@ -228,6 +203,43 @@ function SearchIntentContent() {
       });
     },
   });
+
+  // Parse query params và auto-populate + submit
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const queryKeyword = searchParams.get('q');
+
+    console.log('🔍 [SearchIntent] Location changed:', location);
+    console.log('🔍 [SearchIntent] Full URL:', window.location.href);
+    console.log('🔍 [SearchIntent] Search params:', window.location.search);
+    console.log('🔍 [SearchIntent] Query keyword:', queryKeyword);
+
+    if (queryKeyword) {
+      const decodedKeyword = decodeURIComponent(queryKeyword);
+      console.log('🔍 [SearchIntent] Decoded keyword:', decodedKeyword);
+
+      // Set keyword input
+      setKeywordInput(decodedKeyword);
+
+      // Auto-submit if keyword is valid
+      if (decodedKeyword.trim().length > 0) {
+        const payload: SearchIntentRequestPayload = {
+          keywords: [decodedKeyword.trim()],
+          language,
+          geoTargets: [geoTarget],
+          network,
+        };
+
+        console.log('🔍 [SearchIntent] Auto-submitting with payload:', payload);
+        console.log('🔍 [SearchIntent] Mutation isPending:', mutation.isPending);
+
+        // Small delay to ensure input is set and avoid any race conditions
+        setTimeout(() => {
+          mutation.mutate(payload);
+        }, 100);
+      }
+    }
+  }, [location, language, geoTarget, network]);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
