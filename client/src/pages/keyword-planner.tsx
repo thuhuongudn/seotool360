@@ -1,6 +1,7 @@
 import { useMemo, useState, useRef } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, PlusCircle, Trash2, Copy, CheckCircle2, Search } from "lucide-react";
+import { useLocation } from "wouter";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import ToolPermissionGuard from "@/components/tool-permission-guard";
@@ -63,6 +64,7 @@ function KeywordPlannerContent() {
   const [network, setNetwork] = useState<KeywordPlanNetwork>("GOOGLE_SEARCH");
   const { toast } = useToast();
   const shortlistRef = useRef<HTMLDivElement>(null);
+  const [, setLocation] = useLocation();
 
   const parsedKeywords = useMemo(() => parseKeywords(keywordsInput), [keywordsInput]);
   const shortlistKeywordSet = useMemo(
@@ -166,6 +168,11 @@ function KeywordPlannerContent() {
 
   const handleClearShortlist = () => {
     setSelectedRows([]);
+  };
+
+  const handleKeywordClick = (keyword: string) => {
+    const encodedKeyword = encodeURIComponent(keyword);
+    setLocation(`/search-intent?q=${encodedKeyword}`);
   };
 
   const handleCopyJson = async () => {
@@ -423,7 +430,13 @@ function KeywordPlannerContent() {
                     <TableBody>
                       {result.rows.map((row) => (
                         <TableRow key={row.keyword}>
-                          <TableCell className="font-medium">{row.keyword}</TableCell>
+                          <TableCell
+                            className="font-medium cursor-pointer hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors rounded-md"
+                            onClick={() => handleKeywordClick(row.keyword)}
+                            title={`Click để phân tích Search Intent cho "${row.keyword}"`}
+                          >
+                            {row.keyword}
+                          </TableCell>
                           <TableCell>{formatNumber(row.avgMonthlySearches)}</TableCell>
                           <TableCell className="capitalize">{row.competition ? row.competition.toLowerCase() : "-"}</TableCell>
                           <TableCell>{row.competitionIndex ?? "-"}</TableCell>

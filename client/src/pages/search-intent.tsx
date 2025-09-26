@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import { Loader2, Copy, BarChart3 } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import Header from "@/components/header";
@@ -157,8 +158,34 @@ function SearchIntentContent() {
   const [geoTarget, setGeoTarget] = useState("geoTargetConstants/2704");
   const [network, setNetwork] = useState<KeywordPlanNetwork>("GOOGLE_SEARCH");
   const { toast } = useToast();
+  const [location] = useLocation();
 
   const trimmedKeyword = useMemo(() => keywordInput.trim(), [keywordInput]);
+
+  // Parse query params và auto-populate + submit
+  useEffect(() => {
+    const searchParams = new URLSearchParams(location.split('?')[1] || '');
+    const queryKeyword = searchParams.get('q');
+
+    if (queryKeyword) {
+      const decodedKeyword = decodeURIComponent(queryKeyword);
+      setKeywordInput(decodedKeyword);
+
+      // Auto-submit sau khi set keyword
+      setTimeout(() => {
+        const payload: SearchIntentRequestPayload = {
+          keywords: [decodedKeyword.trim()],
+          language,
+          geoTargets: [geoTarget],
+          network,
+        };
+
+        if (decodedKeyword.trim().length > 0) {
+          mutation.mutate(payload);
+        }
+      }, 100); // Small delay để đảm bảo state đã update
+    }
+  }, [location]); // Chỉ phụ thuộc vào location để tránh infinite loop
 
   const mutation = useMutation({
     mutationFn: async (payload: SearchIntentRequestPayload) => {
