@@ -7,6 +7,7 @@ import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import ToolPermissionGuard from "@/components/tool-permission-guard";
 import CopyMarkdownButton from "@/components/copy-markdown-button";
+import MarkdownRenderer from "@/components/markdown-renderer";
 import { useToolId } from "@/hooks/use-tool-id";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -313,7 +314,7 @@ function SearchIntentContent() {
     if (trimmedKeyword.length === 0) {
       toast({
         title: "Chưa có từ khóa",
-        description: "Vui lòng nhập một từ khóa để xây dựng chiến lượng nội dung.",
+        description: "Vui lòng nhập một từ khóa để xây dựng chiến lược nội dung.",
         variant: "destructive",
       });
       return;
@@ -352,13 +353,13 @@ function SearchIntentContent() {
 
       toast({
         title: "Thành công!",
-        description: "Chiến lượng nội dung đã được tạo thành công.",
+        description: "Chiến lược nội dung đã được tạo thành công.",
       });
     } catch (error) {
       console.error("Webhook error:", error);
       toast({
         title: "Có lỗi xảy ra",
-        description: "Không thể tạo chiến lượng nội dung. Vui lòng thử lại sau.",
+        description: "Không thể tạo chiến lược nội dung. Vui lòng thử lại sau.",
         variant: "destructive",
       });
     } finally {
@@ -556,10 +557,10 @@ function SearchIntentContent() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Lightbulb className="h-5 w-5 text-orange-600" />
-                  <CardTitle>Chiến lượng nội dung cho từ khóa</CardTitle>
+                  <CardTitle>Chiến lược nội dung cho từ khóa</CardTitle>
                 </div>
                 <CardDescription>
-                  Tạo chiến lượng nội dung chi tiết dựa trên từ khóa: <strong>{trimmedKeyword}</strong>
+                  Tạo chiến lược nội dung chi tiết dựa trên từ khóa: <strong>{trimmedKeyword}</strong>
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -572,7 +573,7 @@ function SearchIntentContent() {
                       className="px-8 bg-orange-600 hover:bg-orange-700 text-white"
                     >
                       {isGeneratingStrategy && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                      {isGeneratingStrategy ? "Đang tạo chiến lượng..." : "Xây dựng chiến lượng nội dung cho từ khóa"}
+                      {isGeneratingStrategy ? "Đang tạo chiến lược..." : "Xây dựng chiến lược nội dung cho từ khóa"}
                     </Button>
                   </div>
 
@@ -586,10 +587,8 @@ function SearchIntentContent() {
                           className=""
                         />
                       </div>
-                      <div className="prose prose-sm max-w-none bg-gray-50 dark:bg-gray-900 p-6 rounded-lg">
-                        <pre className="whitespace-pre-wrap text-sm text-gray-800 dark:text-gray-200 font-sans">
-                          {contentStrategy}
-                        </pre>
+                      <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border">
+                        <MarkdownRenderer content={contentStrategy} className="text-sm" />
                       </div>
                     </div>
                   )}
@@ -597,7 +596,7 @@ function SearchIntentContent() {
                   {isGeneratingStrategy && (
                     <div className="flex flex-col items-center justify-center py-8 text-center">
                       <Loader2 className="h-8 w-8 animate-spin text-orange-600 mb-3" />
-                      <p className="text-sm text-muted-foreground">Đang phân tích và tạo chiến lượng nội dung...</p>
+                      <p className="text-sm text-muted-foreground">Đang phân tích và tạo chiến lược nội dung...</p>
                     </div>
                   )}
                 </div>
