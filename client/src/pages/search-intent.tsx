@@ -16,6 +16,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatNumber } from "@/lib/search-intent-utils";
+import {
+  DEFAULT_LANG,
+  DEFAULT_GEO,
+  GEO_TARGET_CONSTANTS,
+  LANGUAGE_CONSTANTS,
+  NETWORK_CONSTANTS
+} from "@/constants/google-ads-constants";
 
 // Chart component for monthly search trends
 interface MonthlyTrendsChartProps {
@@ -156,8 +163,8 @@ interface SearchIntentRequestPayload {
 function SearchIntentContent() {
   const [keywordInput, setKeywordInput] = useState("");
   const [result, setResult] = useState<SearchIntentResponse | null>(null);
-  const [language, setLanguage] = useState("languageConstants/1040");
-  const [geoTarget, setGeoTarget] = useState("geoTargetConstants/2704");
+  const [language, setLanguage] = useState(DEFAULT_LANG);
+  const [geoTarget, setGeoTarget] = useState(DEFAULT_GEO);
   const [network, setNetwork] = useState<KeywordPlanNetwork>("GOOGLE_SEARCH");
 
   // Content strategy states
@@ -215,11 +222,25 @@ function SearchIntentContent() {
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const queryKeyword = searchParams.get('q');
+    const queryLanguage = searchParams.get('lang');
+    const queryGeo = searchParams.get('geo');
+    const queryNetwork = searchParams.get('network');
 
     console.log('🔍 [SearchIntent] Location changed:', location);
     console.log('🔍 [SearchIntent] Full URL:', window.location.href);
     console.log('🔍 [SearchIntent] Search params:', window.location.search);
-    console.log('🔍 [SearchIntent] Query keyword:', queryKeyword);
+    console.log('🔍 [SearchIntent] Query params:', { queryKeyword, queryLanguage, queryGeo, queryNetwork });
+
+    // Set language and geo from query params if provided
+    if (queryLanguage && LANGUAGE_CONSTANTS.find(lang => lang.value === queryLanguage)) {
+      setLanguage(queryLanguage);
+    }
+    if (queryGeo && GEO_TARGET_CONSTANTS.find(geo => geo.value === queryGeo)) {
+      setGeoTarget(queryGeo);
+    }
+    if (queryNetwork && (queryNetwork === "GOOGLE_SEARCH" || queryNetwork === "GOOGLE_SEARCH_AND_PARTNERS")) {
+      setNetwork(queryNetwork as KeywordPlanNetwork);
+    }
 
     if (queryKeyword) {
       const decodedKeyword = decodeURIComponent(queryKeyword);
@@ -230,11 +251,16 @@ function SearchIntentContent() {
 
       // Auto-submit if keyword is valid
       if (decodedKeyword.trim().length > 0) {
+        // Use query params or current state for language/geo/network
+        const finalLanguage = queryLanguage && LANGUAGE_CONSTANTS.find(lang => lang.value === queryLanguage) ? queryLanguage : language;
+        const finalGeo = queryGeo && GEO_TARGET_CONSTANTS.find(geo => geo.value === queryGeo) ? queryGeo : geoTarget;
+        const finalNetwork = queryNetwork && (queryNetwork === "GOOGLE_SEARCH" || queryNetwork === "GOOGLE_SEARCH_AND_PARTNERS") ? queryNetwork as KeywordPlanNetwork : network;
+
         const payload: SearchIntentRequestPayload = {
           keywords: [decodedKeyword.trim()],
-          language,
-          geoTargets: [geoTarget],
-          network,
+          language: finalLanguage,
+          geoTargets: [finalGeo],
+          network: finalNetwork,
         };
 
         console.log('🔍 [SearchIntent] Auto-submitting with payload:', payload);
@@ -246,7 +272,7 @@ function SearchIntentContent() {
         }, 100);
       }
     }
-  }, [location, language, geoTarget, network]);
+  }, [location]);
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -422,10 +448,17 @@ function SearchIntentContent() {
                       <SelectTrigger>
                         <SelectValue placeholder="Chọn ngôn ngữ" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="languageConstants/1040">Vietnamese (languageConstants/1040)</SelectItem>
+                      <SelectContent align="start">
+                        {LANGUAGE_CONSTANTS.map((lang) => (
+                          <SelectItem key={lang.value} value={lang.value} className="text-left">
+                            {lang.name} ({lang.value})
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {LANGUAGE_CONSTANTS.find(lang => lang.value === language)?.name || "Chọn ngôn ngữ"}
+                    </p>
                   </div>
 
                   <div className="space-y-1">
@@ -434,10 +467,17 @@ function SearchIntentContent() {
                       <SelectTrigger>
                         <SelectValue placeholder="Chọn khu vực" />
                       </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="geoTargetConstants/2704">Vietnam (geoTargetConstants/2704)</SelectItem>
+                      <SelectContent align="start">
+                        {GEO_TARGET_CONSTANTS.map((geo) => (
+                          <SelectItem key={geo.value} value={geo.value} className="text-left">
+                            {geo.name} ({geo.value})
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {GEO_TARGET_CONSTANTS.find(geo => geo.value === geoTarget)?.name || "Chọn khu vực"}
+                    </p>
                   </div>
 
                   <div className="space-y-1">
@@ -447,10 +487,16 @@ function SearchIntentContent() {
                         <SelectValue placeholder="Chọn mạng" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="GOOGLE_SEARCH">Google Search</SelectItem>
-                        <SelectItem value="GOOGLE_SEARCH_AND_PARTNERS">Google Search & Partners</SelectItem>
+                        {NETWORK_CONSTANTS.map((net) => (
+                          <SelectItem key={net.value} value={net.value}>
+                            {net.name}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-muted-foreground">
+                      {NETWORK_CONSTANTS.find(net => net.value === network)?.name || "Chọn mạng"}
+                    </p>
                   </div>
                 </div>
 
@@ -489,8 +535,8 @@ function SearchIntentContent() {
                     Từ khóa: <strong>{result.keywords[0]}</strong> |
                     {result.meta && (
                       <span>
-                        {' '}Ngôn ngữ: {result.meta.language} |
-                        Khu vực: {result.meta.geoTargets.join(", ")} |
+                        {' '}Ngôn ngữ: {LANGUAGE_CONSTANTS.find(lang => lang.value === result.meta.language)?.name || result.meta.language} ({result.meta.language}) |
+                        Khu vực: {result.meta.geoTargets.map(geo => GEO_TARGET_CONSTANTS.find(g => g.value === geo)?.name || geo).join(", ")} ({result.meta.geoTargets.join(", ")}) |
                         Mạng: {result.meta.network.replace(/_/g, " ")}
                       </span>
                     )}

@@ -14,6 +14,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatNumber, parseKeywords } from "@/lib/search-intent-utils";
+import {
+  DEFAULT_LANG,
+  DEFAULT_GEO,
+  GEO_TARGET_CONSTANTS,
+  LANGUAGE_CONSTANTS,
+  NETWORK_CONSTANTS
+} from "@/constants/google-ads-constants";
 
 
 export type KeywordPlanNetwork = "GOOGLE_SEARCH" | "GOOGLE_SEARCH_AND_PARTNERS";
@@ -59,8 +66,8 @@ function KeywordPlannerContent() {
   const [selectedRows, setSelectedRows] = useState<ShortlistEntry[]>([]);
   const [hasCopied, setHasCopied] = useState(false);
   const [hasCopiedList, setHasCopiedList] = useState(false);
-  const [language, setLanguage] = useState("languageConstants/1040");
-  const [geoTarget, setGeoTarget] = useState("geoTargetConstants/2704");
+  const [language, setLanguage] = useState(DEFAULT_LANG);
+  const [geoTarget, setGeoTarget] = useState(DEFAULT_GEO);
   const [network, setNetwork] = useState<KeywordPlanNetwork>("GOOGLE_SEARCH");
   const { toast } = useToast();
   const shortlistRef = useRef<HTMLDivElement>(null);
@@ -320,11 +327,17 @@ function KeywordPlannerContent() {
                         <SelectTrigger>
                           <SelectValue placeholder="Chọn ngôn ngữ" />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="languageConstants/1040">Vietnamese (languageConstants/1040)</SelectItem>
+                        <SelectContent align="start">
+                          {LANGUAGE_CONSTANTS.map((lang) => (
+                            <SelectItem key={lang.value} value={lang.value} className="text-left">
+                              {lang.name} ({lang.value})
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">Vietnamese (languageConstants/1040)</p>
+                      <p className="text-xs text-muted-foreground">
+                        {LANGUAGE_CONSTANTS.find(lang => lang.value === language)?.name || "Chọn ngôn ngữ"}
+                      </p>
                     </div>
 
                     <div className="space-y-1">
@@ -333,11 +346,17 @@ function KeywordPlannerContent() {
                         <SelectTrigger>
                           <SelectValue placeholder="Chọn khu vực" />
                         </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="geoTargetConstants/2704">Vietnam (geoTargetConstants/2704)</SelectItem>
+                        <SelectContent align="start">
+                          {GEO_TARGET_CONSTANTS.map((geo) => (
+                            <SelectItem key={geo.value} value={geo.value} className="text-left">
+                              {geo.name} ({geo.value})
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">Vietnam (geoTargetConstants/2704)</p>
+                      <p className="text-xs text-muted-foreground">
+                        {GEO_TARGET_CONSTANTS.find(geo => geo.value === geoTarget)?.name || "Chọn khu vực"}
+                      </p>
                     </div>
 
                     <div className="space-y-1">
@@ -347,12 +366,15 @@ function KeywordPlannerContent() {
                           <SelectValue placeholder="Chọn mạng" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="GOOGLE_SEARCH">Google Search</SelectItem>
-                          <SelectItem value="GOOGLE_SEARCH_AND_PARTNERS">Google Search & Partners</SelectItem>
+                          {NETWORK_CONSTANTS.map((net) => (
+                            <SelectItem key={net.value} value={net.value}>
+                              {net.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">
-                        {network === "GOOGLE_SEARCH" ? "Google Search" : "Google Search & Partners"}
+                        {NETWORK_CONSTANTS.find(net => net.value === network)?.name || "Chọn mạng"}
                       </p>
                     </div>
                   </div>
@@ -376,8 +398,8 @@ function KeywordPlannerContent() {
                   <CardTitle>Ý tưởng từ khóa từ Google</CardTitle>
                   {result?.meta && (
                     <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-                      <li>Ngôn ngữ: {result.meta.language}</li>
-                      <li>Khu vực: {result.meta.geoTargets.join(", ")}</li>
+                      <li>Ngôn ngữ: {LANGUAGE_CONSTANTS.find(lang => lang.value === result.meta.language)?.name || result.meta.language} ({result.meta.language})</li>
+                      <li>Khu vực: {result.meta.geoTargets.map(geo => GEO_TARGET_CONSTANTS.find(g => g.value === geo)?.name || geo).join(", ")} ({result.meta.geoTargets.join(", ")})</li>
                       <li>Mạng: {result.meta.network.replace(/_/g, " ")}</li>
                     </ul>
                   )}
