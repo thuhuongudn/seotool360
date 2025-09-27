@@ -1,11 +1,13 @@
 import { useMemo, useState, useEffect, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
-import { Loader2, Copy, BarChart3 } from "lucide-react";
+import { Loader2, Copy, BarChart3, Lightbulb } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import ToolPermissionGuard from "@/components/tool-permission-guard";
+import CopyMarkdownButton from "@/components/copy-markdown-button";
+import MarkdownRenderer from "@/components/markdown-renderer";
 import { useToolId } from "@/hooks/use-tool-id";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -157,6 +159,11 @@ function SearchIntentContent() {
   const [language, setLanguage] = useState("languageConstants/1040");
   const [geoTarget, setGeoTarget] = useState("geoTargetConstants/2704");
   const [network, setNetwork] = useState<KeywordPlanNetwork>("GOOGLE_SEARCH");
+
+  // Content strategy states
+  const [isGeneratingStrategy, setIsGeneratingStrategy] = useState(false);
+  const [contentStrategy, setContentStrategy] = useState<string>("");
+
   const { toast } = useToast();
   const [location] = useLocation();
 
@@ -300,6 +307,63 @@ function SearchIntentContent() {
         description: error instanceof Error ? error.message : "Không thể sao chép dữ liệu.",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleGenerateContentStrategy = async () => {
+    if (trimmedKeyword.length === 0) {
+      toast({
+        title: "Chưa có từ khóa",
+        description: "Vui lòng nhập một từ khóa để xây dựng chiến lược nội dung.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingStrategy(true);
+    setContentStrategy("");
+
+    try {
+      // Send request to n8n webhook
+      const response = await fetch(
+        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-search-intent-2025-09-26",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ keyword: trimmedKeyword }),
+        },
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const webhookResponse = await response.json();
+
+      // Parse the response - try different possible fields
+      const content =
+        webhookResponse.output ||
+        webhookResponse.content ||
+        webhookResponse.result ||
+        JSON.stringify(webhookResponse, null, 2);
+
+      setContentStrategy(content);
+
+      toast({
+        title: "Thành công!",
+        description: "Chiến lược nội dung đã được tạo thành công.",
+      });
+    } catch (error) {
+      console.error("Webhook error:", error);
+      toast({
+        title: "Có lỗi xảy ra",
+        description: "Không thể tạo chiến lược nội dung. Vui lòng thử lại sau.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingStrategy(false);
     }
   };
 
@@ -481,6 +545,61 @@ function SearchIntentContent() {
                     Không có dữ liệu historical metrics cho từ khóa này.
                   </div>
                 )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Content Strategy Section */}
+        {trimmedKeyword.length > 0 && (
+          <div className="max-w-6xl mx-auto mt-8">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <Lightbulb className="h-5 w-5 text-orange-600" />
+                  <CardTitle>Chiến lược nội dung cho từ khóa</CardTitle>
+                </div>
+                <CardDescription>
+                  Tạo chiến lược nội dung chi tiết dựa trên từ khóa: <strong>{trimmedKeyword}</strong>
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="flex justify-center">
+                    <Button
+                      onClick={handleGenerateContentStrategy}
+                      disabled={isGeneratingStrategy || trimmedKeyword.length === 0}
+                      size="lg"
+                      className="px-8 bg-orange-600 hover:bg-orange-700 text-white"
+                    >
+                      {isGeneratingStrategy && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                      {isGeneratingStrategy ? "Đang tạo chiến lược..." : "Xây dựng chiến lược nội dung cho từ khóa"}
+                    </Button>
+                  </div>
+
+                  {contentStrategy && (
+                    <div className="mt-6 space-y-4">
+                      <div className="flex justify-end">
+                        <CopyMarkdownButton
+                          content={contentStrategy}
+                          size="sm"
+                          variant="outline"
+                          className=""
+                        />
+                      </div>
+                      <div className="bg-gray-50 dark:bg-gray-900 p-4 rounded-lg border">
+                        <MarkdownRenderer content={contentStrategy} className="text-sm" />
+                      </div>
+                    </div>
+                  )}
+
+                  {isGeneratingStrategy && (
+                    <div className="flex flex-col items-center justify-center py-8 text-center">
+                      <Loader2 className="h-8 w-8 animate-spin text-orange-600 mb-3" />
+                      <p className="text-sm text-muted-foreground">Đang phân tích và tạo chiến lược nội dung...</p>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
