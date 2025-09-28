@@ -318,10 +318,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
 
+      // Determine correct redirect URL based on environment
+      const getRedirectUrl = () => {
+        const origin = window.location.origin;
+        // For production, ensure we use the correct domain
+        if (origin.includes('seotool360.vn')) {
+          return `${origin}/auth/callback`;
+        }
+        // For localhost development
+        if (origin.includes('localhost')) {
+          return `${origin}/auth/callback`;
+        }
+        // Fallback to current origin
+        return `${origin}/auth/callback`;
+      };
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`
+          redirectTo: getRedirectUrl()
         }
       });
 
