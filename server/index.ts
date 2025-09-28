@@ -38,6 +38,22 @@ app.use((req, res, next) => {
   next();
 });
 
+// HTTPS redirect middleware for production
+app.use((req: Request, res: Response, next: NextFunction) => {
+  // Only redirect in production and when accessed via HTTP
+  if (process.env.NODE_ENV === 'production') {
+    // Check if request came via HTTP (not HTTPS)
+    const protocol = req.header('x-forwarded-proto') || req.protocol;
+    if (protocol !== 'https') {
+      // Construct HTTPS URL
+      const httpsUrl = `https://${req.get('host')}${req.originalUrl}`;
+      log(`Redirecting HTTP to HTTPS: ${req.originalUrl} -> ${httpsUrl}`);
+      return res.redirect(301, httpsUrl);
+    }
+  }
+  next();
+});
+
 (async () => {
   const server = await registerRoutes(app);
 
