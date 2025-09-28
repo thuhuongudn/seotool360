@@ -38,17 +38,34 @@ app.use((req, res, next) => {
   next();
 });
 
-// HTTPS redirect middleware for production
+// HTTPS and www redirect middleware for production
 app.use((req: Request, res: Response, next: NextFunction) => {
-  // Only redirect in production and when accessed via HTTP
+  // Only redirect in production
   if (process.env.NODE_ENV === 'production') {
-    // Check if request came via HTTP (not HTTPS)
     const protocol = req.header('x-forwarded-proto') || req.protocol;
-    if (protocol !== 'https') {
-      // Construct HTTPS URL
-      const httpsUrl = `https://${req.get('host')}${req.originalUrl}`;
-      log(`Redirecting HTTP to HTTPS: ${req.originalUrl} -> ${httpsUrl}`);
-      return res.redirect(301, httpsUrl);
+    const host = req.get('host') || '';
+
+    // Check if we need to redirect for HTTPS or www removal
+    const needsHttpsRedirect = protocol !== 'https';
+    const needsWwwRedirect = host.startsWith('www.');
+
+    if (needsHttpsRedirect || needsWwwRedirect) {
+      // Determine the target host (remove www if present)
+      const targetHost = needsWwwRedirect ? host.replace(/^www\./, '') : host;
+
+      // Construct the canonical URL
+      const canonicalUrl = `https://${targetHost}${req.originalUrl}`;
+
+      // Log the redirect reason
+      if (needsHttpsRedirect && needsWwwRedirect) {
+        log(`Redirecting HTTP+www to HTTPS: ${protocol}://${host}${req.originalUrl} -> ${canonicalUrl}`);
+      } else if (needsHttpsRedirect) {
+        log(`Redirecting HTTP to HTTPS: ${protocol}://${host}${req.originalUrl} -> ${canonicalUrl}`);
+      } else {
+        log(`Redirecting www to non-www: ${protocol}://${host}${req.originalUrl} -> ${canonicalUrl}`);
+      }
+
+      return res.redirect(301, canonicalUrl);
     }
   }
   next();
