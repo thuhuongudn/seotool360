@@ -31,6 +31,7 @@ import GoogleChecker from "@/pages/google-checker";
 import ImageSeo from "@/pages/image-seo";
 import QrCode from "@/pages/qr-code";
 import Blog from "@/pages/blog";
+import AuthCallback from "@/pages/auth-callback";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -107,6 +108,8 @@ function Router() {
       <Route path="/image-seo" component={ImageSeo} />
       <Route path="/qr-code" component={QrCode} />
       <Route path="/blog" component={Blog} />
+      {/* Auth Routes */}
+      <Route path="/auth/callback" component={AuthCallback} />
       <Route component={NotFound} />
     </Switch>
   );

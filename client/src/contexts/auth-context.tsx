@@ -22,6 +22,7 @@ interface AuthContextType {
   showLoginModal: boolean;
   setShowLoginModal: (show: boolean) => void;
   login: (email: string, password: string) => Promise<boolean>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => void;
   isAdmin: () => boolean;
 }
@@ -262,11 +263,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string): Promise<boolean> => {
     try {
       setIsLoading(true);
-      
+
       // Trim inputs and normalize email
       const trimmedEmail = email.trim().toLowerCase();
       const trimmedPassword = password.trim();
-      
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email: trimmedEmail,
         password: trimmedPassword
@@ -275,7 +276,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         // Enhanced error mapping for better user guidance
         let errorMessage = "Email hoặc mật khẩu không chính xác";
-        
+
         if (error.message.includes('Invalid login credentials')) {
           errorMessage = "Email hoặc mật khẩu không chính xác. Vui lòng kiểm tra lại thông tin đăng nhập.";
         } else if (error.message.includes('Email not confirmed')) {
@@ -285,7 +286,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else if (error.message.includes('signup is disabled')) {
           errorMessage = "Đăng ký tài khoản đã bị tắt. Vui lòng liên hệ quản trị viên.";
         }
-        
+
         toast({
           title: "Lỗi đăng nhập",
           description: errorMessage,
@@ -308,6 +309,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         variant: "destructive"
       });
       return false;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loginWithGoogle = async (): Promise<void> => {
+    try {
+      setIsLoading(true);
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`
+        }
+      });
+
+      if (error) {
+        console.error('Google OAuth error:', error);
+        toast({
+          title: "Lỗi đăng nhập Google",
+          description: "Không thể đăng nhập bằng Google. Vui lòng thử lại.",
+          variant: "destructive"
+        });
+      }
+
+      // Note: The redirect will handle the rest of the authentication flow
+      // The actual user auth success will be handled by the auth state change listener
+    } catch (error) {
+      console.error('Google login error:', error);
+      toast({
+        title: "Lỗi kết nối",
+        description: "Không thể kết nối đến Google. Vui lòng thử lại.",
+        variant: "destructive"
+      });
     } finally {
       setIsLoading(false);
     }
@@ -341,6 +376,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     showLoginModal,
     setShowLoginModal,
     login,
+    loginWithGoogle,
     logout,
     isAdmin
   };

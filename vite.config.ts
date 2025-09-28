@@ -7,6 +7,7 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 const resolvedDir = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
+  envDir: resolvedDir, // Look for .env files in project root
   plugins: [
     react(),
     runtimeErrorOverlay(),
@@ -35,6 +36,12 @@ export default defineConfig({
     emptyOutDir: true,
   },
   server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:5001',
+        changeOrigin: true,
+      },
+    },
     fs: {
       strict: true,
       deny: ["**/.*"],

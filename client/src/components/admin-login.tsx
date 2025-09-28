@@ -9,6 +9,7 @@ import { Eye, EyeOff, LogIn, Loader2, KeyRound } from "lucide-react";
 import logoUrl from "@assets/logo-seotool-360-transparent_1758077866087.png";
 import supabase from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
+import GoogleSigninButton from "@/components/auth/google-signin-button";
 
 interface AdminLoginProps {
   isModal?: boolean;
@@ -180,6 +181,24 @@ export default function AdminLogin({ isModal = false, loginType = 'admin' }: Adm
               </>
             )}
           </Button>
+
+          {/* Divider */}
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <span className="w-full border-t" />
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">
+                Hoặc
+              </span>
+            </div>
+          </div>
+
+          {/* Google Sign-in Button */}
+          <GoogleSigninButton
+            disabled={isLoggingIn}
+            data-testid={loginType === 'admin' ? 'button-admin-google-login' : 'button-member-google-login'}
+          />
           
           {/* Password reset option */}
           <div className="text-center">
