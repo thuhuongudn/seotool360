@@ -100,6 +100,14 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
         description: "Vui lòng đăng nhập để sử dụng công cụ này.",
         variant: "default",
       });
+
+      // Store the intended tool route for redirect after login
+      const route = toolRoutes[tool.name];
+      if (route) {
+        // Store redirect URL in session storage for post-login redirect
+        sessionStorage.setItem('postLoginRedirect', route);
+      }
+
       // Trigger member login modal instead of redirect
       setShowLoginModal(true);
       return;
@@ -125,8 +133,24 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
     >
       <Card className="hover:shadow-lg transition-shadow relative h-full">
         <CardContent className="p-6 h-full flex flex-col">
-          {/* Premium/Free Tag in top-right corner */}
-          <div className="absolute top-2 right-2">
+          {/* Status and Premium/Free Tags in top-right corner */}
+          <div className="absolute top-2 right-2 flex items-center gap-2">
+            {/* Status Badge */}
+            {showStatusIndicator && (
+              <Badge
+                variant={tool.status === 'active' ? 'default' : 'outline'}
+                className={`text-xs ${
+                  tool.status === 'active'
+                    ? 'bg-green-100 text-green-800 border-green-200'
+                    : 'bg-orange-100 text-orange-800 border-orange-200'
+                }`}
+                data-testid={`status-indicator-${tool.name}`}
+              >
+                {tool.status === 'active' ? 'Active' : 'Pending'}
+              </Badge>
+            )}
+
+            {/* Premium/Free Badge */}
             {isFreeTool ? (
               <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 border-green-200">
                 Free
@@ -138,21 +162,10 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
             )}
           </div>
 
-          <div className="relative mb-4">
+          <div className="mb-4">
             <div className={`flex items-center justify-center w-12 h-12 ${tool.iconBgColor} rounded-lg`}>
               <IconComponent className={`${tool.iconColor} w-6 h-6`} />
             </div>
-            
-            {/* Status Indicator - positioned to avoid overlap with Premium/Free badge */}
-            {showStatusIndicator && (
-              <div 
-                className={`absolute -top-1 -left-1 w-4 h-4 rounded-full border-2 border-white ${
-                  tool.status === 'active' ? 'bg-green-500' : 'bg-orange-500'
-                }`}
-                data-testid={`status-indicator-${tool.name}`}
-                title={tool.status === 'active' ? 'Active' : 'Pending'}
-              />
-            )}
           </div>
           
           <h3 

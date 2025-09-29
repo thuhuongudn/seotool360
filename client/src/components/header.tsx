@@ -35,7 +35,6 @@ export default function Header() {
 
   const handleSupport = () => {
     // TODO: Implement support functionality
-    console.log("Support clicked");
   };
 
   return (

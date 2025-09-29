@@ -29,7 +29,6 @@ const defaultMarkdown = `# Chào mừng bạn đến với Trình chuyển đổ
 
 \`\`\`javascript
 // Ví dụ về mã JavaScript
-console.log('Chuyển đổi tức thì!');
 \`\`\``;
 
 export default function MarkdownConverter() {

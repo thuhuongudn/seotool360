@@ -17,6 +17,7 @@ export const seoTools = pgTable("seo_tools", {
   category: text("category").notNull(),
   n8nEndpoint: text("n8n_endpoint"),
   status: text("status").notNull().default("active"), // active | pending
+  tags: text("tags"), // comma-separated tags like "#contentseo,#index"
   // TODO: Add isPremium field when database migration is ready
 });
 

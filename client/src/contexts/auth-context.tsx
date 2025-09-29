@@ -55,7 +55,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await handleAuthSuccess(session.user, session.access_token);
           } catch (authError) {
             // If auth fails (expired token), silently clear and continue
-            console.log('Session auth failed during init, clearing auth state');
             setUser(null);
             setToken(null);
             hadSessionRef.current = false;
@@ -78,7 +77,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event: string, session: any) => {
-      console.log('Auth state change:', event, 'session:', !!session);
       
       if (event === 'SIGNED_IN' && session?.user) {
         hadSessionRef.current = true;
@@ -102,23 +100,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const handleAuthSuccess = async (supabaseUser: any, accessToken: string) => {
     try {
-      console.log('=== handleAuthSuccess START ===', { 
-        userId: supabaseUser.id, 
-        hasToken: !!accessToken,
-        tokenLength: accessToken?.length,
-        currentUser: user?.id,
-        authInProgress: authInProgressRef.current
-      });
       
       // Prevent duplicate auth success calls
       if (user?.id === supabaseUser.id && token === accessToken) {
-        console.log('Already authenticated, skipping duplicate auth success');
         return;
       }
 
       // Prevent concurrent auth requests
       if (authInProgressRef.current) {
-        console.log('Auth already in progress, skipping duplicate call');
         return;
       }
       authInProgressRef.current = true;
@@ -126,7 +115,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Add a small delay to ensure token is properly set in Supabase session
       await new Promise(resolve => setTimeout(resolve, 100));
       
-      console.log('Calling /api/users/me with authenticated token');
       
       // Get user profile from our API
       const response = await fetch(`/api/users/me`, {
@@ -136,11 +124,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       });
 
-      console.log('Response from /api/users/me:', {
-        status: response.status,
-        ok: response.ok,
-        headers: Object.fromEntries(response.headers)
-      });
 
       if (response.ok) {
         const profile = await response.json();
@@ -172,11 +155,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Handle redirect after successful login
         const urlParams = new URLSearchParams(window.location.search);
         const redirectTo = urlParams.get('redirect');
-        
-        if (redirectTo) {
+
+        // Check for stored post-login redirect (from tool clicks)
+        const postLoginRedirect = sessionStorage.getItem('postLoginRedirect');
+
+        if (postLoginRedirect) {
+          // Clear the stored redirect and navigate to intended tool
+          sessionStorage.removeItem('postLoginRedirect');
+
+          // SECURITY: Only allow relative paths starting with '/' to prevent open redirect attacks
+          if (postLoginRedirect.startsWith('/') && !postLoginRedirect.includes('://') && !postLoginRedirect.startsWith('//')) {
+            setTimeout(() => {
+              setLocation(postLoginRedirect);
+            }, 1000); // Small delay to let user see success message
+          }
+        } else if (redirectTo) {
           // Clear the redirect parameter and navigate to intended destination
           window.history.replaceState({}, document.title, window.location.pathname);
-          
+
           // SECURITY: Only allow relative paths starting with '/' to prevent open redirect attacks
           if (redirectTo.startsWith('/') && !redirectTo.includes('://') && !redirectTo.startsWith('//')) {
             setTimeout(() => {
@@ -191,7 +187,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const isMember = profile.role === 'member';
           
           if (isAtAdminPage && isMember) {
-            console.log('Member logged in at /admin, redirecting to home');
             setTimeout(() => {
               window.location.href = '/';
             }, 1000); // Small delay to let user see success message
@@ -200,7 +195,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         // Handle 401 (expired token) silently - don't show error toast for homepage users
         if (response.status === 401) {
-          console.log('Token expired, silently clearing auth state');
           await supabase.auth.signOut();
           return; // Silent exit - no error toast for expired tokens
         }
@@ -226,18 +220,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const handleLogout = () => {
-    console.log('Handling logout');
     
     // Clear all cached queries to prevent permission leakage
     try {
-      console.log('Starting comprehensive cache invalidation during logout');
       queryClient.removeQueries();
       queryClient.clear();
       // Specifically invalidate admin and user permission queries
       queryClient.removeQueries({ queryKey: ['/api/admin'] });
       queryClient.removeQueries({ queryKey: ['/api/user'] });
       queryClient.removeQueries({ queryKey: ['/api/tools'] });
-      console.log('Comprehensive cache invalidation completed');
     } catch (cacheError) {
       console.warn('Cache clearing error during logout:', cacheError);
     }
@@ -365,15 +356,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      console.log('Initiating logout');
       // Clear all TanStack Query cache before logout to prevent sticky permissions
       queryClient.clear();
-      console.log('Pre-logout query cache cleared');
       await supabase.auth.signOut();
       handleLogout();
       // Force additional cache clear after logout
       queryClient.clear();
-      console.log('Post-logout cache clear completed');
     } catch (error) {
       console.error('Logout error:', error);
       handleLogout(); // Force logout even if API call fails

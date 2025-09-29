@@ -113,6 +113,7 @@ function AuthorizedInternalLinkContent() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "x-api-key": import.meta.env.VITE_N8N_API_KEY,
           },
           body: JSON.stringify(payload),
         },

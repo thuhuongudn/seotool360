@@ -8,7 +8,6 @@ import logoUrl from "@assets/logo-seotool-360-transparent_1758077866087.png";
 export default function Home() {
   const handleContactSupport = () => {
     // TODO: Implement contact form or chat widget
-    console.log("Contact support clicked");
   };
 
   return (

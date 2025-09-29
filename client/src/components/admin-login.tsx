@@ -27,14 +27,6 @@ export default function AdminLogin({ isModal = false, loginType = 'admin' }: Adm
 
   // Debug logging for testing
   const isButtonDisabled = isLoggingIn || !email || !password;
-  console.log('AdminLogin state:', { 
-    email: email || 'EMPTY', 
-    password: password ? '[SET]' : 'EMPTY', 
-    isLoggingIn, 
-    isButtonDisabled,
-    emailLength: email.length,
-    passwordLength: password.length
-  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -166,7 +158,7 @@ export default function AdminLogin({ isModal = false, loginType = 'admin' }: Adm
           <Button
             type="submit"
             className="w-full bg-blue-600 hover:bg-blue-700"
-            disabled={isLoggingIn || !email || !password}
+            disabled={isButtonDisabled}
             data-testid={loginType === 'admin' ? 'button-admin-login' : 'button-member-login'}
           >
             {isLoggingIn ? (

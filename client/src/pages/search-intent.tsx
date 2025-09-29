@@ -226,10 +226,6 @@ function SearchIntentContent() {
     const queryGeo = searchParams.get('geo');
     const queryNetwork = searchParams.get('network');
 
-    console.log('🔍 [SearchIntent] Location changed:', location);
-    console.log('🔍 [SearchIntent] Full URL:', window.location.href);
-    console.log('🔍 [SearchIntent] Search params:', window.location.search);
-    console.log('🔍 [SearchIntent] Query params:', { queryKeyword, queryLanguage, queryGeo, queryNetwork });
 
     // Set language and geo from query params if provided
     if (queryLanguage && LANGUAGE_CONSTANTS.find(lang => lang.value === queryLanguage)) {
@@ -244,7 +240,6 @@ function SearchIntentContent() {
 
     if (queryKeyword) {
       const decodedKeyword = decodeURIComponent(queryKeyword);
-      console.log('🔍 [SearchIntent] Decoded keyword:', decodedKeyword);
 
       // Set keyword input
       setKeywordInput(decodedKeyword);
@@ -263,8 +258,6 @@ function SearchIntentContent() {
           network: finalNetwork,
         };
 
-        console.log('🔍 [SearchIntent] Auto-submitting with payload:', payload);
-        console.log('🔍 [SearchIntent] Mutation isPending:', mutation.isPending);
 
         // Small delay to ensure input is set and avoid any race conditions
         setTimeout(() => {
@@ -357,6 +350,7 @@ function SearchIntentContent() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            "x-api-key": import.meta.env.VITE_N8N_API_KEY,
           },
           body: JSON.stringify({ keyword: trimmedKeyword }),
         },

@@ -66,7 +66,6 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       // Table doesn't exist, create it using raw SQL 
       // Security policies will be applied via migration script
-      console.log('Creating internal_link_suggestions table...');
       await db.execute(sql`
         CREATE TABLE IF NOT EXISTS internal_link_suggestions (
           id SERIAL PRIMARY KEY,
@@ -81,8 +80,6 @@ export class DatabaseStorage implements IStorage {
           created_at TIMESTAMP NOT NULL DEFAULT NOW()
         );
       `);
-      console.log('internal_link_suggestions table created');
-      console.log('⚠️  SECURITY: Run setup-rls-policies.sql to enable RLS and create security policies');
     }
   }
 
@@ -90,11 +87,10 @@ export class DatabaseStorage implements IStorage {
     try {
       // Find the ai-writing tool
       const tools = await db.select().from(seoTools).where(eq(seoTools.name, 'ai-writing'));
-      
+
       if (tools.length > 0) {
         const aiWritingTool = tools[0];
-        console.log('Migrating ai-writing tool to internal-link-helper...');
-        
+
         // Update the tool to internal-link-helper
         await db.update(seoTools)
           .set({
@@ -107,11 +103,57 @@ export class DatabaseStorage implements IStorage {
             n8nEndpoint: '/n8n/internal-link-helper'
           })
           .where(eq(seoTools.id, aiWritingTool.id));
-        
-        console.log('Successfully migrated ai-writing to internal-link-helper');
+
       }
     } catch (error) {
       console.error('Error migrating ai-writing tool:', error);
+    }
+  }
+
+  private async addTagsAndKeywordPlanner() {
+    try {
+
+      // Define tag mappings according to user requirements
+      const tagMappings = {
+        'topical-map': '#contentseo',
+        'search-intent': '#contentseo',
+        'internal-link-helper': '#contentseo',
+        'article-rewriter': '#contentseo',
+        'social-media': '#contentseo',
+        'schema-markup': '#contentseo',
+        'bing-indexing': '#index',
+        'google-indexing': '#index',
+        'google-checker': '#index'
+      };
+
+      // Update existing tools with tags
+      for (const [toolName, tags] of Object.entries(tagMappings)) {
+        await db.update(seoTools)
+          .set({ tags })
+          .where(eq(seoTools.name, toolName));
+      }
+
+      // Check if Keyword Planner already exists
+      const keywordPlannerExists = await db.select().from(seoTools).where(eq(seoTools.name, 'keyword-planner'));
+
+      if (keywordPlannerExists.length === 0) {
+        // Add Keyword Planner tool
+        await db.insert(seoTools).values({
+          name: 'keyword-planner',
+          title: 'Keyword Planner',
+          description: 'Tìm kiếm và phân tích từ khóa hiệu quả với dữ liệu từ Google Ads API.',
+          icon: 'Target',
+          iconBgColor: 'bg-emerald-100',
+          iconColor: 'text-emerald-600',
+          category: 'content-seo',
+          n8nEndpoint: '/n8n/keyword-planner',
+          status: 'active',
+          tags: '#contentseo'
+        });
+      }
+
+    } catch (error) {
+      console.error('❌ Error adding tags and Keyword Planner:', error);
     }
   }
 
@@ -121,6 +163,7 @@ export class DatabaseStorage implements IStorage {
     if (existingTools.length > 0) {
       // Tools exist, but check for migration needs
       await this.migrateAiWritingToInternalLink();
+      await this.addTagsAndKeywordPlanner();
       return;
     }
 
@@ -134,7 +177,8 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-purple-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/topical-map',
-        status: "active"
+        status: "active",
+        tags: '#contentseo'
       },
       {
         name: 'search-intent',
@@ -145,7 +189,8 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-blue-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/search-intent',
-        status: "active"
+        status: "active",
+        tags: '#contentseo'
       },
       {
         name: 'internal-link-helper',
@@ -156,7 +201,8 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-green-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/internal-link-helper',
-        status: "active"
+        status: "active",
+        tags: '#contentseo'
       },
       {
         name: 'article-rewriter',
@@ -167,7 +213,8 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-red-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/article-rewriter',
-        status: "active"
+        status: "active",
+        tags: '#contentseo'
       },
       {
         name: 'social-media',
@@ -178,7 +225,8 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-cyan-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/social-media',
-        status: "active"
+        status: "active",
+        tags: '#contentseo'
       },
       {
         name: 'bing-indexing',
@@ -189,7 +237,8 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-blue-600',
         category: 'index',
         n8nEndpoint: '/n8n/bing-indexing',
-        status: "active"
+        status: "active",
+        tags: '#index'
       },
       {
         name: 'google-indexing',
@@ -200,7 +249,8 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-green-600',
         category: 'index',
         n8nEndpoint: '/n8n/google-indexing',
-        status: "active"
+        status: "active",
+        tags: '#index'
       },
       {
         name: 'google-checker',
@@ -211,7 +261,8 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-indigo-600',
         category: 'index',
         n8nEndpoint: '/n8n/google-checker',
-        status: "active"
+        status: "active",
+        tags: '#index'
       },
       {
         name: 'schema-markup',
@@ -222,7 +273,8 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-yellow-600',
         category: 'content-seo',
         n8nEndpoint: '/n8n/schema-markup',
-        status: "active"
+        status: "active",
+        tags: '#contentseo'
       },
       {
         name: 'image-seo',
@@ -233,7 +285,8 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-pink-600',
         category: 'seo',
         n8nEndpoint: '/n8n/image-seo',
-        status: "active"
+        status: "active",
+        tags: null
       },
       {
         name: 'markdown-html',
@@ -244,7 +297,8 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-orange-600',
         category: 'tools',
         n8nEndpoint: '/n8n/markdown-html',
-        status: "active"
+        status: "active",
+        tags: null
       },
       {
         name: 'qr-code',
@@ -255,7 +309,20 @@ export class DatabaseStorage implements IStorage {
         iconColor: 'text-teal-600',
         category: 'tools',
         n8nEndpoint: '/n8n/qr-code',
-        status: "active"
+        status: "active",
+        tags: null
+      },
+      {
+        name: 'keyword-planner',
+        title: 'Keyword Planner',
+        description: 'Tìm kiếm và phân tích từ khóa hiệu quả với dữ liệu từ Google Ads API.',
+        icon: 'Target',
+        iconBgColor: 'bg-emerald-100',
+        iconColor: 'text-emerald-600',
+        category: 'content-seo',
+        n8nEndpoint: '/n8n/keyword-planner',
+        status: "active",
+        tags: '#contentseo'
       }
     ];
 
@@ -312,18 +379,15 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSeoToolWithDependencies(duplicateId: string, keepId: string): Promise<boolean> {
     try {
-      console.log(`🔄 Reassigning user_tool_access from ${duplicateId} to ${keepId}`);
       
       // First, update all user_tool_access records to point to the tool we're keeping
       await db.update(userToolAccess)
         .set({ toolId: keepId })
         .where(eq(userToolAccess.toolId, duplicateId));
       
-      console.log(`✅ Reassigned user_tool_access references`);
       
       // Now we can safely delete the duplicate tool
       const result = await db.delete(seoTools).where(eq(seoTools.id, duplicateId));
-      console.log(`🗑️  Successfully deleted duplicate tool ${duplicateId}`);
       
       return true;
     } catch (error) {
@@ -474,7 +538,6 @@ export class DatabaseStorage implements IStorage {
         }
       })
       .returning();
-    console.log('Tool access granted/updated:', { userId: access.userId, toolId: access.toolId });
     return granted;
   }
 
@@ -483,11 +546,6 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(userToolAccess.userId, userId), eq(userToolAccess.toolId, toolId)))
       .returning();
     const success = result.length > 0;
-    console.log('Permission revoke attempt:', {
-      userId, toolId, 
-      rowsAffected: result.length,
-      success: success
-    });
     return success;
   }
 

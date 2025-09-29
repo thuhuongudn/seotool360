@@ -12,7 +12,6 @@ export default function FloatingSupportButton({
 }: FloatingSupportButtonProps) {
   const handleSupport = () => {
     // TODO: Implement support functionality
-    console.log("Support clicked");
     if (onClick) onClick();
   };
 

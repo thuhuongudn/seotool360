@@ -76,7 +76,7 @@ async function assertToolAccessOrAdmin(
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Get all SEO tools
+  // Get all SEO tools (public - only active tools)
   app.get("/api/seo-tools", async (req: Request, res: Response) => {
     try {
       const tools = await storage.getAllSeoTools();
@@ -84,6 +84,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching SEO tools:", error);
       res.status(500).json({ message: "Failed to fetch SEO tools" });
+    }
+  });
+
+  // Get all SEO tools for authenticated users (all tools including pending)
+  app.get("/api/seo-tools/all", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const tools = await storage.getAllSeoToolsForAdmin();
+      res.json(tools);
+    } catch (error) {
+      console.error("Error fetching all SEO tools:", error);
+      res.status(500).json({ message: "Failed to fetch all SEO tools" });
     }
   });
 
@@ -205,7 +220,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log("[SearchIntent] Mode locked to historical");
 
       // Validate using historical schema (exactly 1 keyword)
       const validation = searchIntentHistoricalRequestSchema.safeParse(req.body);
@@ -225,7 +239,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      console.log("[SearchIntent] HIT", { user: req.user.id, keyword: normalizedKeywords[0] });
 
       // RBAC: Check tool access for "search-intent" (fallback to "keyword-planner")
       let hasAccess = false;
@@ -233,7 +246,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const result = await assertToolAccessOrAdmin(req.user.id, "search-intent");
         hasAccess = result.hasAccess;
       } catch (searchIntentError) {
-        console.log("[SearchIntent] Fallback to keyword-planner tool check");
         try {
           const result = await assertToolAccessOrAdmin(req.user.id, "keyword-planner");
           hasAccess = result.hasAccess;
@@ -299,7 +311,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "At least one keyword is required" });
       }
 
-      console.log("[KeywordPlanner] HIT", { user: req.user.id, n: normalizedKeywords.length });
 
       // RBAC: Check tool access for "keyword-planner"
       const { hasAccess } = await assertToolAccessOrAdmin(req.user.id, "keyword-planner");
@@ -555,11 +566,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Cleanup duplicate tools (admin only)
   app.post("/api/admin/cleanup-duplicate-tools", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
     try {
-      console.log('🧹 Starting cleanup of duplicate tools...');
       
       // Get all tools grouped by name
       const allTools = await storage.getAllSeoToolsForAdmin();
-      console.log(`Found ${allTools.length} total tools in database`);
       
       // Group tools by name and find duplicates
       const toolsByName = allTools.reduce((acc, tool) => {
@@ -575,7 +584,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // For each tool name, keep the first one and delete the rest
       for (const [toolName, tools] of Object.entries(toolsByName)) {
         if (tools.length > 1) {
-          console.log(`🔍 Found ${tools.length} duplicates for ${toolName}`);
           
           // Sort by ID to keep the earliest one
           tools.sort((a, b) => a.id.localeCompare(b.id));
@@ -586,7 +594,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const success = await storage.deleteSeoToolWithDependencies(tool.id, keepTool.id);
             if (success) {
               duplicatesRemoved++;
-              console.log(`🗑️  Deleted duplicate ${toolName}: ${tool.id}`);
             } else {
               console.warn(`⚠️  Failed to delete duplicate ${toolName}: ${tool.id}`);
             }
@@ -594,11 +601,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      console.log(`✅ Cleanup completed! Removed ${duplicatesRemoved} duplicate tools`);
       
       // Get final count
       const finalTools = await storage.getAllSeoToolsForAdmin();
-      console.log(`📊 Final tool count: ${finalTools.length}`);
       
       res.json({
         message: `Successfully removed ${duplicatesRemoved} duplicate tools`,
@@ -1167,16 +1172,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check current permissions before revoking
       const currentPermissions = await storage.getUserToolAccess(userId);
       const hasMatchingPermission = currentPermissions.some(p => p.toolId === toolId);
-      
-      console.log('Permission revoke attempt - Debug info:', {
-        userId,
-        toolId,
-        userExists: !!userProfile,
-        currentPermissionsCount: currentPermissions.length,
-        userPermissions: currentPermissions.map(p => ({ toolId: p.toolId, permission: p.permission })),
-        hasMatchingPermission,
-        actorId: req.user!.id
-      });
       
       // Revoke access
       const success = await storage.revokeToolAccess(userId, toolId);
