@@ -125,6 +125,7 @@ function App() {
           <FloatingSupportButton
             zaloUrl="https://zalo.me/0355418417"
             messengerUrl="https://m.me/quang.nguyentan"
+            contactEmail="tanquangyds@gmail.com"
           />
           {/* Global login modal */}
           <AdminLogin isModal={true} loginType="member" />

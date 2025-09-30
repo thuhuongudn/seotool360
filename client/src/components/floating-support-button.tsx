@@ -5,12 +5,14 @@ import { ChevronUp } from "lucide-react";
 interface FloatingSupportButtonProps {
   zaloUrl?: string;
   messengerUrl?: string;
+  contactEmail?: string;
   className?: string;
 }
 
 export default function FloatingSupportButton({
   zaloUrl = "https://zalo.me/0355418417",
   messengerUrl = "https://m.me/quang.nguyentan",
+  contactEmail = "tanquangyds@gmail.com",
   className = ""
 }: FloatingSupportButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -43,9 +45,26 @@ export default function FloatingSupportButton({
         </Button>
       )}
 
-      {/* Chat Options - Zalo & Messenger */}
+      {/* Chat Options - Email, Messenger & Zalo */}
       {isOpen && (
         <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          {/* Email Contact Button */}
+          <button
+            onClick={() => {
+              window.location.href = `mailto:${contactEmail}?subject=Cần hỗ trợ thêm?&body=Liên hệ với đội ngũ chuyên gia SEO của chúng tôi để được tư vấn miễn phí`;
+              setIsOpen(false);
+            }}
+            className="w-14 h-14 bg-transparent hover:opacity-80 transition-all duration-300 transform hover:scale-110"
+            aria-label="Liên hệ qua email"
+            title="Liên hệ ngay"
+          >
+            <img
+              src="https://cdn.hstatic.net/files/200000713511/file/4616094.png"
+              alt="Email"
+              className="w-full h-full drop-shadow-lg"
+            />
+          </button>
+
           {/* Messenger Button */}
           <button
             onClick={() => window.open(messengerUrl, "_blank")}
@@ -93,7 +112,7 @@ export default function FloatingSupportButton({
       {/* Tooltip/Label */}
       {!isOpen && (
         <div className="absolute right-16 bottom-0 bg-gray-800 text-white px-3 py-2 rounded-lg text-sm whitespace-nowrap opacity-0 hover:opacity-100 pointer-events-none transition-opacity duration-300">
-          Chat với chúng tôi qua Zalo
+          Liên hệ với chúng tôi
         </div>
       )}
     </div>

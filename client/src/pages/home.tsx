@@ -7,7 +7,7 @@ import logoUrl from "@assets/logo-seotool-360-transparent_1758077866087.png";
 
 export default function Home() {
   const handleContactSupport = () => {
-    // TODO: Implement contact form or chat widget
+    window.location.href = "mailto:tanquangyds@gmail.com?subject=Cần hỗ trợ thêm?&body=Liên hệ với đội ngũ chuyên gia SEO của chúng tôi để được tư vấn miễn phí";
   };
 
   return (

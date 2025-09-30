@@ -1211,7 +1211,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============================================
   // SECURITY: BOOTSTRAP ENDPOINT REMOVED
   // ============================================
-  
+
   // Bootstrap endpoint has been removed after successful ROOT admin setup
   // This eliminates the security vulnerability of unauthenticated admin escalation
 
