@@ -122,7 +122,10 @@ function App() {
         <TooltipProvider>
           <Toaster />
           <Router />
-          <FloatingSupportButton />
+          <FloatingSupportButton
+            zaloUrl="https://zalo.me/0355418417"
+            messengerUrl="https://m.me/quang.nguyentan"
+          />
           {/* Global login modal */}
           <AdminLogin isModal={true} loginType="member" />
         </TooltipProvider>

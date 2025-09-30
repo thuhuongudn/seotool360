@@ -1,30 +1,101 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { MessageCircle } from "lucide-react";
+import { ChevronUp } from "lucide-react";
 
 interface FloatingSupportButtonProps {
-  onClick?: () => void;
+  zaloUrl?: string;
+  messengerUrl?: string;
   className?: string;
 }
 
-export default function FloatingSupportButton({ 
-  onClick, 
-  className = "" 
+export default function FloatingSupportButton({
+  zaloUrl = "https://zalo.me/0355418417",
+  messengerUrl = "https://m.me/quang.nguyentan",
+  className = ""
 }: FloatingSupportButtonProps) {
-  const handleSupport = () => {
-    // TODO: Implement support functionality
-    if (onClick) onClick();
+  const [isOpen, setIsOpen] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+
+  // Theo dõi scroll để hiển thị nút scroll to top
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 300);
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   return (
-    <div className={`fixed bottom-6 right-6 z-50 ${className}`}>
-      <Button
-        onClick={handleSupport}
-        className="w-14 h-14 rounded-full bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110"
+    <div className={`fixed bottom-6 right-6 z-50 flex flex-col items-end gap-4 ${className}`}>
+      {/* Scroll to Top Button */}
+      {showScrollTop && (
+        <Button
+          onClick={scrollToTop}
+          className="w-14 h-14 rounded-full bg-rose-500 hover:bg-rose-600 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-110 animate-in fade-in slide-in-from-bottom-5"
+          aria-label="Cuộn lên đầu trang"
+        >
+          <ChevronUp className="h-6 w-6" />
+        </Button>
+      )}
+
+      {/* Chat Options - Zalo & Messenger */}
+      {isOpen && (
+        <div className="flex flex-col gap-3 animate-in fade-in slide-in-from-bottom-5 duration-300">
+          {/* Messenger Button */}
+          <button
+            onClick={() => window.open(messengerUrl, "_blank")}
+            className="w-14 h-14 bg-transparent hover:opacity-80 transition-all duration-300 transform hover:scale-110"
+            aria-label="Chat qua Messenger"
+          >
+            <img
+              src="https://theme.hstatic.net/200000713511/1001249172/14/addthis-messenger.svg?v=669"
+              alt="Messenger"
+              className="w-full h-full drop-shadow-lg"
+            />
+          </button>
+
+          {/* Zalo Button */}
+          <button
+            onClick={() => window.open(zaloUrl, "_blank")}
+            className="w-14 h-14 bg-transparent hover:opacity-80 transition-all duration-300 transform hover:scale-110"
+            aria-label="Chat qua Zalo"
+          >
+            <img
+              src="https://theme.hstatic.net/200000713511/1001249172/14/addthis-zalo.svg?v=669"
+              alt="Zalo"
+              className="w-full h-full drop-shadow-lg"
+            />
+          </button>
+        </div>
+      )}
+
+      {/* Main Chat Toggle Button */}
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className={`w-14 h-14 bg-transparent hover:opacity-80 transition-all duration-300 transform hover:scale-110 ${
+          isOpen ? "rotate-45" : ""
+        }`}
         data-testid="button-floating-support"
-        aria-label="Mở hỗ trợ"
+        aria-label={isOpen ? "Đóng menu chat" : "Mở menu chat"}
       >
-        <MessageCircle className="h-6 w-6" />
-      </Button>
+        <img
+          src="https://cdn.hstatic.net/files/200000713511/file/help-support-information-svgrepo-com.svg"
+          alt="Chat"
+          className="w-full h-full drop-shadow-lg"
+        />
+      </button>
+
+      {/* Tooltip/Label */}
+      {!isOpen && (
+        <div className="absolute right-16 bottom-0 bg-gray-800 text-white px-3 py-2 rounded-lg text-sm whitespace-nowrap opacity-0 hover:opacity-100 pointer-events-none transition-opacity duration-300">
+          Chat với chúng tôi qua Zalo
+        </div>
+      )}
     </div>
   );
 }
