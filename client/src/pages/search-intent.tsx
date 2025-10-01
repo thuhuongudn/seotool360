@@ -616,7 +616,7 @@ function SearchIntentContent() {
               <CardHeader>
                 <div className="flex items-center gap-2">
                   <Lightbulb className="h-5 w-5 text-orange-600" />
-                  <CardTitle>Chiến lược nội dung cho từ khóa</CardTitle>
+                  <CardTitle>Chiến lược nội dung cho từ khóa (Hiện chỉ áp dụng tại Việt Nam)</CardTitle>
                 </div>
                 <CardDescription>
                   Tạo chiến lược nội dung chi tiết dựa trên từ khóa: <strong>{trimmedKeyword}</strong>
