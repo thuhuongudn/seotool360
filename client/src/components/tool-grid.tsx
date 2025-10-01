@@ -24,7 +24,7 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
   const { user, isAdmin } = useAuth();
   
   // Define free tools (same logic as tool-card.tsx)
-  const freeTools = new Set(['markdown-html', 'qr-code']);
+  const freeTools = new Set(['markdown-html', 'qr-code', 'image-seo']);
 
   // Choose the appropriate API endpoint based on authentication status and user role
   // If user is admin, show all tools including pending ones (admin endpoint)

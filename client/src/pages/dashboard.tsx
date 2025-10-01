@@ -56,6 +56,14 @@ export default function Dashboard() {
     enabled: !!user && isAdmin(),
   });
 
+  // Define free tools (same as tool-card.tsx and tool-grid.tsx)
+  const freeTools = new Set(['markdown-html', 'qr-code', 'image-seo']);
+
+  // Calculate total accessible tools: granted tools + all free tools
+  const accessibleToolsCount = tools
+    ? tools.filter(t => t.has_access || freeTools.has(t.name)).length
+    : 0;
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
@@ -103,8 +111,8 @@ export default function Dashboard() {
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{tools?.filter(t => t.has_access).length || 0}</div>
-              <p className="text-xs text-muted-foreground">Tổng số tools có quyền truy cập</p>
+              <div className="text-2xl font-bold">{accessibleToolsCount}</div>
+              <p className="text-xs text-muted-foreground">Tools có quyền + Free tools</p>
             </CardContent>
           </Card>
 
