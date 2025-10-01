@@ -51,7 +51,7 @@ export default function Dashboard() {
 
   // Fetch recent token logs (admin only)
   // Use queryKey array for automatic auth header injection
-  const { data: recentLogs } = useQuery({
+  const { data: recentLogs } = useQuery<{ data: any[] }>({
     queryKey: ['/api/admin/token-usage-logs?limit=5'],
     enabled: !!user && isAdmin(),
   });

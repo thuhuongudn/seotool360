@@ -263,6 +263,7 @@ function SearchIntentContent() {
 
         // Auto-submit with token consumption
         setTimeout(async () => {
+          if (!toolId) return;
           await executeWithToken(toolId, 1, async () => {
             mutation.mutate(payload);
             return true;
@@ -292,6 +293,7 @@ function SearchIntentContent() {
     };
 
     // Wrap API call with token consumption (1 token per search intent analysis)
+    if (!toolId) return;
     await executeWithToken(toolId, 1, async () => {
       mutation.mutate(payload);
       return true;
@@ -349,6 +351,7 @@ function SearchIntentContent() {
     }
 
     // Wrap content strategy generation with token consumption (1 token per generation)
+    if (!toolId) return;
     const result = await executeWithToken(toolId, 1, async () => {
       setIsGeneratingStrategy(true);
       setContentStrategy("");

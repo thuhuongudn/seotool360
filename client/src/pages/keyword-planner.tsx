@@ -154,6 +154,7 @@ function KeywordPlannerContent() {
     };
 
     // Wrap API call with token consumption (1 token per analysis)
+    if (!toolId) return;
     await executeWithToken(toolId, 1, async () => {
       mutation.mutate(payload);
       return true;
