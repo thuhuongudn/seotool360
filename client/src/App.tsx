@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import FloatingSupportButton from "@/components/floating-support-button";
+import { StatusBanner } from "@/components/status-banner";
 import { AuthProvider } from "@/contexts/auth-context";
 import AdminLogin from "@/components/admin-login";
 import ProtectedAdminRoute from "@/components/protected-admin-route";
@@ -16,6 +17,7 @@ import SocialMediaWriter from "@/pages/social-media-writer";
 import AllSocialMediaPosts from "@/pages/all-social-media-posts";
 import AllInternalLinkSuggestions from "@/pages/all-internal-link-suggestions";
 import AdminPage from "@/pages/admin";
+import AdminUsers from "@/pages/admin-users";
 // Content SEO Tools
 import KeywordPlanner from "@/pages/keyword-planner";
 import TopicalMap from "@/pages/topical-map";
@@ -60,6 +62,11 @@ function Router() {
         <ProtectedAdminRoute>
           <AdminPage />
         </ProtectedAdminRoute>
+      </Route>
+      <Route path="/admin/users">
+        <ProtectedRoute>
+          <AdminUsers />
+        </ProtectedRoute>
       </Route>
       {/* Content SEO Routes */}
       <Route path="/keyword-planner">
@@ -121,6 +128,7 @@ function App() {
       <AuthProvider>
         <TooltipProvider>
           <Toaster />
+          <StatusBanner />
           <Router />
           <FloatingSupportButton
             zaloUrl="https://zalo.me/0355418417"

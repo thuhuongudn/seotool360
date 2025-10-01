@@ -21,6 +21,7 @@ import {
   LANGUAGE_CONSTANTS,
   NETWORK_CONSTANTS
 } from "@/constants/google-ads-constants";
+import { useTokenManagement } from "@/hooks/use-token-management";
 
 
 export type KeywordPlanNetwork = "GOOGLE_SEARCH" | "GOOGLE_SEARCH_AND_PARTNERS";
@@ -72,6 +73,7 @@ function KeywordPlannerContent() {
   const { toast } = useToast();
   const shortlistRef = useRef<HTMLDivElement>(null);
   const [, setLocation] = useLocation();
+  const { executeWithToken, canUseToken, isProcessing: isTokenProcessing } = useTokenManagement();
 
   const parsedKeywords = useMemo(() => parseKeywords(keywordsInput), [keywordsInput]);
   const shortlistKeywordSet = useMemo(
@@ -124,7 +126,7 @@ function KeywordPlannerContent() {
     },
   });
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (parsedKeywords.length === 0) {
@@ -150,7 +152,11 @@ function KeywordPlannerContent() {
       network,
     };
 
-    mutation.mutate(payload);
+    // Wrap API call with token consumption (1 token per analysis)
+    await executeWithToken(1, async () => {
+      mutation.mutate(payload);
+      return true;
+    });
   };
 
   const handleAddToShortlist = (row: KeywordIdeaRow) => {
@@ -269,7 +275,7 @@ function KeywordPlannerContent() {
     }
   };
 
-  const isSubmitting = mutation.isPending;
+  const isSubmitting = mutation.isPending || isTokenProcessing;
   const hasResults = !!result && result.rows.length > 0;
 
   return (
@@ -383,7 +389,7 @@ function KeywordPlannerContent() {
                     <p className="text-sm text-muted-foreground">
                       Tổng số từ khóa hợp lệ: <span className="font-semibold text-primary">{parsedKeywords.length}</span>
                     </p>
-                    <Button type="submit" disabled={isSubmitting || parsedKeywords.length === 0}>
+                    <Button type="submit" disabled={isSubmitting || parsedKeywords.length === 0 || !canUseToken}>
                       {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
                       Tìm ý tưởng từ khóa
                     </Button>

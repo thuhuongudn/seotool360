@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { 
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -12,6 +12,7 @@ import logoUrl from "@assets/logo-seotool-360-transparent_1758077866087.png";
 import { Link } from "wouter";
 import { useAuth } from "@/contexts/auth-context";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { TokenWidget } from "@/components/token-widget";
 
 const contentSeoItems = [
   { label: "Keyword Planner", href: "/keyword-planner" },
@@ -177,6 +178,12 @@ export default function Header() {
                       </div>
                     </div>
                   </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  {user && (
+                    <div className="px-2 py-2">
+                      <TokenWidget />
+                    </div>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
                     <Link href="/dashboard" className="flex items-center space-x-2 cursor-pointer" data-testid="menu-item-dashboard">
