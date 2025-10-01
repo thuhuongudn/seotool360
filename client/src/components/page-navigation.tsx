@@ -16,13 +16,13 @@ interface BreadcrumbItem {
 }
 
 interface PageNavigationProps {
-  breadcrumbItems: BreadcrumbItem[];
+  breadcrumbItems?: BreadcrumbItem[];
   backLink?: string;
   showBackButton?: boolean;
 }
 
 export default function PageNavigation({ 
-  breadcrumbItems, 
+  breadcrumbItems = [], 
   backLink = "/", 
   showBackButton = true 
 }: PageNavigationProps) {

@@ -18,6 +18,7 @@ import AllSocialMediaPosts from "@/pages/all-social-media-posts";
 import AllInternalLinkSuggestions from "@/pages/all-internal-link-suggestions";
 import AdminPage from "@/pages/admin";
 import AdminUsers from "@/pages/admin-users";
+import AdminTokenLogs from "@/pages/admin-token-logs";
 // Content SEO Tools
 import KeywordPlanner from "@/pages/keyword-planner";
 import TopicalMap from "@/pages/topical-map";
@@ -67,6 +68,11 @@ function Router() {
         <ProtectedRoute>
           <AdminUsers />
         </ProtectedRoute>
+      </Route>
+      <Route path="/admin/token-logs">
+        <ProtectedAdminRoute>
+          <AdminTokenLogs />
+        </ProtectedAdminRoute>
       </Route>
       {/* Content SEO Routes */}
       <Route path="/keyword-planner">

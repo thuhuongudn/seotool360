@@ -162,6 +162,7 @@ interface SearchIntentRequestPayload {
 
 
 function SearchIntentContent() {
+  const toolId = useToolId("search-intent");
   const [keywordInput, setKeywordInput] = useState("");
   const [result, setResult] = useState<SearchIntentResponse | null>(null);
   const [language, setLanguage] = useState(DEFAULT_LANG);
@@ -262,7 +263,7 @@ function SearchIntentContent() {
 
         // Auto-submit with token consumption
         setTimeout(async () => {
-          await executeWithToken(1, async () => {
+          await executeWithToken(toolId, 1, async () => {
             mutation.mutate(payload);
             return true;
           });
@@ -291,7 +292,7 @@ function SearchIntentContent() {
     };
 
     // Wrap API call with token consumption (1 token per search intent analysis)
-    await executeWithToken(1, async () => {
+    await executeWithToken(toolId, 1, async () => {
       mutation.mutate(payload);
       return true;
     });
@@ -348,7 +349,7 @@ function SearchIntentContent() {
     }
 
     // Wrap content strategy generation with token consumption (1 token per generation)
-    const result = await executeWithToken(1, async () => {
+    const result = await executeWithToken(toolId, 1, async () => {
       setIsGeneratingStrategy(true);
       setContentStrategy("");
 

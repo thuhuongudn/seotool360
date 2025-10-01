@@ -2,6 +2,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { fetchUserProfile, fetchTokenUsage } from '../lib/api-client';
 import type { UserProfile, TokenUsage } from '../types/user';
 
+/**
+ * Fetches the currently authenticated user's profile information.
+ * Always returns an object with a `profile` field for consistency.
+ */
 export function useUserProfile() {
   const queryClient = useQueryClient();
 

@@ -20,11 +20,13 @@ export function useTokenManagement(options?: UseTokenManagementOptions) {
   const consumeMutation = useMutation({
     mutationFn: ({
       userId,
+      toolId,
       tokens,
     }: {
       userId: string;
+      toolId: string;
       tokens: number;
-    }) => consumeToken(userId, tokens),
+    }) => consumeToken(userId, toolId, tokens),
     onSuccess: (data) => {
       if (data.success) {
         // Refresh usage data
@@ -67,6 +69,7 @@ export function useTokenManagement(options?: UseTokenManagementOptions) {
   };
 
   const executeWithToken = async <T,>(
+    toolId: string,
     tokensToConsume: number,
     action: () => Promise<T>
   ): Promise<T | null> => {
@@ -102,6 +105,7 @@ export function useTokenManagement(options?: UseTokenManagementOptions) {
       // For regular users, consume token first
       const consumeResult = await consumeToken(
         profile.user_id,
+        toolId,
         tokensToConsume
       );
 

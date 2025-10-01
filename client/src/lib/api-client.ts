@@ -73,11 +73,13 @@ export async function fetchTokenUsage(
 
 export async function consumeToken(
   userId: string,
+  toolId: string,
   tokensToConsume: number = 1
 ): Promise<ConsumeTokenResponse> {
   try {
     const { data, error } = await supabase.rpc('consume_token', {
       p_user_id: userId,
+      p_tool_id: toolId,
       p_tokens_to_consume: tokensToConsume,
     });
 
