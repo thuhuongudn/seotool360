@@ -1077,6 +1077,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ============================================
+  // ADMIN TOKEN USAGE LOGS ROUTES
+  // ============================================
+
+  // Get token usage logs with filters and pagination
+  app.get("/api/admin/token-usage-logs", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.query.userId as string | undefined;
+      const toolId = req.query.toolId as string | undefined;
+      const startDate = req.query.startDate as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+
+      console.log('[TOKEN-LOGS] Request from user:', req.user?.id, 'Role:', req.user?.profile?.role);
+
+      // Call the RPC function
+      const { data, error } = await supabaseAdmin.rpc('get_token_usage_logs', {
+        p_user_id: userId || null,
+        p_tool_id: toolId || null,
+        p_start_date: startDate || null,
+        p_end_date: endDate || null,
+        p_limit: limit,
+        p_offset: offset
+      });
+
+      if (error) {
+        console.error("[TOKEN-LOGS] Supabase RPC error:", error);
+        return res.status(500).json({ message: "Failed to fetch token usage logs" });
+      }
+
+      console.log('[TOKEN-LOGS] RPC response:', JSON.stringify(data).substring(0, 200));
+
+      // Check if response indicates auth failure
+      if (data && typeof data === 'object' && 'success' in data && data.success === false) {
+        console.error('[TOKEN-LOGS] RPC returned error:', data);
+        return res.status(403).json(data);
+      }
+
+      res.json(data);
+    } catch (error) {
+      console.error("[TOKEN-LOGS] Unexpected error:", error);
+      res.status(500).json({ message: "Failed to fetch token usage logs" });
+    }
+  });
+
+  // Get token usage statistics
+  app.get("/api/admin/token-usage-stats", requireAdmin, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const userId = req.query.userId as string | undefined;
+      const startDate = req.query.startDate as string | undefined;
+      const endDate = req.query.endDate as string | undefined;
+
+      console.log('[TOKEN-STATS] Request from user:', req.user?.id, 'Role:', req.user?.profile?.role);
+
+      // Call the RPC function
+      const { data, error } = await supabaseAdmin.rpc('get_token_usage_stats', {
+        p_user_id: userId || null,
+        p_start_date: startDate || null,
+        p_end_date: endDate || null
+      });
+
+      if (error) {
+        console.error("[TOKEN-STATS] Supabase RPC error:", error);
+        return res.status(500).json({ message: "Failed to fetch token usage statistics" });
+      }
+
+      console.log('[TOKEN-STATS] RPC response:', JSON.stringify(data).substring(0, 200));
+
+      // Check if response indicates auth failure
+      if (data && typeof data === 'object' && 'success' in data && data.success === false) {
+        console.error('[TOKEN-STATS] RPC returned error:', data);
+        return res.status(403).json(data);
+      }
+
+      res.json(data);
+    } catch (error) {
+      console.error("[TOKEN-STATS] Unexpected error:", error);
+      res.status(500).json({ message: "Failed to fetch token usage statistics" });
+    }
+  });
+
+  // ============================================
   // ADMIN USER TOOL ACCESS MANAGEMENT ROUTES
   // ============================================
 

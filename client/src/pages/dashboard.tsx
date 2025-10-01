@@ -13,13 +13,31 @@ import {
   CheckCircle,
   Clock,
   Zap,
-  Construction
+  Construction,
+  ArrowRight
 } from "lucide-react";
 import { Link } from "wouter";
 import ToolGrid from "@/components/tool-grid";
 import { TokenWidget } from "@/components/token-widget";
 import { StatusBanner } from "@/components/status-banner";
 import { fetchVisibleTools } from "@/lib/api-client";
+
+function formatDateTime(dateString: string) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMs / 3600000);
+  const diffDays = Math.floor(diffMs / 86400000);
+
+  if (diffMins < 60) {
+    return `${diffMins} phút trước`;
+  } else if (diffHours < 24) {
+    return `${diffHours} giờ trước`;
+  } else {
+    return `${diffDays} ngày trước`;
+  }
+}
 
 export default function Dashboard() {
   const { user, isAdmin } = useAuth();
@@ -29,6 +47,13 @@ export default function Dashboard() {
     queryKey: ['visible-tools'],
     queryFn: fetchVisibleTools,
     enabled: !!user,
+  });
+
+  // Fetch recent token logs (admin only)
+  // Use queryKey array for automatic auth header injection
+  const { data: recentLogs } = useQuery({
+    queryKey: ['/api/admin/token-usage-logs?limit=5'],
+    enabled: !!user && isAdmin(),
   });
 
   return (
@@ -179,41 +204,97 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="mb-8" data-testid="section-recent-activity">
-          <h2 className="text-2xl font-bold text-foreground mb-6">Hoạt động gần đây</h2>
-          <Card>
-            <CardContent className="pt-6">
-              <div className="space-y-4">
-                {[
-                  {
-                    action: "Sử dụng Topical Map",
-                    time: "2 giờ trước",
-                    status: "completed"
-                  },
-                  {
-                    action: "Tạo nội dung Social Media",
-                    time: "1 ngày trước", 
-                    status: "completed"
-                  },
-                  {
-                    action: "Kiểm tra Google Index",
-                    time: "3 ngày trước",
-                    status: "completed"
-                  }
-                ].map((activity, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                      <span className="text-sm font-medium">{activity.action}</span>
-                    </div>
-                    <span className="text-xs text-muted-foreground">{activity.time}</span>
+        {/* Recent Activity - Admin Only */}
+        {isAdmin() && (
+          <div className="mb-8" data-testid="section-recent-activity">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-foreground">Hoạt động gần đây</h2>
+              <Link href="/admin/token-logs">
+                <Button variant="outline" size="sm">
+                  Xem tất cả
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </Button>
+              </Link>
+            </div>
+            <Card>
+              <CardContent className="pt-6">
+                {!recentLogs?.data || recentLogs.data.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Activity className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                    <p>Chưa có hoạt động nào</p>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                ) : (
+                  <div className="space-y-4">
+                    {recentLogs.data.map((log: any) => (
+                      <div key={log.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                        <div className="flex items-center space-x-3 flex-1 min-w-0">
+                          <div className="w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-sm font-medium truncate">
+                                {log.username || 'Unknown'}
+                              </span>
+                              <span className="text-xs text-muted-foreground">sử dụng</span>
+                              <span className="text-sm font-medium truncate">
+                                {log.tool_title || log.tool_name}
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              Token: {log.consumed}
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground flex-shrink-0 ml-2">
+                          {formatDateTime(log.created_at)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
+        {/* Recent Activity - Member (Commented for future enhancement) */}
+        {/*
+        {!isAdmin() && (
+          <div className="mb-8" data-testid="section-recent-activity">
+            <h2 className="text-2xl font-bold text-foreground mb-6">Hoạt động gần đây</h2>
+            <Card>
+              <CardContent className="pt-6">
+                <div className="space-y-4">
+                  {[
+                    {
+                      action: "Sử dụng Topical Map",
+                      time: "2 giờ trước",
+                      status: "completed"
+                    },
+                    {
+                      action: "Tạo nội dung Social Media",
+                      time: "1 ngày trước",
+                      status: "completed"
+                    },
+                    {
+                      action: "Kiểm tra Google Index",
+                      time: "3 ngày trước",
+                      status: "completed"
+                    }
+                  ].map((activity, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div className="flex items-center space-x-3">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="text-sm font-medium">{activity.action}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground">{activity.time}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+        */}
 
         {/* Available Tools - Show subset */}
         <div data-testid="section-available-tools">

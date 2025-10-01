@@ -62,6 +62,7 @@ interface KeywordPlannerRequestPayload {
 interface ShortlistEntry extends KeywordIdeaRow {}
 
 function KeywordPlannerContent() {
+  const toolId = useToolId("keyword-planner");
   const [keywordsInput, setKeywordsInput] = useState("");
   const [result, setResult] = useState<KeywordPlannerResponse | null>(null);
   const [selectedRows, setSelectedRows] = useState<ShortlistEntry[]>([]);
@@ -153,7 +154,7 @@ function KeywordPlannerContent() {
     };
 
     // Wrap API call with token consumption (1 token per analysis)
-    await executeWithToken(1, async () => {
+    await executeWithToken(toolId, 1, async () => {
       mutation.mutate(payload);
       return true;
     });

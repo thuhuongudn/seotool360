@@ -27,13 +27,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { 
-  Search, 
-  Settings, 
-  Eye, 
-  EyeOff, 
-  Users, 
-  Shield, 
+import {
+  Search,
+  Settings,
+  Eye,
+  EyeOff,
+  Users,
+  Shield,
   FileText,
   LayoutDashboard,
   UserCheck,
@@ -43,7 +43,9 @@ import {
   Calendar,
   Activity,
   Plus,
-  UserPlus
+  UserPlus,
+  BarChart3,
+  ArrowRight
 } from "lucide-react";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
@@ -416,7 +418,7 @@ export default function AdminPage() {
 
           {/* Admin Tabs */}
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="dashboard" data-testid="tab-dashboard">
                 <LayoutDashboard className="w-4 h-4 mr-2" />
                 Dashboard
@@ -432,6 +434,17 @@ export default function AdminPage() {
               <TabsTrigger value="audit" data-testid="tab-audit">
                 <FileText className="w-4 h-4 mr-2" />
                 Nhật ký
+              </TabsTrigger>
+              <TabsTrigger
+                value="token-logs"
+                data-testid="tab-token-logs"
+                onClick={(e) => {
+                  e.preventDefault();
+                  window.location.href = '/admin/token-logs';
+                }}
+              >
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Token Logs
               </TabsTrigger>
             </TabsList>
 
