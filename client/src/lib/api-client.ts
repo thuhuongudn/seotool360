@@ -279,7 +279,7 @@ export async function fetchAllUsers(): Promise<UserProfile[]> {
 
     if (error) throw error;
 
-    return (data || []).map((user) => ({
+    return (data || []).map((user: any) => ({
       ...user,
       is_admin: user.role === 'admin',
     }));
