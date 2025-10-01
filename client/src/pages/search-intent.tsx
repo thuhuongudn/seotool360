@@ -23,6 +23,7 @@ import {
   LANGUAGE_CONSTANTS,
   NETWORK_CONSTANTS
 } from "@/constants/google-ads-constants";
+import { useTokenManagement } from "@/hooks/use-token-management";
 
 // Chart component for monthly search trends
 interface MonthlyTrendsChartProps {
@@ -173,6 +174,7 @@ function SearchIntentContent() {
 
   const { toast } = useToast();
   const [location] = useLocation();
+  const { executeWithToken, canUseToken, isProcessing: isTokenProcessing } = useTokenManagement();
 
   const trimmedKeyword = useMemo(() => keywordInput.trim(), [keywordInput]);
 
@@ -244,7 +246,7 @@ function SearchIntentContent() {
       // Set keyword input
       setKeywordInput(decodedKeyword);
 
-      // Auto-submit if keyword is valid
+      // Auto-submit if keyword is valid WITH TOKEN CONSUMPTION
       if (decodedKeyword.trim().length > 0) {
         // Use query params or current state for language/geo/network
         const finalLanguage = queryLanguage && LANGUAGE_CONSTANTS.find(lang => lang.value === queryLanguage) ? queryLanguage : language;
@@ -258,16 +260,18 @@ function SearchIntentContent() {
           network: finalNetwork,
         };
 
-
-        // Small delay to ensure input is set and avoid any race conditions
-        setTimeout(() => {
-          mutation.mutate(payload);
+        // Auto-submit with token consumption
+        setTimeout(async () => {
+          await executeWithToken(1, async () => {
+            mutation.mutate(payload);
+            return true;
+          });
         }, 100);
       }
     }
   }, [location]);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (trimmedKeyword.length === 0) {
@@ -286,7 +290,11 @@ function SearchIntentContent() {
       network,
     };
 
-    mutation.mutate(payload);
+    // Wrap API call with token consumption (1 token per search intent analysis)
+    await executeWithToken(1, async () => {
+      mutation.mutate(payload);
+      return true;
+    });
   };
 
   const handleCopyResult = async () => {
@@ -339,55 +347,62 @@ function SearchIntentContent() {
       return;
     }
 
-    setIsGeneratingStrategy(true);
-    setContentStrategy("");
+    // Wrap content strategy generation with token consumption (1 token per generation)
+    const result = await executeWithToken(1, async () => {
+      setIsGeneratingStrategy(true);
+      setContentStrategy("");
 
-    try {
-      // Send request to n8n webhook
-      const response = await fetch(
-        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-search-intent-2025-09-26",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": import.meta.env.VITE_N8N_API_KEY,
+      try {
+        // Send request to n8n webhook
+        const response = await fetch(
+          "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-search-intent-2025-09-26",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": import.meta.env.VITE_N8N_API_KEY,
+            },
+            body: JSON.stringify({ keyword: trimmedKeyword }),
           },
-          body: JSON.stringify({ keyword: trimmedKeyword }),
-        },
-      );
+        );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const webhookResponse = await response.json();
+
+        // Parse the response - try different possible fields
+        const content =
+          webhookResponse.output ||
+          webhookResponse.content ||
+          webhookResponse.result ||
+          JSON.stringify(webhookResponse, null, 2);
+
+        setContentStrategy(content);
+
+        toast({
+          title: "Thành công!",
+          description: "Chiến lược nội dung đã được tạo thành công.",
+        });
+
+        return true;
+      } catch (error) {
+        console.error("Webhook error:", error);
+        toast({
+          title: "Có lỗi xảy ra",
+          description: "Không thể tạo chiến lược nội dung. Vui lòng thử lại sau.",
+          variant: "destructive",
+        });
+        return false;
+      } finally {
+        setIsGeneratingStrategy(false);
       }
-
-      const webhookResponse = await response.json();
-
-      // Parse the response - try different possible fields
-      const content =
-        webhookResponse.output ||
-        webhookResponse.content ||
-        webhookResponse.result ||
-        JSON.stringify(webhookResponse, null, 2);
-
-      setContentStrategy(content);
-
-      toast({
-        title: "Thành công!",
-        description: "Chiến lược nội dung đã được tạo thành công.",
-      });
-    } catch (error) {
-      console.error("Webhook error:", error);
-      toast({
-        title: "Có lỗi xảy ra",
-        description: "Không thể tạo chiến lược nội dung. Vui lòng thử lại sau.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsGeneratingStrategy(false);
-    }
+    });
   };
 
-  const isSubmitting = mutation.isPending;
+  // Separate loading states for different actions
+  const isSearching = mutation.isPending; // Only for search intent form
   const hasResults = !!result && result.rows.length > 0;
 
   return (
@@ -495,8 +510,8 @@ function SearchIntentContent() {
                 </div>
 
                 <div className="text-center">
-                  <Button type="submit" disabled={isSubmitting || trimmedKeyword.length === 0} size="lg" className="px-8">
-                    {isSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  <Button type="submit" disabled={isSearching || trimmedKeyword.length === 0 || !canUseToken} size="lg" className="px-8">
+                    {isSearching && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                     Phân tích Search Intent
                   </Button>
                 </div>
@@ -506,7 +521,7 @@ function SearchIntentContent() {
         </div>
 
         {/* Results Section */}
-        {isSubmitting && (
+        {isSearching && (
           <div className="max-w-4xl mx-auto">
             <Card>
               <CardContent className="p-12">
@@ -519,7 +534,7 @@ function SearchIntentContent() {
           </div>
         )}
 
-        {!isSubmitting && result && (
+        {!isSearching && result && (
           <div className="max-w-6xl mx-auto">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
@@ -608,7 +623,7 @@ function SearchIntentContent() {
                   <div className="flex justify-center">
                     <Button
                       onClick={handleGenerateContentStrategy}
-                      disabled={isGeneratingStrategy || trimmedKeyword.length === 0}
+                      disabled={isGeneratingStrategy || trimmedKeyword.length === 0 || !canUseToken}
                       size="lg"
                       className="px-8 bg-orange-600 hover:bg-orange-700 text-white"
                     >

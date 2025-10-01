@@ -59,6 +59,10 @@ interface UserProfile {
   role: 'admin' | 'member';
   isActive: boolean;
   createdAt: string;
+  plan?: 'trial' | 'member';
+  status?: 'active' | 'pending' | 'disabled';
+  trial_ends_at?: string | null;
+  member_ends_at?: string | null;
   // Note: email is not stored in profiles table, only in auth.users
 }
 
@@ -97,6 +101,7 @@ export default function AdminPage() {
     role: "member" as "admin" | "member"
   });
   const [showPermissionsDialog, setShowPermissionsDialog] = useState(false);
+  const [showPlanManagementDialog, setShowPlanManagementDialog] = useState(false);
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const { toast } = useToast();
   const { user, isAdmin } = useAuth();
@@ -502,6 +507,30 @@ export default function AdminPage() {
 
             {/* Users Management Tab */}
             <TabsContent value="users" className="space-y-6">
+              {/* Info Banner */}
+              <Card className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border-purple-200">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="font-semibold text-lg mb-2 flex items-center gap-2">
+                        <Calendar className="h-5 w-5 text-purple-600" />
+                        Quản lý Plan & Thời hạn
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-300">
+                        Nâng/hạ gói, gia hạn thời gian sử dụng, và quản lý plan của từng user
+                      </p>
+                    </div>
+                    <Button
+                      onClick={() => window.location.href = '/admin/users'}
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      <Settings className="w-4 h-4 mr-2" />
+                      Mở trang quản lý Plan
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+
               {/* User Search and Create Button */}
               <div className="flex gap-4 mb-6">
                 <div className="relative flex-1">
@@ -515,7 +544,7 @@ export default function AdminPage() {
                     data-testid="input-search-users"
                   />
                 </div>
-                
+
                 {/* Create User Button */}
                 <Dialog open={showCreateUserDialog} onOpenChange={setShowCreateUserDialog}>
                   <DialogTrigger asChild>

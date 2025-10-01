@@ -103,7 +103,7 @@ export default function FloatingSupportButton({
         aria-label={isOpen ? "Đóng menu chat" : "Mở menu chat"}
       >
         <img
-          src="https://cdn.hstatic.net/files/200000713511/file/help-support-information-svgrepo-com.svg"
+          src="https://cdn.hstatic.net/files/200000713511/file/livechat_v4.png"
           alt="Chat"
           className="w-full h-full drop-shadow-lg"
         />

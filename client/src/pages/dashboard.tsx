@@ -4,27 +4,41 @@ import Header from "@/components/header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { 
-  User, 
-  Settings, 
-  Activity, 
-  BarChart3, 
+import {
+  User,
+  Settings,
+  Activity,
+  BarChart3,
   Calendar,
   CheckCircle,
   Clock,
-  Zap
+  Zap,
+  Construction
 } from "lucide-react";
 import { Link } from "wouter";
 import ToolGrid from "@/components/tool-grid";
+import { TokenWidget } from "@/components/token-widget";
+import { StatusBanner } from "@/components/status-banner";
+import { fetchVisibleTools } from "@/lib/api-client";
 
 export default function Dashboard() {
   const { user, isAdmin } = useAuth();
+
+  // Fetch user's visible tools count
+  const { data: tools } = useQuery({
+    queryKey: ['visible-tools'],
+    queryFn: fetchVisibleTools,
+    enabled: !!user,
+  });
 
   return (
     <div className="min-h-screen bg-background">
       <Header />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Status Banner */}
+        <StatusBanner />
+
         {/* User Welcome Section */}
         <div className="mb-8" data-testid="section-welcome">
           <div className="flex items-center space-x-4 mb-4">
@@ -53,48 +67,49 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Stats */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8" data-testid="section-stats">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8" data-testid="section-stats">
+          {/* Token Widget Card */}
+          <TokenWidget />
+
+          {/* Tools có quyền truy cập */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Tools được sử dụng</CardTitle>
               <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">12</div>
-              <p className="text-xs text-muted-foreground">+2 từ tháng trước</p>
+              <div className="text-2xl font-bold">{tools?.filter(t => t.has_access).length || 0}</div>
+              <p className="text-xs text-muted-foreground">Tổng số tools có quyền truy cập</p>
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Nhiệm vụ hoàn thành</CardTitle>
-              <CheckCircle className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">47</div>
-              <p className="text-xs text-muted-foreground">+12% từ tuần trước</p>
-            </CardContent>
-          </Card>
-
+          {/* Thời gian sử dụng - Tính năng đang phát triển */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Thời gian sử dụng</CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">2.4h</div>
-              <p className="text-xs text-muted-foreground">Trung bình hàng ngày</p>
+              <div className="text-2xl font-bold text-muted-foreground">-</div>
+              <p className="text-xs text-yellow-600 dark:text-yellow-500 flex items-center gap-1">
+                <Construction className="h-3 w-3" />
+                Tính năng đang phát triển
+              </p>
             </CardContent>
           </Card>
 
+          {/* Điểm hiệu suất - Tính năng đang phát triển */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Điểm hiệu suất</CardTitle>
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">85%</div>
-              <p className="text-xs text-muted-foreground">+5% từ tháng trước</p>
+              <div className="text-2xl font-bold text-muted-foreground">-</div>
+              <p className="text-xs text-yellow-600 dark:text-yellow-500 flex items-center gap-1">
+                <Construction className="h-3 w-3" />
+                Tính năng đang phát triển
+              </p>
             </CardContent>
           </Card>
         </div>
