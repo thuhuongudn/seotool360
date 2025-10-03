@@ -357,6 +357,9 @@ function SearchIntentContent() {
       setContentStrategy("");
 
       try {
+        // Generate random branch_id (1, 2, or 3) for n8n workflow routing
+        const branchId = Math.floor(Math.random() * 3) + 1;
+
         // Send request to n8n webhook
         const response = await fetch(
           "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-search-intent-2025-09-26",
@@ -366,7 +369,10 @@ function SearchIntentContent() {
               "Content-Type": "application/json",
               "x-api-key": import.meta.env.VITE_N8N_API_KEY,
             },
-            body: JSON.stringify({ keyword: trimmedKeyword }),
+            body: JSON.stringify({
+              keyword: trimmedKeyword,
+              branch_id: branchId
+            }),
           },
         );
 
