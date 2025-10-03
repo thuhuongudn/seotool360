@@ -1340,8 +1340,67 @@ function ImageSeoContent() {
     event.preventDefault();
   };
 
+  const faqSchema = {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "Geotag là gì?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Geotag là việc gắn thông tin tọa độ GPS (vĩ độ, kinh độ) hoặc địa điểm cụ thể vào metadata của ảnh."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Geotag có ảnh hưởng đến SEO không?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Có. Geotag giúp ảnh và nội dung liên quan dễ xuất hiện trong kết quả tìm kiếm local và Google Maps."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "SEO ảnh cần tối ưu những gì ngoài geotag?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Ngoài geotag, bạn nên tối ưu tên file, alt text, metadata EXIF, caption và sitemap hình ảnh."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Cách kiểm tra một ảnh đã có geotag hay chưa?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Bạn có thể dùng công cụ như ExifTool, Geoimgr hoặc kiểm tra thuộc tính ảnh trên máy tính hoặc điện thoại."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Làm sao để xóa geotag nếu không muốn chia sẻ vị trí?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Có thể xóa bằng phần mềm quản lý EXIF hoặc cài đặt quyền riêng tư trong điện thoại trước khi tải ảnh lên."
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "Geotag có rủi ro bảo mật không?",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Có. Nếu không kiểm soát, ảnh chụp có thể tiết lộ vị trí cá nhân. Doanh nghiệp nên chỉ dùng geotag cho ảnh marketing chính thức."
+        }
+      }
+    ]
+  };
+
   return (
     <div className="min-h-screen bg-background">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+      />
       <Header />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <PageNavigation breadcrumbItems={[{ label: "Tối ưu Metadata & Geotag ảnh" }]} backLink="/" />
@@ -1422,21 +1481,121 @@ function ImageSeoContent() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Lợi ích khi tối ưu metadata & geotag</CardTitle>
+                <CardTitle>Lợi ích khi tối ưu Metadata & Geotag cho SEO hình ảnh</CardTitle>
                 <CardDescription>
-                  Một bức ảnh tối ưu tốt sẽ trở thành nguồn traffic chất lượng từ Google Images và tăng độ tin cậy cho nội dung.
+                  Một bức ảnh được tối ưu tốt với metadata và geotag sẽ trở thành nguồn traffic chất lượng từ Google Images và gia tăng độ tin cậy cho toàn bộ nội dung.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4 text-sm text-gray-600 dark:text-gray-300">
                 <p>
-                  Metadata là "hồ sơ lý lịch" của ảnh, giúp công cụ tìm kiếm hiểu rõ nội dung và ngữ cảnh. Geotag gắn kết ảnh với vị trí cụ thể, đặc biệt hữu ích cho SEO local.
+                  Metadata giống như "hồ sơ lý lịch" của ảnh, giúp công cụ tìm kiếm hiểu rõ nội dung, tác giả, bản quyền và ngữ cảnh sử dụng.
+                  Trong khi đó, geotag gắn kết ảnh với vị trí cụ thể (tọa độ GPS), đặc biệt hữu ích cho SEO local của doanh nghiệp.
                 </p>
-                <ul className="list-disc space-y-2 pl-5">
-                  <li>Tăng cơ hội xuất hiện trong Google Images nhờ tiêu đề, từ khóa chính xác.</li>
-                  <li>Gắn kết ảnh với địa điểm cụ thể, hỗ trợ SEO Local cho doanh nghiệp.</li>
-                  <li>Ghi rõ tác giả & bản quyền ngay trong file ảnh, hạn chế sao chép trái phép.</li>
-                  <li>Cung cấp ngữ cảnh rõ ràng (ngày chụp, chủ đề) giúp người dùng và Google tin tưởng hơn.</li>
-                </ul>
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-gray-900 dark:text-white">Ưu điểm khi tối ưu metadata và geotag:</h4>
+                  <ul className="list-none space-y-2 pl-0">
+                    <li className="flex items-start gap-2">
+                      <span className="mt-0.5">📷</span>
+                      <div>
+                        <strong>SEO ảnh:</strong> Tăng cơ hội xuất hiện trong Google Images nhờ tiêu đề, alt text và từ khóa chính xác.
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="mt-0.5">📍</span>
+                      <div>
+                        <strong>Geotag ảnh:</strong> Liên kết trực tiếp hình ảnh với địa điểm kinh doanh, hỗ trợ SEO Local trên Google Maps và Google Business Profile.
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="mt-0.5">🛡️</span>
+                      <div>
+                        <strong>Bản quyền & tác giả:</strong> Ghi rõ tác giả, ngày chụp và bản quyền ngay trong file ảnh, hạn chế việc sao chép trái phép.
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="mt-0.5">🔍</span>
+                      <div>
+                        <strong>Ngữ cảnh rõ ràng:</strong> Metadata bổ sung thông tin về ngày chụp, chủ đề và thiết bị, giúp Google và người dùng tin tưởng hơn.
+                      </div>
+                    </li>
+                  </ul>
+                  <p className="pt-2">
+                    👉 Nếu bạn muốn cách SEO hình ảnh lên Google hiệu quả, hãy kết hợp: <strong>tên file chuẩn SEO</strong>,
+                    <strong> alt text giàu từ khóa</strong>, <strong>metadata đầy đủ</strong> và <strong>geotag chính xác</strong>.
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>❓ Câu hỏi thường gặp (FAQ)</CardTitle>
+                <CardDescription>
+                  Giải đáp những thắc mắc phổ biến về geotag và SEO hình ảnh.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4 text-sm">
+                <div className="space-y-4">
+                  <details className="group rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-emerald-500 transition-colors">
+                    <summary className="font-semibold text-gray-900 dark:text-white cursor-pointer list-none flex items-center justify-between">
+                      <span>Geotag là gì?</span>
+                      <span className="text-emerald-600 group-open:rotate-90 transition-transform">▶</span>
+                    </summary>
+                    <p className="mt-3 text-gray-600 dark:text-gray-300">
+                      Geotag là việc gắn thông tin tọa độ GPS (vĩ độ, kinh độ) hoặc địa điểm cụ thể vào metadata của ảnh.
+                    </p>
+                  </details>
+
+                  <details className="group rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-emerald-500 transition-colors">
+                    <summary className="font-semibold text-gray-900 dark:text-white cursor-pointer list-none flex items-center justify-between">
+                      <span>Geotag có ảnh hưởng đến SEO không?</span>
+                      <span className="text-emerald-600 group-open:rotate-90 transition-transform">▶</span>
+                    </summary>
+                    <p className="mt-3 text-gray-600 dark:text-gray-300">
+                      Có. Geotag giúp ảnh và nội dung liên quan dễ xuất hiện trong kết quả tìm kiếm local và Google Maps.
+                    </p>
+                  </details>
+
+                  <details className="group rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-emerald-500 transition-colors">
+                    <summary className="font-semibold text-gray-900 dark:text-white cursor-pointer list-none flex items-center justify-between">
+                      <span>SEO ảnh cần tối ưu những gì ngoài geotag?</span>
+                      <span className="text-emerald-600 group-open:rotate-90 transition-transform">▶</span>
+                    </summary>
+                    <p className="mt-3 text-gray-600 dark:text-gray-300">
+                      Ngoài geotag, bạn nên tối ưu tên file, alt text, metadata EXIF, caption và sitemap hình ảnh.
+                    </p>
+                  </details>
+
+                  <details className="group rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-emerald-500 transition-colors">
+                    <summary className="font-semibold text-gray-900 dark:text-white cursor-pointer list-none flex items-center justify-between">
+                      <span>Cách kiểm tra một ảnh đã có geotag hay chưa?</span>
+                      <span className="text-emerald-600 group-open:rotate-90 transition-transform">▶</span>
+                    </summary>
+                    <p className="mt-3 text-gray-600 dark:text-gray-300">
+                      Bạn có thể dùng công cụ như ExifTool, Geoimgr hoặc kiểm tra thuộc tính ảnh trên máy tính hoặc điện thoại.
+                    </p>
+                  </details>
+
+                  <details className="group rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-emerald-500 transition-colors">
+                    <summary className="font-semibold text-gray-900 dark:text-white cursor-pointer list-none flex items-center justify-between">
+                      <span>Làm sao để xóa geotag nếu không muốn chia sẻ vị trí?</span>
+                      <span className="text-emerald-600 group-open:rotate-90 transition-transform">▶</span>
+                    </summary>
+                    <p className="mt-3 text-gray-600 dark:text-gray-300">
+                      Có thể xóa bằng phần mềm quản lý EXIF hoặc cài đặt quyền riêng tư trong điện thoại trước khi tải ảnh lên.
+                    </p>
+                  </details>
+
+                  <details className="group rounded-lg border border-gray-200 dark:border-gray-700 p-4 hover:border-emerald-500 transition-colors">
+                    <summary className="font-semibold text-gray-900 dark:text-white cursor-pointer list-none flex items-center justify-between">
+                      <span>Geotag có rủi ro bảo mật không?</span>
+                      <span className="text-emerald-600 group-open:rotate-90 transition-transform">▶</span>
+                    </summary>
+                    <p className="mt-3 text-gray-600 dark:text-gray-300">
+                      Có. Nếu không kiểm soát, ảnh chụp có thể tiết lộ vị trí cá nhân. Doanh nghiệp nên chỉ dùng geotag cho ảnh marketing chính thức.
+                    </p>
+                  </details>
+                </div>
               </CardContent>
             </Card>
           </div>
