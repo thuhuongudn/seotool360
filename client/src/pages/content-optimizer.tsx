@@ -1,5 +1,5 @@
-import { useState, useRef } from "react";
-import { Loader2, FileText, Lightbulb, Eye, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Loader2, FileText, Lightbulb, Eye, ChevronDown, ChevronUp, Highlighter } from "lucide-react";
 import { Editor } from '@tinymce/tinymce-react';
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
@@ -54,11 +54,12 @@ function ContentOptimizerContent() {
   const [readabilityAnalysis, setReadabilityAnalysis] = useState<ReadabilityAnalysis | null>(null);
   const [showSeoTips, setShowSeoTips] = useState(false);
   const [showReadabilityTips, setShowReadabilityTips] = useState(false);
+  const [keywordHighlightEnabled, setKeywordHighlightEnabled] = useState(false);
 
   const [optimizationTips, setOptimizationTips] = useState<OptimizationTip[]>([]);
 
   const { toast } = useToast();
-  const { executeWithToken, canUseToken } = useTokenManagement();
+  const { canUseToken } = useTokenManagement();
 
   const handleAddKeyword = () => {
     if (keywordInput.trim() && !targetKeywords.includes(keywordInput.trim())) {
@@ -70,6 +71,52 @@ function ContentOptimizerContent() {
   const handleRemoveKeyword = (keyword: string) => {
     setTargetKeywords(targetKeywords.filter(k => k !== keyword));
   };
+
+  // Toggle keyword highlighting in editor
+  const toggleKeywordHighlight = () => {
+    if (!editorRef.current) return;
+
+    const editor = editorRef.current;
+    const currentContent = editor.getContent();
+
+    if (!keywordHighlightEnabled) {
+      // Apply highlighting
+      let highlightedContent = currentContent;
+
+      targetKeywords.forEach(keyword => {
+        // Escape special regex characters
+        const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(?<!<[^>]*)(\\b${escapedKeyword}\\b)(?![^<]*>)`, 'gi');
+        highlightedContent = highlightedContent.replace(regex, '<mark style="background-color: #fef08a; padding: 2px 0;">$1</mark>');
+      });
+
+      editor.setContent(highlightedContent);
+      setKeywordHighlightEnabled(true);
+
+      toast({
+        title: "Đã bật highlight từ khóa",
+        description: `Đang highlight ${targetKeywords.length} từ khóa trong nội dung`,
+      });
+    } else {
+      // Remove highlighting
+      const cleanContent = currentContent.replace(/<mark[^>]*>(.*?)<\/mark>/gi, '$1');
+      editor.setContent(cleanContent);
+      setKeywordHighlightEnabled(false);
+
+      toast({
+        title: "Đã tắt highlight từ khóa",
+      });
+    }
+  };
+
+  // Auto-update content state when highlighting changes
+  useEffect(() => {
+    if (editorRef.current && keywordHighlightEnabled && targetKeywords.length > 0) {
+      const editor = editorRef.current;
+      const currentContent = editor.getContent();
+      setContent(currentContent);
+    }
+  }, [keywordHighlightEnabled, targetKeywords]);
 
   const handleGetImprovementIdeas = async () => {
     if (targetKeywords.length === 0) {
@@ -85,89 +132,63 @@ function ContentOptimizerContent() {
 
     setIsAnalyzing(true);
 
-    // Simulate analysis - replace with actual API call
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Mock scores
+    // Run SEO analysis with real scoring
+    const seoResult = analyzeSEO(
+      content,
+      h1Title,
+      titleTag,
+      metaDescription,
+      targetKeywords
+    );
+    setSeoAnalysis(seoResult);
+
+    // Run Readability analysis
+    const readabilityResult = analyzeReadability(content);
+    setReadabilityAnalysis(readabilityResult);
+
+    // Update scores
     setScores({
-      seo: 65,
-      readability: 75,
-      toneOfVoice: 80,
+      seo: seoResult.score,
+      readability: readabilityResult.score,
+      toneOfVoice: 100, // Placeholder - implement later
     });
 
-    // Generate dynamic tips based on current state
-    const tips: OptimizationTip[] = [];
+    // Combine all recommendations
+    const allTips: OptimizationTip[] = [];
 
-    // Check H1 title
-    if (!h1Title.trim()) {
-      tips.push({
+    // Add SEO recommendations
+    seoResult.recommendations.forEach((rec) => {
+      const severity = rec.includes('H1') || rec.includes('title') ? 'high' :
+                       rec.includes('meta') || rec.includes('mật độ') ? 'medium' : 'low';
+      allTips.push({
         type: 'seo',
-        severity: 'high',
-        message: 'Add H1 title',
-        suggestion: 'Thêm tên sản phẩm/blog (H1) cho trang',
+        severity,
+        message: rec.split('.')[0] || rec,
+        suggestion: rec
       });
-    } else {
-      // Check if H1 contains target keywords
-      const h1HasKeyword = targetKeywords.some(kw =>
-        h1Title.toLowerCase().includes(kw.toLowerCase())
-      );
-      if (!h1HasKeyword) {
-        tips.push({
-          type: 'seo',
-          severity: 'high',
-          message: 'Add target keyword to H1',
-          suggestion: `Thêm từ khóa mục tiêu vào tên sản phẩm/blog (H1). Ví dụ: "${targetKeywords[0]}"`,
-        });
-      }
-    }
-
-    // Check title tag
-    if (!titleTag.trim()) {
-      tips.push({
-        type: 'seo',
-        severity: 'medium',
-        message: 'Add title tag',
-        suggestion: 'Thêm thẻ title cho trang',
-      });
-    } else {
-      const titleHasKeyword = targetKeywords.some(kw =>
-        titleTag.toLowerCase().includes(kw.toLowerCase())
-      );
-      if (!titleHasKeyword) {
-        tips.push({
-          type: 'seo',
-          severity: 'medium',
-          message: 'Add keyword to title tag',
-          suggestion: `Thêm từ khóa mục tiêu vào title tag`,
-        });
-      }
-    }
-
-    // Check meta description
-    if (!metaDescription.trim()) {
-      tips.push({
-        type: 'seo',
-        severity: 'low',
-        message: 'Add meta description',
-        suggestion: 'Thêm mô tả trang (meta description)',
-      });
-    }
-
-    // Add sample readability tip
-    tips.push({
-      type: 'readability',
-      severity: 'medium',
-      message: 'Improve sentence length',
-      suggestion: 'Một số câu quá dài, nên chia nhỏ để dễ đọc hơn',
     });
 
-    setOptimizationTips(tips);
+    // Add Readability recommendations
+    readabilityResult.recommendations.forEach((rec) => {
+      if (rec.startsWith('✓')) return; // Skip positive feedback
 
+      allTips.push({
+        type: 'readability',
+        severity: rec.includes('quá dài') || rec.includes('phức tạp') ? 'high' : 'medium',
+        message: rec.split('.')[0] || rec,
+        suggestion: rec
+      });
+    });
+
+    setOptimizationTips(allTips);
     setIsAnalyzing(false);
 
     toast({
       title: "Phân tích hoàn tất",
-      description: "Đã tạo gợi ý cải thiện cho nội dung của bạn",
+      description: `SEO Score: ${seoResult.score}/100 | Readability: ${readabilityResult.score}/100`,
     });
   };
 
@@ -371,10 +392,24 @@ function ContentOptimizerContent() {
             {/* Editor Card */}
             <Card>
               <CardHeader>
-                <CardTitle>Content Editor</CardTitle>
-                <CardDescription>
-                  Paste your content or start writing. Use the toolbar for formatting.
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Content Editor</CardTitle>
+                    <CardDescription>
+                      Paste your content or start writing. Use the toolbar for formatting.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant={keywordHighlightEnabled ? "default" : "outline"}
+                    size="sm"
+                    onClick={toggleKeywordHighlight}
+                    disabled={targetKeywords.length === 0}
+                    className={keywordHighlightEnabled ? "bg-yellow-500 hover:bg-yellow-600 text-white" : ""}
+                  >
+                    <Highlighter className="h-4 w-4 mr-2" />
+                    {keywordHighlightEnabled ? "Tắt Highlight" : "Highlight Từ khóa"}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="border rounded-lg overflow-hidden">
@@ -395,15 +430,34 @@ function ContentOptimizerContent() {
                         'bold italic underline forecolor backcolor | alignleft aligncenter ' +
                         'alignright alignjustify | bullist numlist outdent indent | ' +
                         'link image table | code fullscreen | removeformat help',
-                      content_style: 'body { font-family:Inter,Helvetica,Arial,sans-serif; font-size:14px; padding: 1rem; line-height: 1.6; }',
+                      content_style: `
+                        body {
+                          font-family:Inter,Helvetica,Arial,sans-serif;
+                          font-size:14px;
+                          padding: 1rem;
+                          line-height: 1.6;
+                        }
+                        mark {
+                          background-color: #fef08a;
+                          padding: 2px 0;
+                          border-radius: 2px;
+                        }
+                      `,
                       branding: false,
                       promotion: false
                     }}
                   />
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">
-                  {content.replace(/<[^>]*>/g, '').length} ký tự • {content.replace(/<[^>]*>/g, '').split(/\s+/).filter(Boolean).length} từ
-                </p>
+                <div className="flex items-center justify-between mt-2">
+                  <p className="text-xs text-muted-foreground">
+                    {content.replace(/<[^>]*>/g, '').length} ký tự • {content.replace(/<[^>]*>/g, '').split(/\s+/).filter(Boolean).length} từ
+                  </p>
+                  {keywordHighlightEnabled && targetKeywords.length > 0 && (
+                    <p className="text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-1 rounded">
+                      🔍 Highlighting {targetKeywords.length} từ khóa
+                    </p>
+                  )}
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -431,10 +485,24 @@ function ContentOptimizerContent() {
                   </div>
                   <Progress value={scores.seo} className="h-2" />
                   <div className="flex gap-2 mt-3">
-                    <Badge variant="outline" className="bg-orange-50 text-orange-700 border-orange-200">
+                    <Badge
+                      variant="outline"
+                      className={`${
+                        scores.seo >= 75 ? 'bg-green-50 text-green-700 border-green-200' :
+                        scores.seo >= 50 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                        'bg-red-50 text-red-700 border-red-200'
+                      }`}
+                    >
                       SEO {scores.seo}
                     </Badge>
-                    <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                    <Badge
+                      variant="outline"
+                      className={`${
+                        scores.readability >= 75 ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                        scores.readability >= 50 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                        'bg-red-50 text-red-700 border-red-200'
+                      }`}
+                    >
                       Readability {scores.readability}
                     </Badge>
                     <Badge variant="outline">
@@ -442,6 +510,122 @@ function ContentOptimizerContent() {
                     </Badge>
                   </div>
                 </div>
+
+                {/* Detailed SEO Breakdown */}
+                {seoAnalysis && (
+                  <div className="mt-4 space-y-2 pt-4 border-t">
+                    <button
+                      onClick={() => setShowSeoTips(!showSeoTips)}
+                      className="flex items-center justify-between w-full text-sm font-medium hover:text-primary transition-colors"
+                    >
+                      <span>Chi tiết phân tích SEO</span>
+                      {showSeoTips ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+
+                    {showSeoTips && (
+                      <div className="space-y-2 text-xs bg-slate-50 dark:bg-slate-900 p-3 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Từ khóa trong H1:</span>
+                          <span className={seoAnalysis.h1HasKeyword ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                            {seoAnalysis.h1HasKeyword ? "✓ Có" : "✗ Không"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Từ khóa trong Title:</span>
+                          <span className={seoAnalysis.titleHasKeyword ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                            {seoAnalysis.titleHasKeyword ? "✓ Có" : "✗ Không"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Từ khóa trong Meta:</span>
+                          <span className={seoAnalysis.metaHasKeyword ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                            {seoAnalysis.metaHasKeyword ? "✓ Có" : "✗ Không"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Từ khóa ở đầu bài:</span>
+                          <span className={seoAnalysis.keywordInFirstParagraph ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                            {seoAnalysis.keywordInFirstParagraph ? "✓ Có" : "✗ Không"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t">
+                          <span className="text-muted-foreground">Mật độ từ khóa:</span>
+                          <span className={seoAnalysis.keywordDensity >= 1 && seoAnalysis.keywordDensity <= 2.5 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                            {seoAnalysis.keywordDensity.toFixed(2)}%
+                            <span className="text-xs text-muted-foreground ml-1">(tối ưu: 1-2%)</span>
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Hình ảnh thiếu alt:</span>
+                          <span className={seoAnalysis.imagesWithoutAlt === 0 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                            {seoAnalysis.imagesWithoutAlt}/{seoAnalysis.totalImages}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t">
+                          <span className="text-muted-foreground">Số lần xuất hiện từ khóa:</span>
+                          <span className="font-medium">{seoAnalysis.keywordCount}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Tổng số từ:</span>
+                          <span className="font-medium">{seoAnalysis.wordCount}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Detailed Readability Breakdown */}
+                {readabilityAnalysis && (
+                  <div className="mt-4 space-y-2 pt-4 border-t">
+                    <button
+                      onClick={() => setShowReadabilityTips(!showReadabilityTips)}
+                      className="flex items-center justify-between w-full text-sm font-medium hover:text-primary transition-colors"
+                    >
+                      <span>Chi tiết phân tích Readability</span>
+                      {showReadabilityTips ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+
+                    {showReadabilityTips && (
+                      <div className="space-y-2 text-xs bg-slate-50 dark:bg-slate-900 p-3 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Độ dài câu trung bình:</span>
+                          <span className={readabilityAnalysis.avgSentenceLength <= 20 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                            {readabilityAnalysis.avgSentenceLength.toFixed(1)} từ
+                            <span className="text-xs text-muted-foreground ml-1">(tối ưu: 15-20)</span>
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Câu quá dài (&gt;25 từ):</span>
+                          <span className={readabilityAnalysis.longSentences === 0 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                            {readabilityAnalysis.longSentences}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Đoạn văn phức tạp:</span>
+                          <span className={readabilityAnalysis.difficultParagraphs.length === 0 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                            {readabilityAnalysis.difficultParagraphs.length}
+                          </span>
+                        </div>
+
+                        {readabilityAnalysis.difficultParagraphs.length > 0 && (
+                          <div className="mt-2 pt-2 border-t space-y-1">
+                            <p className="font-medium text-orange-700">Đoạn văn cần cải thiện:</p>
+                            {readabilityAnalysis.difficultParagraphs.slice(0, 3).map((para, idx) => (
+                              <div key={idx} className="text-xs text-muted-foreground bg-orange-50 dark:bg-orange-950 p-2 rounded border border-orange-200">
+                                {para}
+                              </div>
+                            ))}
+                            {readabilityAnalysis.difficultParagraphs.length > 3 && (
+                              <p className="text-xs text-muted-foreground italic">
+                                +{readabilityAnalysis.difficultParagraphs.length - 3} đoạn khác...
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {optimizationTips.length > 0 && (
                   <div className="space-y-2 pt-4 border-t">
