@@ -85,6 +85,7 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
       'internal-link-helper': '/internal-link-helper',
       'ai-writing': '/internal-link-helper', // redirect old ai-writing to internal-link-helper
       'article-rewriter': '/article-rewriter',
+      'content-optimizer': '/content-optimizer',
       'bing-indexing': '/bing-indexing',
       'google-indexing': '/google-indexing',
       'google-checker': '/google-checker',
