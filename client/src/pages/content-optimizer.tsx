@@ -38,6 +38,7 @@ function ContentOptimizerContent() {
   const [audienceLocation, setAudienceLocation] = useState("2704");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showMetadata, setShowMetadata] = useState(true);
+  const [h1Title, setH1Title] = useState("");
   const [titleTag, setTitleTag] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
 
@@ -88,27 +89,73 @@ function ContentOptimizerContent() {
       toneOfVoice: 80,
     });
 
-    // Mock tips
-    setOptimizationTips([
-      {
+    // Generate dynamic tips based on current state
+    const tips: OptimizationTip[] = [];
+
+    // Check H1 title
+    if (!h1Title.trim()) {
+      tips.push({
         type: 'seo',
         severity: 'high',
-        message: 'Add target keyword',
-        suggestion: `Thêm từ khóa "${targetKeywords[0]}" vào tiêu đề H1`,
-      },
-      {
+        message: 'Add H1 title',
+        suggestion: 'Thêm tên sản phẩm/blog (H1) cho trang',
+      });
+    } else {
+      // Check if H1 contains target keywords
+      const h1HasKeyword = targetKeywords.some(kw =>
+        h1Title.toLowerCase().includes(kw.toLowerCase())
+      );
+      if (!h1HasKeyword) {
+        tips.push({
+          type: 'seo',
+          severity: 'high',
+          message: 'Add target keyword to H1',
+          suggestion: `Thêm từ khóa mục tiêu vào tên sản phẩm/blog (H1). Ví dụ: "${targetKeywords[0]}"`,
+        });
+      }
+    }
+
+    // Check title tag
+    if (!titleTag.trim()) {
+      tips.push({
         type: 'seo',
         severity: 'medium',
-        message: 'Add a title',
+        message: 'Add title tag',
         suggestion: 'Thêm thẻ title cho trang',
-      },
-      {
-        type: 'readability',
-        severity: 'medium',
-        message: 'Improve sentence length',
-        suggestion: 'Một số câu quá dài, nên chia nhỏ để dễ đọc hơn',
-      },
-    ]);
+      });
+    } else {
+      const titleHasKeyword = targetKeywords.some(kw =>
+        titleTag.toLowerCase().includes(kw.toLowerCase())
+      );
+      if (!titleHasKeyword) {
+        tips.push({
+          type: 'seo',
+          severity: 'medium',
+          message: 'Add keyword to title tag',
+          suggestion: `Thêm từ khóa mục tiêu vào title tag`,
+        });
+      }
+    }
+
+    // Check meta description
+    if (!metaDescription.trim()) {
+      tips.push({
+        type: 'seo',
+        severity: 'low',
+        message: 'Add meta description',
+        suggestion: 'Thêm mô tả trang (meta description)',
+      });
+    }
+
+    // Add sample readability tip
+    tips.push({
+      type: 'readability',
+      severity: 'medium',
+      message: 'Improve sentence length',
+      suggestion: 'Một số câu quá dài, nên chia nhỏ để dễ đọc hơn',
+    });
+
+    setOptimizationTips(tips);
 
     setIsAnalyzing(false);
 
@@ -176,11 +223,39 @@ function ContentOptimizerContent() {
                     size="sm"
                     onClick={() => setShowMetadata(!showMetadata)}
                   >
-                    {showMetadata ? "Hide" : "Show"} Title Tag and Meta Description
+                    {showMetadata ? "Ẩn" : "Hiện"} Title Tag & Meta Description
                   </Button>
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {/* H1 Title - Always visible */}
+                <div className="space-y-2 pb-4 border-b">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="h1-title" className="font-semibold">Tên sản phẩm/Blog (H1)</Label>
+                    <span className="text-xs text-muted-foreground">{h1Title.length} ký tự</span>
+                  </div>
+                  <Input
+                    id="h1-title"
+                    value={h1Title}
+                    onChange={(e) => setH1Title(e.target.value)}
+                    placeholder="Nhập tên sản phẩm hoặc tiêu đề blog..."
+                    className="w-full text-base font-semibold"
+                  />
+                  {targetKeywords.length > 0 && h1Title && (
+                    <p className="text-xs text-muted-foreground">
+                      Từ khóa tìm thấy: {targetKeywords.filter(kw => h1Title.toLowerCase().includes(kw.toLowerCase())).map(kw => (
+                        <span key={kw} className="inline-block bg-yellow-100 text-yellow-800 px-1 rounded mx-0.5">{kw}</span>
+                      ))}
+                      {targetKeywords.filter(kw => h1Title.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
+                        <span className="text-orange-600">Chưa có từ khóa nào</span>
+                      }
+                    </p>
+                  )}
+                  <p className="text-xs text-muted-foreground italic">
+                    Đây là tiêu đề chính (thẻ H1) sẽ xuất hiện trên trang của bạn
+                  </p>
+                </div>
+
                 {showMetadata && (
                   <div className="space-y-4 pb-4 border-b">
                     <div className="space-y-2">
