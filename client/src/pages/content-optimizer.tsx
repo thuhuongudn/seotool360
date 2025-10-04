@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Loader2, FileText, Lightbulb, RefreshCw, Eye } from "lucide-react";
+import { Loader2, FileText, Lightbulb, Eye } from "lucide-react";
 import { Editor } from '@tinymce/tinymce-react';
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
@@ -118,28 +118,6 @@ function ContentOptimizerContent() {
     });
   };
 
-  const handleGenerateMetadata = async () => {
-    if (!content.trim()) {
-      toast({
-        title: "Chưa có nội dung",
-        description: "Vui lòng nhập nội dung trước khi tạo metadata",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    // Simulate metadata generation - replace with actual API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-
-    setTitleTag(`${targetKeywords[0] || 'Tiêu đề'} - Hướng dẫn chi tiết và đánh giá`);
-    setMetaDescription(`Khám phá ${targetKeywords[0] || 'nội dung'} với hướng dẫn toàn diện. Tìm hiểu các tính năng, lợi ích và cách sử dụng hiệu quả.`);
-
-    toast({
-      title: "Đã tạo metadata",
-      description: "Title tag và meta description đã được tạo tự động",
-    });
-  };
-
   const getScoreColor = (score: number) => {
     if (score >= 75) return "text-green-600";
     if (score >= 50) return "text-orange-600";
@@ -208,40 +186,52 @@ function ContentOptimizerContent() {
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
                         <Label htmlFor="title-tag">Title Tag</Label>
-                        <span className="text-xs text-muted-foreground">{titleTag.length}/60</span>
+                        <span className="text-xs text-muted-foreground">{titleTag.length}/70</span>
                       </div>
                       <Input
                         id="title-tag"
                         value={titleTag}
                         onChange={(e) => setTitleTag(e.target.value)}
                         placeholder="Nhập title tag..."
-                        maxLength={60}
+                        maxLength={70}
+                        className="w-full"
                       />
+                      {targetKeywords.length > 0 && titleTag && (
+                        <p className="text-xs text-muted-foreground">
+                          Từ khóa tìm thấy: {targetKeywords.filter(kw => titleTag.toLowerCase().includes(kw.toLowerCase())).map(kw => (
+                            <span key={kw} className="inline-block bg-yellow-100 text-yellow-800 px-1 rounded mx-0.5">{kw}</span>
+                          ))}
+                          {targetKeywords.filter(kw => titleTag.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
+                            <span className="text-orange-600">Chưa có từ khóa nào</span>
+                          }
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label htmlFor="meta-description">Meta Description</Label>
-                        <span className="text-xs text-muted-foreground">{metaDescription.length}/150</span>
+                        <Label htmlFor="meta-description">Mô tả trang (Meta Description)</Label>
+                        <span className="text-xs text-muted-foreground">{metaDescription.length}/320</span>
                       </div>
                       <textarea
                         id="meta-description"
                         value={metaDescription}
                         onChange={(e) => setMetaDescription(e.target.value)}
-                        placeholder="Nhập meta description..."
-                        maxLength={150}
-                        rows={3}
+                        placeholder="Nhập mô tả trang..."
+                        maxLength={320}
+                        rows={4}
                         className="w-full px-3 py-2 border border-input rounded-md text-sm resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       />
+                      {targetKeywords.length > 0 && metaDescription && (
+                        <p className="text-xs text-muted-foreground">
+                          Từ khóa tìm thấy: {targetKeywords.filter(kw => metaDescription.toLowerCase().includes(kw.toLowerCase())).map(kw => (
+                            <span key={kw} className="inline-block bg-yellow-100 text-yellow-800 px-1 rounded mx-0.5">{kw}</span>
+                          ))}
+                          {targetKeywords.filter(kw => metaDescription.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
+                            <span className="text-orange-600">Chưa có từ khóa nào</span>
+                          }
+                        </p>
+                      )}
                     </div>
-                    <Button
-                      onClick={handleGenerateMetadata}
-                      variant="outline"
-                      size="sm"
-                      className="w-full"
-                    >
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Generate metadata with AI
-                    </Button>
                   </div>
                 )}
 
@@ -308,7 +298,7 @@ function ContentOptimizerContent() {
               <CardContent>
                 <div className="border rounded-lg overflow-hidden">
                   <Editor
-                    apiKey="your-api-key-here"
+                    apiKey={import.meta.env.VITE_TINYMCE_KEY}
                     onInit={(_evt: any, editor: any) => editorRef.current = editor}
                     value={content}
                     onEditorChange={(newContent: string) => setContent(newContent)}
@@ -318,13 +308,15 @@ function ContentOptimizerContent() {
                       plugins: [
                         'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
                         'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-                        'insertdatetime', 'media', 'table', 'code', 'help', 'wordcount'
+                        'insertdatetime', 'media', 'table', 'help', 'wordcount'
                       ],
                       toolbar: 'undo redo | blocks | ' +
-                        'bold italic forecolor | alignleft aligncenter ' +
+                        'bold italic underline forecolor backcolor | alignleft aligncenter ' +
                         'alignright alignjustify | bullist numlist outdent indent | ' +
-                        'removeformat | help',
-                      content_style: 'body { font-family:Inter,Helvetica,Arial,sans-serif; font-size:14px; padding: 1rem; }'
+                        'link image table | code fullscreen | removeformat help',
+                      content_style: 'body { font-family:Inter,Helvetica,Arial,sans-serif; font-size:14px; padding: 1rem; line-height: 1.6; }',
+                      branding: false,
+                      promotion: false
                     }}
                   />
                 </div>
