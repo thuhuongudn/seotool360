@@ -34,8 +34,12 @@ function ContentOptimizerContent() {
   const toolId = useToolId("content-optimizer");
   const editorRef = useRef<any>(null);
   const [content, setContent] = useState("");
-  const [targetKeywords, setTargetKeywords] = useState<string[]>([]);
-  const [keywordInput, setKeywordInput] = useState("");
+
+  // Separate primary and secondary keywords
+  const [primaryKeyword, setPrimaryKeyword] = useState("");
+  const [secondaryKeywords, setSecondaryKeywords] = useState<string[]>([]);
+  const [secondaryKeywordInput, setSecondaryKeywordInput] = useState("");
+
   const [audienceLocation, setAudienceLocation] = useState("2704");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showMetadata, setShowMetadata] = useState(true);
@@ -61,15 +65,18 @@ function ContentOptimizerContent() {
   const { toast } = useToast();
   const { canUseToken } = useTokenManagement();
 
-  const handleAddKeyword = () => {
-    if (keywordInput.trim() && !targetKeywords.includes(keywordInput.trim())) {
-      setTargetKeywords([...targetKeywords, keywordInput.trim()]);
-      setKeywordInput("");
+  // Combine primary and secondary keywords for backward compatibility
+  const allKeywords = primaryKeyword ? [primaryKeyword, ...secondaryKeywords] : secondaryKeywords;
+
+  const handleAddSecondaryKeyword = () => {
+    if (secondaryKeywordInput.trim() && !secondaryKeywords.includes(secondaryKeywordInput.trim())) {
+      setSecondaryKeywords([...secondaryKeywords, secondaryKeywordInput.trim()]);
+      setSecondaryKeywordInput("");
     }
   };
 
-  const handleRemoveKeyword = (keyword: string) => {
-    setTargetKeywords(targetKeywords.filter(k => k !== keyword));
+  const handleRemoveSecondaryKeyword = (keyword: string) => {
+    setSecondaryKeywords(secondaryKeywords.filter(k => k !== keyword));
   };
 
   // Toggle keyword highlighting in editor
@@ -83,8 +90,15 @@ function ContentOptimizerContent() {
       // Apply highlighting
       let highlightedContent = currentContent;
 
-      targetKeywords.forEach(keyword => {
-        // Escape special regex characters
+      // Highlight primary keyword in different color (green-yellow)
+      if (primaryKeyword) {
+        const escapedKeyword = primaryKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`(?<!<[^>]*)(\\b${escapedKeyword}\\b)(?![^<]*>)`, 'gi');
+        highlightedContent = highlightedContent.replace(regex, '<mark style="background-color: #bbf7d0; padding: 2px 0; font-weight: 600;">$1</mark>');
+      }
+
+      // Highlight secondary keywords in yellow
+      secondaryKeywords.forEach(keyword => {
         const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const regex = new RegExp(`(?<!<[^>]*)(\\b${escapedKeyword}\\b)(?![^<]*>)`, 'gi');
         highlightedContent = highlightedContent.replace(regex, '<mark style="background-color: #fef08a; padding: 2px 0;">$1</mark>');
@@ -95,7 +109,7 @@ function ContentOptimizerContent() {
 
       toast({
         title: "Đã bật highlight từ khóa",
-        description: `Đang highlight ${targetKeywords.length} từ khóa trong nội dung`,
+        description: `Đang highlight ${allKeywords.length} từ khóa trong nội dung`,
       });
     } else {
       // Remove highlighting
@@ -111,18 +125,18 @@ function ContentOptimizerContent() {
 
   // Auto-update content state when highlighting changes
   useEffect(() => {
-    if (editorRef.current && keywordHighlightEnabled && targetKeywords.length > 0) {
+    if (editorRef.current && keywordHighlightEnabled && allKeywords.length > 0) {
       const editor = editorRef.current;
       const currentContent = editor.getContent();
       setContent(currentContent);
     }
-  }, [keywordHighlightEnabled, targetKeywords]);
+  }, [keywordHighlightEnabled, allKeywords]);
 
   const handleGetImprovementIdeas = async () => {
-    if (targetKeywords.length === 0) {
+    if (!primaryKeyword) {
       toast({
-        title: "Thiếu từ khóa",
-        description: "Vui lòng thêm ít nhất một từ khóa mục tiêu",
+        title: "Thiếu từ khóa chính",
+        description: "Vui lòng thêm từ khóa chính (Primary keyword)",
         variant: "destructive",
       });
       return;
@@ -141,7 +155,8 @@ function ContentOptimizerContent() {
       h1Title,
       titleTag,
       metaDescription,
-      targetKeywords
+      primaryKeyword,
+      secondaryKeywords
     );
     setSeoAnalysis(seoResult);
 
@@ -268,12 +283,21 @@ function ContentOptimizerContent() {
                     placeholder="Nhập tên sản phẩm hoặc tiêu đề blog..."
                     className="w-full text-base font-semibold"
                   />
-                  {targetKeywords.length > 0 && h1Title && (
+                  {allKeywords.length > 0 && h1Title && (
                     <p className="text-xs text-muted-foreground">
-                      Từ khóa tìm thấy: {targetKeywords.filter(kw => h1Title.toLowerCase().includes(kw.toLowerCase())).map(kw => (
-                        <span key={kw} className="inline-block bg-yellow-100 text-yellow-800 px-1 rounded mx-0.5">{kw}</span>
+                      Từ khóa tìm thấy: {allKeywords.filter(kw => h1Title.toLowerCase().includes(kw.toLowerCase())).map(kw => (
+                        <span
+                          key={kw}
+                          className={`inline-block px-1 rounded mx-0.5 ${
+                            kw === primaryKeyword
+                              ? 'bg-green-100 text-green-800 font-semibold'
+                              : 'bg-yellow-100 text-yellow-800'
+                          }`}
+                        >
+                          {kw}
+                        </span>
                       ))}
-                      {targetKeywords.filter(kw => h1Title.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
+                      {allKeywords.filter(kw => h1Title.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
                         <span className="text-orange-600">Chưa có từ khóa nào</span>
                       }
                     </p>
@@ -298,12 +322,21 @@ function ContentOptimizerContent() {
                         maxLength={70}
                         className="w-full"
                       />
-                      {targetKeywords.length > 0 && titleTag && (
+                      {allKeywords.length > 0 && titleTag && (
                         <p className="text-xs text-muted-foreground">
-                          Từ khóa tìm thấy: {targetKeywords.filter(kw => titleTag.toLowerCase().includes(kw.toLowerCase())).map(kw => (
-                            <span key={kw} className="inline-block bg-yellow-100 text-yellow-800 px-1 rounded mx-0.5">{kw}</span>
+                          Từ khóa tìm thấy: {allKeywords.filter(kw => titleTag.toLowerCase().includes(kw.toLowerCase())).map(kw => (
+                            <span
+                              key={kw}
+                              className={`inline-block px-1 rounded mx-0.5 ${
+                                kw === primaryKeyword
+                                  ? 'bg-green-100 text-green-800 font-semibold'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}
+                            >
+                              {kw}
+                            </span>
                           ))}
-                          {targetKeywords.filter(kw => titleTag.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
+                          {allKeywords.filter(kw => titleTag.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
                             <span className="text-orange-600">Chưa có từ khóa nào</span>
                           }
                         </p>
@@ -323,12 +356,21 @@ function ContentOptimizerContent() {
                         rows={4}
                         className="w-full px-3 py-2 border border-input rounded-md text-sm resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       />
-                      {targetKeywords.length > 0 && metaDescription && (
+                      {allKeywords.length > 0 && metaDescription && (
                         <p className="text-xs text-muted-foreground">
-                          Từ khóa tìm thấy: {targetKeywords.filter(kw => metaDescription.toLowerCase().includes(kw.toLowerCase())).map(kw => (
-                            <span key={kw} className="inline-block bg-yellow-100 text-yellow-800 px-1 rounded mx-0.5">{kw}</span>
+                          Từ khóa tìm thấy: {allKeywords.filter(kw => metaDescription.toLowerCase().includes(kw.toLowerCase())).map(kw => (
+                            <span
+                              key={kw}
+                              className={`inline-block px-1 rounded mx-0.5 ${
+                                kw === primaryKeyword
+                                  ? 'bg-green-100 text-green-800 font-semibold'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}
+                            >
+                              {kw}
+                            </span>
                           ))}
-                          {targetKeywords.filter(kw => metaDescription.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
+                          {allKeywords.filter(kw => metaDescription.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
                             <span className="text-orange-600">Chưa có từ khóa nào</span>
                           }
                         </p>
@@ -353,24 +395,57 @@ function ContentOptimizerContent() {
                   </Select>
                 </div>
 
+                {/* Primary Keyword Input */}
+                <div className="space-y-2 pb-3 border-b">
+                  <Label htmlFor="primary-keyword" className="font-semibold text-base">
+                    Primary Keyword <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="primary-keyword"
+                    value={primaryKeyword}
+                    onChange={(e) => setPrimaryKeyword(e.target.value)}
+                    placeholder="Nhập từ khóa chính (1 từ khóa duy nhất)..."
+                    className="font-medium"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Mật độ đề xuất: <span className="font-medium text-green-700">1-1.5%</span>
+                  </p>
+                  {primaryKeyword && (
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-green-100 text-green-800 border-green-300">
+                        {primaryKeyword}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+
+                {/* Secondary Keywords Input */}
                 <div className="space-y-2">
-                  <Label>Your target keywords</Label>
+                  <Label htmlFor="secondary-keywords" className="font-semibold text-base">
+                    Secondary Keywords
+                  </Label>
                   <div className="flex gap-2">
                     <Input
-                      value={keywordInput}
-                      onChange={(e) => setKeywordInput(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddKeyword()}
-                      placeholder="Nhập từ khóa và Enter..."
+                      id="secondary-keywords"
+                      value={secondaryKeywordInput}
+                      onChange={(e) => setSecondaryKeywordInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleAddSecondaryKeyword()}
+                      placeholder="Nhập từ khóa phụ và Enter..."
                     />
-                    <Button onClick={handleAddKeyword} size="sm">Add</Button>
+                    <Button onClick={handleAddSecondaryKeyword} size="sm">Add</Button>
                   </div>
+                  <p className="text-xs text-muted-foreground">
+                    Mật độ đề xuất (tổng): <span className="font-medium text-yellow-700">0.3-0.8%</span>
+                    {' • '}
+                    Tổng mật độ (Primary + Secondary): <span className="font-medium text-blue-700">1.5-2.5%</span>
+                  </p>
                   <div className="flex flex-wrap gap-2 mt-2">
-                    {targetKeywords.map((keyword) => (
+                    {secondaryKeywords.map((keyword) => (
                       <Badge
                         key={keyword}
                         variant="secondary"
                         className="px-3 py-1 cursor-pointer hover:bg-red-100"
-                        onClick={() => handleRemoveKeyword(keyword)}
+                        onClick={() => handleRemoveSecondaryKeyword(keyword)}
                       >
                         {keyword} ×
                       </Badge>
@@ -380,7 +455,7 @@ function ContentOptimizerContent() {
 
                 <Button
                   onClick={handleGetImprovementIdeas}
-                  disabled={isAnalyzing || targetKeywords.length === 0 || !canUseToken}
+                  disabled={isAnalyzing || !primaryKeyword || !canUseToken}
                   className="w-full bg-green-600 hover:bg-green-700"
                 >
                   {isAnalyzing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
@@ -403,7 +478,7 @@ function ContentOptimizerContent() {
                     variant={keywordHighlightEnabled ? "default" : "outline"}
                     size="sm"
                     onClick={toggleKeywordHighlight}
-                    disabled={targetKeywords.length === 0}
+                    disabled={allKeywords.length === 0}
                     className={keywordHighlightEnabled ? "bg-yellow-500 hover:bg-yellow-600 text-white" : ""}
                   >
                     <Highlighter className="h-4 w-4 mr-2" />
@@ -452,9 +527,9 @@ function ContentOptimizerContent() {
                   <p className="text-xs text-muted-foreground">
                     {content.replace(/<[^>]*>/g, '').length} ký tự • {content.replace(/<[^>]*>/g, '').split(/\s+/).filter(Boolean).length} từ
                   </p>
-                  {keywordHighlightEnabled && targetKeywords.length > 0 && (
+                  {keywordHighlightEnabled && allKeywords.length > 0 && (
                     <p className="text-xs font-medium text-yellow-700 bg-yellow-50 px-2 py-1 rounded">
-                      🔍 Highlighting {targetKeywords.length} từ khóa
+                      🔍 Highlighting {allKeywords.length} từ khóa
                     </p>
                   )}
                 </div>
@@ -549,22 +624,44 @@ function ContentOptimizerContent() {
                           </span>
                         </div>
                         <div className="flex justify-between items-center pt-2 border-t">
-                          <span className="text-muted-foreground">Mật độ từ khóa:</span>
-                          <span className={seoAnalysis.keywordDensity >= 1 && seoAnalysis.keywordDensity <= 2.5 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
-                            {seoAnalysis.keywordDensity.toFixed(2)}%
-                            <span className="text-xs text-muted-foreground ml-1">(tối ưu: 1-2%)</span>
+                          <span className="text-muted-foreground">Mật độ từ khóa chính:</span>
+                          <span className={seoAnalysis.primaryKeywordDensity >= 1 && seoAnalysis.primaryKeywordDensity <= 1.5 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                            {seoAnalysis.primaryKeywordDensity.toFixed(2)}%
+                            <span className="text-xs text-muted-foreground ml-1">(tối ưu: 1-1.5%)</span>
                           </span>
                         </div>
+                        {secondaryKeywords.length > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Mật độ từ khóa phụ:</span>
+                            <span className={seoAnalysis.secondaryKeywordDensity >= 0.3 && seoAnalysis.secondaryKeywordDensity <= 0.8 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                              {seoAnalysis.secondaryKeywordDensity.toFixed(2)}%
+                              <span className="text-xs text-muted-foreground ml-1">(tối ưu: 0.3-0.8%)</span>
+                            </span>
+                          </div>
+                        )}
                         <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Tổng mật độ:</span>
+                          <span className={seoAnalysis.totalKeywordDensity >= 1.5 && seoAnalysis.totalKeywordDensity <= 2.5 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                            {seoAnalysis.totalKeywordDensity.toFixed(2)}%
+                            <span className="text-xs text-muted-foreground ml-1">(tối ưu: 1.5-2.5%)</span>
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t">
                           <span className="text-muted-foreground">Hình ảnh thiếu alt:</span>
                           <span className={seoAnalysis.imagesWithoutAlt === 0 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
                             {seoAnalysis.imagesWithoutAlt}/{seoAnalysis.totalImages}
                           </span>
                         </div>
                         <div className="flex justify-between items-center pt-2 border-t">
-                          <span className="text-muted-foreground">Số lần xuất hiện từ khóa:</span>
-                          <span className="font-medium">{seoAnalysis.keywordCount}</span>
+                          <span className="text-muted-foreground">Từ khóa chính xuất hiện:</span>
+                          <span className="font-medium">{seoAnalysis.primaryKeywordCount} lần</span>
                         </div>
+                        {secondaryKeywords.length > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Từ khóa phụ xuất hiện:</span>
+                            <span className="font-medium">{seoAnalysis.secondaryKeywordCount} lần</span>
+                          </div>
+                        )}
                         <div className="flex justify-between items-center">
                           <span className="text-muted-foreground">Tổng số từ:</span>
                           <span className="font-medium">{seoAnalysis.wordCount}</span>
@@ -674,7 +771,7 @@ function ContentOptimizerContent() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Target Keywords</span>
-                  <span className="font-semibold">{targetKeywords.length}</span>
+                  <span className="font-semibold">{allKeywords.length}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Location</span>

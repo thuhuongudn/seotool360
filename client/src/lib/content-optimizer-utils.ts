@@ -9,7 +9,9 @@
 
 export interface SEOAnalysis {
   score: number; // 0-100
-  keywordDensity: number;
+  primaryKeywordDensity: number;
+  secondaryKeywordDensity: number;
+  totalKeywordDensity: number;
   h1HasKeyword: boolean;
   titleHasKeyword: boolean;
   metaHasKeyword: boolean;
@@ -17,7 +19,8 @@ export interface SEOAnalysis {
   imagesWithoutAlt: number;
   totalImages: number;
   wordCount: number;
-  keywordCount: number;
+  primaryKeywordCount: number;
+  secondaryKeywordCount: number;
   recommendations: string[];
 }
 
@@ -108,75 +111,124 @@ export function countKeywords(content: string, keywords: string[]): number {
 }
 
 /**
- * Analyze SEO and generate score
+ * Analyze SEO and generate score with separate primary and secondary keywords
+ *
+ * Density targets:
+ * - Primary keyword: 1-1.5%
+ * - Secondary keywords: 0.3-0.8% (total)
+ * - Total density: 1.5-2.5%
  */
 export function analyzeSEO(
   content: string,
   h1Title: string,
   titleTag: string,
   metaDescription: string,
-  keywords: string[]
+  primaryKeyword: string,
+  secondaryKeywords: string[]
 ): SEOAnalysis {
   const textContent = stripHTML(content);
   const wordCount = textContent.split(/\s+/).filter(Boolean).length;
-  const keywordCount = countKeywords(textContent, keywords);
-  const keywordDensity = calculateKeywordDensity(textContent, keywords);
   const imageAnalysis = analyzeImages(content);
 
-  const h1HasKeyword = keywords.some(kw => h1Title.toLowerCase().includes(kw.toLowerCase()));
-  const titleHasKeyword = keywords.some(kw => titleTag.toLowerCase().includes(kw.toLowerCase()));
-  const metaHasKeyword = keywords.some(kw => metaDescription.toLowerCase().includes(kw.toLowerCase()));
-  const keywordInFirstParagraph = hasKeywordInFirstParagraph(content, keywords);
+  // Calculate densities separately
+  const primaryKeywordCount = countKeywords(textContent, [primaryKeyword]);
+  const secondaryKeywordCount = countKeywords(textContent, secondaryKeywords);
+
+  const primaryKeywordDensity = calculateKeywordDensity(textContent, [primaryKeyword]);
+  const secondaryKeywordDensity = calculateKeywordDensity(textContent, secondaryKeywords);
+  const totalKeywordDensity = primaryKeywordDensity + secondaryKeywordDensity;
+
+  // Check keyword presence in key locations (using primary keyword)
+  const h1HasKeyword = h1Title.toLowerCase().includes(primaryKeyword.toLowerCase());
+  const titleHasKeyword = titleTag.toLowerCase().includes(primaryKeyword.toLowerCase());
+  const metaHasKeyword = metaDescription.toLowerCase().includes(primaryKeyword.toLowerCase());
+  const keywordInFirstParagraph = hasKeywordInFirstParagraph(content, [primaryKeyword]);
 
   // Calculate score (0-100)
   let score = 0;
   const recommendations: string[] = [];
 
-  // H1 has keyword (25 points)
+  // H1 has primary keyword (25 points)
   if (h1HasKeyword) {
     score += 25;
   } else if (h1Title.trim()) {
-    recommendations.push('Thêm từ khóa mục tiêu vào H1');
+    recommendations.push('Thêm từ khóa chính vào H1');
   } else {
-    recommendations.push('Thêm tiêu đề H1 có chứa từ khóa');
+    recommendations.push('Thêm tiêu đề H1 có chứa từ khóa chính');
   }
 
-  // Title tag has keyword (20 points)
+  // Title tag has primary keyword (20 points)
   if (titleHasKeyword) {
     score += 20;
   } else if (titleTag.trim()) {
-    recommendations.push('Thêm từ khóa mục tiêu vào title tag');
+    recommendations.push('Thêm từ khóa chính vào title tag');
   } else {
-    recommendations.push('Thêm title tag có chứa từ khóa');
+    recommendations.push('Thêm title tag có chứa từ khóa chính');
   }
 
-  // Meta description has keyword (15 points)
+  // Meta description has primary keyword (15 points)
   if (metaHasKeyword) {
     score += 15;
   } else if (metaDescription.trim()) {
-    recommendations.push('Thêm từ khóa mục tiêu vào meta description');
+    recommendations.push('Thêm từ khóa chính vào meta description');
   } else {
-    recommendations.push('Thêm meta description có chứa từ khóa');
+    recommendations.push('Thêm meta description có chứa từ khóa chính');
   }
 
-  // Keyword in first paragraph (15 points)
+  // Primary keyword in first paragraph (15 points)
   if (keywordInFirstParagraph) {
     score += 15;
   } else {
-    recommendations.push('Thêm từ khóa vào đoạn đầu tiên của bài viết');
+    recommendations.push('Thêm từ khóa chính vào đoạn đầu tiên của bài viết');
   }
 
-  // Keyword density (15 points) - optimal is 1-2%
-  if (keywordDensity >= 1 && keywordDensity <= 2.5) {
-    score += 15;
-  } else if (keywordDensity > 2.5) {
-    recommendations.push(`Giảm mật độ từ khóa (hiện tại: ${keywordDensity.toFixed(2)}%, nên từ 1-2%)`);
-    score += 5; // partial credit
-  } else if (keywordDensity > 0) {
-    recommendations.push(`Tăng mật độ từ khóa (hiện tại: ${keywordDensity.toFixed(2)}%, nên từ 1-2%)`);
-    score += 5; // partial credit
+  // Primary keyword density (10 points) - optimal is 1-1.5%
+  if (primaryKeywordDensity >= 1 && primaryKeywordDensity <= 1.5) {
+    score += 10;
+  } else if (primaryKeywordDensity > 1.5 && primaryKeywordDensity <= 2) {
+    recommendations.push(`Mật độ từ khóa chính hơi cao (${primaryKeywordDensity.toFixed(2)}%, nên 1-1.5%)`);
+    score += 7;
+  } else if (primaryKeywordDensity > 2) {
+    recommendations.push(`Giảm mật độ từ khóa chính (${primaryKeywordDensity.toFixed(2)}%, nên 1-1.5%)`);
+    score += 3;
+  } else if (primaryKeywordDensity > 0) {
+    recommendations.push(`Tăng mật độ từ khóa chính (${primaryKeywordDensity.toFixed(2)}%, nên 1-1.5%)`);
+    score += 5;
   } else {
-    recommendations.push('Thêm từ khóa vào nội dung');
+    recommendations.push('Thêm từ khóa chính vào nội dung');
+  }
+
+  // Secondary keywords density (5 points) - optimal is 0.3-0.8% total
+  if (secondaryKeywords.length > 0) {
+    if (secondaryKeywordDensity >= 0.3 && secondaryKeywordDensity <= 0.8) {
+      score += 5;
+    } else if (secondaryKeywordDensity > 0.8 && secondaryKeywordDensity <= 1.2) {
+      recommendations.push(`Mật độ từ khóa phụ hơi cao (${secondaryKeywordDensity.toFixed(2)}%, nên 0.3-0.8%)`);
+      score += 3;
+    } else if (secondaryKeywordDensity > 1.2) {
+      recommendations.push(`Giảm mật độ từ khóa phụ (${secondaryKeywordDensity.toFixed(2)}%, nên 0.3-0.8%)`);
+      score += 1;
+    } else if (secondaryKeywordDensity > 0) {
+      recommendations.push(`Tăng mật độ từ khóa phụ (${secondaryKeywordDensity.toFixed(2)}%, nên 0.3-0.8%)`);
+      score += 2;
+    }
+  } else {
+    // No secondary keywords, give neutral score
+    score += 2;
+  }
+
+  // Total keyword density (5 points) - optimal is 1.5-2.5%
+  if (totalKeywordDensity >= 1.5 && totalKeywordDensity <= 2.5) {
+    score += 5;
+  } else if (totalKeywordDensity > 2.5 && totalKeywordDensity <= 3.5) {
+    recommendations.push(`Tổng mật độ từ khóa hơi cao (${totalKeywordDensity.toFixed(2)}%, nên 1.5-2.5%)`);
+    score += 3;
+  } else if (totalKeywordDensity > 3.5) {
+    recommendations.push(`Giảm tổng mật độ từ khóa (${totalKeywordDensity.toFixed(2)}%, nên 1.5-2.5%)`);
+    score += 1;
+  } else if (totalKeywordDensity > 0) {
+    recommendations.push(`Tăng tổng mật độ từ khóa (${totalKeywordDensity.toFixed(2)}%, nên 1.5-2.5%)`);
+    score += 2;
   }
 
   // Images have alt text (10 points)
@@ -194,7 +246,9 @@ export function analyzeSEO(
 
   return {
     score: Math.min(100, score),
-    keywordDensity,
+    primaryKeywordDensity,
+    secondaryKeywordDensity,
+    totalKeywordDensity,
     h1HasKeyword,
     titleHasKeyword,
     metaHasKeyword,
@@ -202,7 +256,8 @@ export function analyzeSEO(
     imagesWithoutAlt: imageAnalysis.withoutAlt,
     totalImages: imageAnalysis.total,
     wordCount,
-    keywordCount,
+    primaryKeywordCount,
+    secondaryKeywordCount,
     recommendations
   };
 }
