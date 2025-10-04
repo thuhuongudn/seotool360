@@ -26,6 +26,7 @@ import SearchIntent from "@/pages/search-intent";
 import InternalLinkHelper from "@/pages/internal-link-helper";
 import ArticleRewriter from "@/pages/article-rewriter";
 import SchemaMarkup from "@/pages/schema-markup";
+import ContentOptimizer from "@/pages/content-optimizer";
 // Index Tools
 import BingIndexing from "@/pages/bing-indexing";
 import GoogleIndexing from "@/pages/google-indexing";
@@ -99,6 +100,11 @@ function Router() {
       <Route path="/schema-markup">
         <ProtectedRoute>
           <SchemaMarkup />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/content-optimizer">
+        <ProtectedRoute>
+          <ContentOptimizer />
         </ProtectedRoute>
       </Route>
       {/* Index Routes */}
