@@ -1,0 +1,388 @@
+/**
+ * Content Optimizer Utilities
+ * Client-side scoring and analysis for SEO and Readability
+ */
+
+// ============================================
+// SEO SCORING UTILITIES
+// ============================================
+
+export interface SEOAnalysis {
+  score: number; // 0-100
+  keywordDensity: number;
+  h1HasKeyword: boolean;
+  titleHasKeyword: boolean;
+  metaHasKeyword: boolean;
+  keywordInFirstParagraph: boolean;
+  imagesWithoutAlt: number;
+  totalImages: number;
+  wordCount: number;
+  keywordCount: number;
+  recommendations: string[];
+}
+
+export interface ReadabilityAnalysis {
+  score: number; // 0-100
+  avgSentenceLength: number;
+  longSentences: number; // sentences > 25 words
+  avgWordLength: number;
+  difficultParagraphs: string[]; // paragraphs that are too long or complex
+  recommendations: string[];
+}
+
+/**
+ * Calculate keyword density (percentage of content that is the keyword)
+ */
+export function calculateKeywordDensity(content: string, keywords: string[]): number {
+  if (keywords.length === 0 || !content) return 0;
+
+  const contentLower = content.toLowerCase();
+  const words = contentLower.split(/\s+/).filter(Boolean);
+  const totalWords = words.length;
+
+  if (totalWords === 0) return 0;
+
+  let keywordOccurrences = 0;
+  keywords.forEach(keyword => {
+    const keywordLower = keyword.toLowerCase();
+    const regex = new RegExp(`\\b${keywordLower}\\b`, 'gi');
+    const matches = contentLower.match(regex);
+    keywordOccurrences += matches ? matches.length : 0;
+  });
+
+  return (keywordOccurrences / totalWords) * 100;
+}
+
+/**
+ * Check if keywords appear in first paragraph
+ */
+export function hasKeywordInFirstParagraph(content: string, keywords: string[]): boolean {
+  if (keywords.length === 0 || !content) return false;
+
+  // Extract text from HTML
+  const textContent = stripHTML(content);
+  const paragraphs = textContent.split(/\n\n+/).filter(Boolean);
+
+  if (paragraphs.length === 0) return false;
+
+  const firstParagraph = paragraphs[0].toLowerCase();
+  return keywords.some(kw => firstParagraph.includes(kw.toLowerCase()));
+}
+
+/**
+ * Count images and check alt attributes
+ */
+export function analyzeImages(htmlContent: string): { total: number; withoutAlt: number } {
+  const imgRegex = /<img[^>]*>/gi;
+  const images = htmlContent.match(imgRegex) || [];
+
+  let withoutAlt = 0;
+  images.forEach(img => {
+    const hasAlt = /alt\s*=\s*["'][^"']+["']/i.test(img);
+    if (!hasAlt) withoutAlt++;
+  });
+
+  return {
+    total: images.length,
+    withoutAlt
+  };
+}
+
+/**
+ * Count keyword occurrences in content
+ */
+export function countKeywords(content: string, keywords: string[]): number {
+  if (keywords.length === 0 || !content) return 0;
+
+  const contentLower = content.toLowerCase();
+  let count = 0;
+
+  keywords.forEach(keyword => {
+    const keywordLower = keyword.toLowerCase();
+    const regex = new RegExp(`\\b${keywordLower}\\b`, 'gi');
+    const matches = contentLower.match(regex);
+    count += matches ? matches.length : 0;
+  });
+
+  return count;
+}
+
+/**
+ * Analyze SEO and generate score
+ */
+export function analyzeSEO(
+  content: string,
+  h1Title: string,
+  titleTag: string,
+  metaDescription: string,
+  keywords: string[]
+): SEOAnalysis {
+  const textContent = stripHTML(content);
+  const wordCount = textContent.split(/\s+/).filter(Boolean).length;
+  const keywordCount = countKeywords(textContent, keywords);
+  const keywordDensity = calculateKeywordDensity(textContent, keywords);
+  const imageAnalysis = analyzeImages(content);
+
+  const h1HasKeyword = keywords.some(kw => h1Title.toLowerCase().includes(kw.toLowerCase()));
+  const titleHasKeyword = keywords.some(kw => titleTag.toLowerCase().includes(kw.toLowerCase()));
+  const metaHasKeyword = keywords.some(kw => metaDescription.toLowerCase().includes(kw.toLowerCase()));
+  const keywordInFirstParagraph = hasKeywordInFirstParagraph(content, keywords);
+
+  // Calculate score (0-100)
+  let score = 0;
+  const recommendations: string[] = [];
+
+  // H1 has keyword (25 points)
+  if (h1HasKeyword) {
+    score += 25;
+  } else if (h1Title.trim()) {
+    recommendations.push('Thêm từ khóa mục tiêu vào H1');
+  } else {
+    recommendations.push('Thêm tiêu đề H1 có chứa từ khóa');
+  }
+
+  // Title tag has keyword (20 points)
+  if (titleHasKeyword) {
+    score += 20;
+  } else if (titleTag.trim()) {
+    recommendations.push('Thêm từ khóa mục tiêu vào title tag');
+  } else {
+    recommendations.push('Thêm title tag có chứa từ khóa');
+  }
+
+  // Meta description has keyword (15 points)
+  if (metaHasKeyword) {
+    score += 15;
+  } else if (metaDescription.trim()) {
+    recommendations.push('Thêm từ khóa mục tiêu vào meta description');
+  } else {
+    recommendations.push('Thêm meta description có chứa từ khóa');
+  }
+
+  // Keyword in first paragraph (15 points)
+  if (keywordInFirstParagraph) {
+    score += 15;
+  } else {
+    recommendations.push('Thêm từ khóa vào đoạn đầu tiên của bài viết');
+  }
+
+  // Keyword density (15 points) - optimal is 1-2%
+  if (keywordDensity >= 1 && keywordDensity <= 2.5) {
+    score += 15;
+  } else if (keywordDensity > 2.5) {
+    recommendations.push(`Giảm mật độ từ khóa (hiện tại: ${keywordDensity.toFixed(2)}%, nên từ 1-2%)`);
+    score += 5; // partial credit
+  } else if (keywordDensity > 0) {
+    recommendations.push(`Tăng mật độ từ khóa (hiện tại: ${keywordDensity.toFixed(2)}%, nên từ 1-2%)`);
+    score += 5; // partial credit
+  } else {
+    recommendations.push('Thêm từ khóa vào nội dung');
+  }
+
+  // Images have alt text (10 points)
+  if (imageAnalysis.total > 0) {
+    if (imageAnalysis.withoutAlt === 0) {
+      score += 10;
+    } else {
+      recommendations.push(`Thêm alt text cho ${imageAnalysis.withoutAlt} hình ảnh`);
+      score += Math.max(0, 10 - (imageAnalysis.withoutAlt * 2));
+    }
+  } else {
+    // No images - neutral, don't penalize
+    score += 5;
+  }
+
+  return {
+    score: Math.min(100, score),
+    keywordDensity,
+    h1HasKeyword,
+    titleHasKeyword,
+    metaHasKeyword,
+    keywordInFirstParagraph,
+    imagesWithoutAlt: imageAnalysis.withoutAlt,
+    totalImages: imageAnalysis.total,
+    wordCount,
+    keywordCount,
+    recommendations
+  };
+}
+
+// ============================================
+// READABILITY SCORING UTILITIES (Vietnamese)
+// ============================================
+
+/**
+ * Calculate average sentence length
+ */
+export function calculateAvgSentenceLength(text: string): number {
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  if (sentences.length === 0) return 0;
+
+  const totalWords = sentences.reduce((sum, sentence) => {
+    const words = sentence.trim().split(/\s+/).filter(Boolean).length;
+    return sum + words;
+  }, 0);
+
+  return totalWords / sentences.length;
+}
+
+/**
+ * Find sentences that are too long (> 25 words for Vietnamese)
+ */
+export function findLongSentences(text: string): number {
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  return sentences.filter(sentence => {
+    const words = sentence.trim().split(/\s+/).filter(Boolean).length;
+    return words > 25;
+  }).length;
+}
+
+/**
+ * Calculate average word length
+ */
+export function calculateAvgWordLength(text: string): number {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 0;
+
+  const totalChars = words.reduce((sum, word) => sum + word.length, 0);
+  return totalChars / words.length;
+}
+
+/**
+ * Find difficult paragraphs (too long or complex)
+ */
+export function findDifficultParagraphs(htmlContent: string): string[] {
+  const textContent = stripHTML(htmlContent);
+  const paragraphs = textContent.split(/\n\n+/).filter(p => p.trim().length > 0);
+
+  const difficult: string[] = [];
+
+  paragraphs.forEach(paragraph => {
+    const words = paragraph.split(/\s+/).filter(Boolean).length;
+    const sentences = paragraph.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+
+    // Paragraph is difficult if:
+    // - More than 150 words
+    // - Average sentence length > 30 words
+    if (words > 150 || (sentences > 0 && words / sentences > 30)) {
+      // Get first 100 characters for preview
+      const preview = paragraph.substring(0, 100) + (paragraph.length > 100 ? '...' : '');
+      difficult.push(preview);
+    }
+  });
+
+  return difficult;
+}
+
+/**
+ * Analyze readability and generate score
+ */
+export function analyzeReadability(htmlContent: string): ReadabilityAnalysis {
+  const textContent = stripHTML(htmlContent);
+
+  if (!textContent.trim()) {
+    return {
+      score: 0,
+      avgSentenceLength: 0,
+      longSentences: 0,
+      avgWordLength: 0,
+      difficultParagraphs: [],
+      recommendations: ['Thêm nội dung để phân tích khả năng đọc']
+    };
+  }
+
+  const avgSentenceLength = calculateAvgSentenceLength(textContent);
+  const longSentences = findLongSentences(textContent);
+  const avgWordLength = calculateAvgWordLength(textContent);
+  const difficultParagraphs = findDifficultParagraphs(htmlContent);
+
+  let score = 100;
+  const recommendations: string[] = [];
+
+  // Penalty for long sentences (ideal: 15-20 words for Vietnamese)
+  if (avgSentenceLength > 25) {
+    score -= 20;
+    recommendations.push(`Câu trung bình quá dài (${avgSentenceLength.toFixed(1)} từ). Nên giữ ở 15-20 từ.`);
+  } else if (avgSentenceLength > 20) {
+    score -= 10;
+    recommendations.push(`Một số câu hơi dài. Nên rút ngắn để dễ đọc hơn.`);
+  }
+
+  // Penalty for number of long sentences
+  if (longSentences > 5) {
+    score -= 15;
+    recommendations.push(`Có ${longSentences} câu quá dài (>25 từ). Nên chia nhỏ.`);
+  } else if (longSentences > 2) {
+    score -= 8;
+  }
+
+  // Penalty for difficult paragraphs
+  if (difficultParagraphs.length > 3) {
+    score -= 15;
+    recommendations.push(`Có ${difficultParagraphs.length} đoạn văn quá dài hoặc phức tạp. Nên chia nhỏ.`);
+  } else if (difficultParagraphs.length > 0) {
+    score -= 8;
+  }
+
+  // Bonus for good readability
+  if (avgSentenceLength >= 12 && avgSentenceLength <= 20 && longSentences === 0) {
+    recommendations.push('✓ Độ dài câu tốt');
+  }
+
+  if (difficultParagraphs.length === 0 && textContent.split(/\s+/).length > 100) {
+    recommendations.push('✓ Đoạn văn dễ đọc');
+  }
+
+  return {
+    score: Math.max(0, Math.min(100, score)),
+    avgSentenceLength,
+    longSentences,
+    avgWordLength,
+    difficultParagraphs,
+    recommendations
+  };
+}
+
+// ============================================
+// HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Strip HTML tags and get plain text
+ */
+export function stripHTML(html: string): string {
+  return html
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Highlight keywords in HTML content
+ */
+export function highlightKeywords(html: string, keywords: string[]): string {
+  if (keywords.length === 0) return html;
+
+  let result = html;
+  keywords.forEach(keyword => {
+    const regex = new RegExp(`(\\b${keyword}\\b)`, 'gi');
+    result = result.replace(regex, '<mark class="bg-yellow-200">$1</mark>');
+  });
+
+  return result;
+}
+
+/**
+ * Extract first N words from text
+ */
+export function getExcerpt(text: string, wordCount: number = 50): string {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length <= wordCount) return text;
+  return words.slice(0, wordCount).join(' ') + '...';
+}

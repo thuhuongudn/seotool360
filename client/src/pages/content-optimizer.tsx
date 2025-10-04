@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Loader2, FileText, Lightbulb, Eye } from "lucide-react";
+import { Loader2, FileText, Lightbulb, Eye, ChevronDown, ChevronUp } from "lucide-react";
 import { Editor } from '@tinymce/tinymce-react';
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useTokenManagement } from "@/hooks/use-token-management";
 import { GEO_TARGET_CONSTANTS } from "@/constants/google-ads-constants";
+import { analyzeSEO, analyzeReadability, type SEOAnalysis, type ReadabilityAnalysis } from "@/lib/content-optimizer-utils";
 
 interface ContentScores {
   seo: number;
@@ -48,6 +49,11 @@ function ContentOptimizerContent() {
     readability: 0,
     toneOfVoice: 0,
   });
+
+  const [seoAnalysis, setSeoAnalysis] = useState<SEOAnalysis | null>(null);
+  const [readabilityAnalysis, setReadabilityAnalysis] = useState<ReadabilityAnalysis | null>(null);
+  const [showSeoTips, setShowSeoTips] = useState(false);
+  const [showReadabilityTips, setShowReadabilityTips] = useState(false);
 
   const [optimizationTips, setOptimizationTips] = useState<OptimizationTip[]>([]);
 
