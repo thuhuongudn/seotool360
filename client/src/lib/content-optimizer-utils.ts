@@ -34,22 +34,164 @@ export interface ReadabilityAnalysis {
 }
 
 /**
+ * Normalize text for keyword matching
+ * - Remove Vietnamese diacritics
+ * - Lowercase
+ * - Normalize hyphens/spaces
+ */
+function normalizeText(text: string): string {
+  // Vietnamese diacritic removal map
+  const diacriticsMap: { [key: string]: string } = {
+    'à|á|ạ|ả|ã|â|ầ|ấ|ậ|ẩ|ẫ|ă|ằ|ắ|ặ|ẳ|ẵ': 'a',
+    'è|é|ẹ|ẻ|ẽ|ê|ề|ế|ệ|ể|ễ': 'e',
+    'ì|í|ị|ỉ|ĩ': 'i',
+    'ò|ó|ọ|ỏ|õ|ô|ồ|ố|ộ|ổ|ỗ|ơ|ờ|ớ|ợ|ở|ỡ': 'o',
+    'ù|ú|ụ|ủ|ũ|ư|ừ|ứ|ự|ử|ữ': 'u',
+    'ỳ|ý|ỵ|ỷ|ỹ': 'y',
+    'đ': 'd',
+    'À|Á|Ạ|Ả|Ã|Â|Ầ|Ấ|Ậ|Ẩ|Ẫ|Ă|Ằ|Ắ|Ặ|Ẳ|Ẵ': 'A',
+    'È|É|Ẹ|Ẻ|Ẽ|Ê|Ề|Ế|Ệ|Ể|Ễ': 'E',
+    'Ì|Í|Ị|Ỉ|Ĩ': 'I',
+    'Ò|Ó|Ọ|Ỏ|Õ|Ô|Ồ|Ố|Ộ|Ổ|Ỗ|Ơ|Ờ|Ớ|Ợ|Ở|Ỡ': 'O',
+    'Ù|Ú|Ụ|Ủ|Ũ|Ư|Ừ|Ứ|Ự|Ử|Ữ': 'U',
+    'Ỳ|Ý|Ỵ|Ỷ|Ỹ': 'Y',
+    'Đ': 'D'
+  };
+
+  let normalized = text.toLowerCase();
+
+  // Remove diacritics
+  Object.keys(diacriticsMap).forEach(pattern => {
+    normalized = normalized.replace(new RegExp(pattern, 'g'), diacriticsMap[pattern]);
+  });
+
+  // Normalize hyphens and multiple spaces
+  normalized = normalized.replace(/[-–—]/g, ' ').replace(/\s+/g, ' ');
+
+  return normalized.trim();
+}
+
+/**
+ * Create regex pattern that matches singular/plural variants
+ * Example: "natural" matches "natural" and "naturals"
+ */
+function createFlexiblePattern(keyword: string): RegExp {
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  // Allow optional 's' at the end of last word
+  const withPlural = escaped.replace(/(\w+)$/i, '$1s?');
+  // Allow hyphen or space between words
+  const withHyphen = withPlural.replace(/\s+/g, '[\\s-]+');
+  return new RegExp(`\\b${withHyphen}\\b`, 'gi');
+}
+
+/**
+ * Advanced keyword counting with span masking and longest-match-wins
+ *
+ * Rules:
+ * 1. Longest-Match-Wins: "dha nordic naturals" beats "dha nordic"
+ * 2. Span Masking: Once a span is assigned, it can't be reused
+ * 3. Priority: Primary > Secondary when same length
+ * 4. Normalization: Handles singular/plural, hyphens, Vietnamese diacritics
+ */
+interface KeywordMatch {
+  keyword: string;
+  startIndex: number;
+  endIndex: number;
+  matchedText: string;
+  isPrimary: boolean;
+}
+
+export function countKeywordsAdvanced(
+  content: string,
+  primaryKeyword: string,
+  secondaryKeywords: string[]
+): { primaryCount: number; secondaryCount: number; matches: KeywordMatch[] } {
+  if (!content || !primaryKeyword) {
+    return { primaryCount: 0, secondaryCount: 0, matches: [] };
+  }
+
+  const normalizedContent = normalizeText(content);
+  const allMatches: KeywordMatch[] = [];
+
+  // Collect all potential matches with their positions
+  const allKeywords = [
+    { keyword: primaryKeyword, isPrimary: true },
+    ...secondaryKeywords.map(kw => ({ keyword: kw, isPrimary: false }))
+  ];
+
+  // Sort keywords by length (longest first) for longest-match-wins
+  allKeywords.sort((a, b) => b.keyword.length - a.keyword.length);
+
+  allKeywords.forEach(({ keyword, isPrimary }) => {
+    const normalizedKeyword = normalizeText(keyword);
+    const pattern = createFlexiblePattern(normalizedKeyword);
+
+    let match;
+    const originalPattern = new RegExp(pattern.source, pattern.flags);
+
+    while ((match = originalPattern.exec(normalizedContent)) !== null) {
+      allMatches.push({
+        keyword,
+        startIndex: match.index,
+        endIndex: match.index + match[0].length,
+        matchedText: match[0],
+        isPrimary
+      });
+    }
+  });
+
+  // Sort matches: longer spans first, then by isPrimary, then by position
+  allMatches.sort((a, b) => {
+    const lenDiff = (b.endIndex - b.startIndex) - (a.endIndex - a.startIndex);
+    if (lenDiff !== 0) return lenDiff;
+    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+    return a.startIndex - b.startIndex;
+  });
+
+  // Apply span masking: track used spans
+  const usedSpans: Array<[number, number]> = [];
+  const validMatches: KeywordMatch[] = [];
+
+  allMatches.forEach(match => {
+    // Check if this span overlaps with any already-used span
+    const overlaps = usedSpans.some(([start, end]) => {
+      return !(match.endIndex <= start || match.startIndex >= end);
+    });
+
+    if (!overlaps) {
+      validMatches.push(match);
+      usedSpans.push([match.startIndex, match.endIndex]);
+    }
+  });
+
+  // Count primary and secondary matches
+  const primaryCount = validMatches.filter(m => m.isPrimary).length;
+  const secondaryCount = validMatches.filter(m => !m.isPrimary).length;
+
+  return { primaryCount, secondaryCount, matches: validMatches };
+}
+
+/**
  * Calculate keyword density (percentage of content that is the keyword)
+ * Uses advanced counting with span masking
  */
 export function calculateKeywordDensity(content: string, keywords: string[]): number {
   if (keywords.length === 0 || !content) return 0;
 
-  const contentLower = content.toLowerCase();
-  const words = contentLower.split(/\s+/).filter(Boolean);
+  const textContent = stripHTML(content);
+  const words = textContent.split(/\s+/).filter(Boolean);
   const totalWords = words.length;
 
   if (totalWords === 0) return 0;
 
+  // Use simple counting for density calculation
+  const normalizedContent = normalizeText(textContent);
   let keywordOccurrences = 0;
+
   keywords.forEach(keyword => {
-    const keywordLower = keyword.toLowerCase();
-    const regex = new RegExp(`\\b${keywordLower}\\b`, 'gi');
-    const matches = contentLower.match(regex);
+    const normalizedKeyword = normalizeText(keyword);
+    const pattern = createFlexiblePattern(normalizedKeyword);
+    const matches = normalizedContent.match(pattern);
     keywordOccurrences += matches ? matches.length : 0;
   });
 
@@ -58,6 +200,7 @@ export function calculateKeywordDensity(content: string, keywords: string[]): nu
 
 /**
  * Check if keywords appear in first paragraph
+ * Uses normalized matching for Vietnamese diacritics and variants
  */
 export function hasKeywordInFirstParagraph(content: string, keywords: string[]): boolean {
   if (keywords.length === 0 || !content) return false;
@@ -68,8 +211,12 @@ export function hasKeywordInFirstParagraph(content: string, keywords: string[]):
 
   if (paragraphs.length === 0) return false;
 
-  const firstParagraph = paragraphs[0].toLowerCase();
-  return keywords.some(kw => firstParagraph.includes(kw.toLowerCase()));
+  const normalizedFirstParagraph = normalizeText(paragraphs[0]);
+  return keywords.some(kw => {
+    const normalizedKeyword = normalizeText(kw);
+    const pattern = createFlexiblePattern(normalizedKeyword);
+    return pattern.test(normalizedFirstParagraph);
+  });
 }
 
 /**
@@ -92,18 +239,19 @@ export function analyzeImages(htmlContent: string): { total: number; withoutAlt:
 }
 
 /**
- * Count keyword occurrences in content
+ * Count keyword occurrences in content (simple version for backward compatibility)
+ * For advanced counting with span masking, use countKeywordsAdvanced()
  */
 export function countKeywords(content: string, keywords: string[]): number {
   if (keywords.length === 0 || !content) return 0;
 
-  const contentLower = content.toLowerCase();
+  const normalizedContent = normalizeText(content);
   let count = 0;
 
   keywords.forEach(keyword => {
-    const keywordLower = keyword.toLowerCase();
-    const regex = new RegExp(`\\b${keywordLower}\\b`, 'gi');
-    const matches = contentLower.match(regex);
+    const normalizedKeyword = normalizeText(keyword);
+    const pattern = createFlexiblePattern(normalizedKeyword);
+    const matches = normalizedContent.match(pattern);
     count += matches ? matches.length : 0;
   });
 
@@ -130,18 +278,25 @@ export function analyzeSEO(
   const wordCount = textContent.split(/\s+/).filter(Boolean).length;
   const imageAnalysis = analyzeImages(content);
 
-  // Calculate densities separately
-  const primaryKeywordCount = countKeywords(textContent, [primaryKeyword]);
-  const secondaryKeywordCount = countKeywords(textContent, secondaryKeywords);
+  // Use advanced counting with span masking and longest-match-wins
+  const keywordAnalysis = countKeywordsAdvanced(textContent, primaryKeyword, secondaryKeywords);
+  const primaryKeywordCount = keywordAnalysis.primaryCount;
+  const secondaryKeywordCount = keywordAnalysis.secondaryCount;
 
+  // Calculate densities separately using normalized matching
   const primaryKeywordDensity = calculateKeywordDensity(textContent, [primaryKeyword]);
   const secondaryKeywordDensity = calculateKeywordDensity(textContent, secondaryKeywords);
   const totalKeywordDensity = primaryKeywordDensity + secondaryKeywordDensity;
 
-  // Check keyword presence in key locations (using primary keyword)
-  const h1HasKeyword = h1Title.toLowerCase().includes(primaryKeyword.toLowerCase());
-  const titleHasKeyword = titleTag.toLowerCase().includes(primaryKeyword.toLowerCase());
-  const metaHasKeyword = metaDescription.toLowerCase().includes(primaryKeyword.toLowerCase());
+  // Check keyword presence in key locations (using normalized matching)
+  const normalizedH1 = normalizeText(h1Title);
+  const normalizedTitle = normalizeText(titleTag);
+  const normalizedMeta = normalizeText(metaDescription);
+  const normalizedPrimary = normalizeText(primaryKeyword);
+
+  const h1HasKeyword = normalizedH1.includes(normalizedPrimary);
+  const titleHasKeyword = normalizedTitle.includes(normalizedPrimary);
+  const metaHasKeyword = normalizedMeta.includes(normalizedPrimary);
   const keywordInFirstParagraph = hasKeywordInFirstParagraph(content, [primaryKeyword]);
 
   // Calculate score (0-100)
