@@ -24,12 +24,23 @@ export interface SEOAnalysis {
   recommendations: string[];
 }
 
+export interface ReadabilityIssue {
+  type: 'long_sentence' | 'long_paragraph' | 'complex_word' | 'passive_voice';
+  text: string; // The problematic text
+  excerpt: string; // Short preview for display
+  suggestion: string; // What to do about it
+  position: number; // Character position in content
+  severity: 'high' | 'medium' | 'low';
+}
+
 export interface ReadabilityAnalysis {
-  score: number; // 0-100
+  score: number; // 0-100 (Flesch Reading Ease adapted for Vietnamese)
+  grade: string; // "Very Easy" | "Easy" | "Fairly Easy" | "Standard" | "Fairly Difficult" | "Difficult" | "Very Confusing"
   avgSentenceLength: number;
   longSentences: number; // sentences > 25 words
   avgWordLength: number;
-  difficultParagraphs: string[]; // paragraphs that are too long or complex
+  difficultParagraphs: string[]; // paragraphs that are too long or complex (legacy, kept for compatibility)
+  issues: ReadabilityIssue[]; // Detailed clickable issues
   recommendations: string[];
 }
 
@@ -85,13 +96,16 @@ function createFlexiblePattern(keyword: string): RegExp {
 }
 
 /**
- * Advanced keyword counting with span masking and longest-match-wins
+ * Advanced keyword counting with span masking
  *
- * Rules:
- * 1. Longest-Match-Wins: "dha nordic naturals" beats "dha nordic"
- * 2. Span Masking: Once a span is assigned, it can't be reused
- * 3. Priority: Primary > Secondary when same length
+ * Rules (PRIORITY ORDER):
+ * 1. Primary ALWAYS wins: Primary keyword takes priority even if secondary is longer
+ * 2. Span Masking: Once a span is assigned, it can't be reused for another keyword
+ * 3. Longest-Match-Wins: Among same type (primary or secondary), longer phrase wins
  * 4. Normalization: Handles singular/plural, hyphens, Vietnamese diacritics
+ *
+ * Example: Primary="dha nordic", Secondary=["dha nordic naturals"]
+ * When "DHA Nordic Naturals" appears → Counted as PRIMARY (not secondary)
  */
 interface KeywordMatch {
   keyword: string;
@@ -140,11 +154,15 @@ export function countKeywordsAdvanced(
     }
   });
 
-  // Sort matches: longer spans first, then by isPrimary, then by position
+  // Sort matches: PRIMARY FIRST (always wins), then longer spans, then by position
+  // CRITICAL: Primary keyword takes priority even if secondary keyword is longer
   allMatches.sort((a, b) => {
+    // Rule 1: Primary always wins
+    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+    // Rule 2: If both same type, longer span wins
     const lenDiff = (b.endIndex - b.startIndex) - (a.endIndex - a.startIndex);
     if (lenDiff !== 0) return lenDiff;
-    if (a.isPrimary !== b.isPrimary) return a.isPrimary ? -1 : 1;
+    // Rule 3: If same type and length, earlier position wins
     return a.startIndex - b.startIndex;
   });
 
@@ -281,20 +299,13 @@ export function analyzeSEO(
   const wordCount = textContent.split(/\s+/).filter(Boolean).length;
   const imageAnalysis = analyzeImages(content);
 
-  // IMPORTANT: Filter secondary keywords that are variants of primary
-  // Example: primary="nordic natural", secondary=["nordic naturals"] → treat as same, don't count secondary
-  const normalizedPrimary = normalizeText(primaryKeyword);
-  const filteredSecondary = secondaryKeywords.filter(sk => {
-    const normalizedSk = normalizeText(sk);
-    // Remove if it's a variant (singular/plural) of primary
-    const primaryPattern = createFlexiblePattern(normalizedPrimary);
-    const secondaryPattern = createFlexiblePattern(normalizedSk);
-    // If patterns would match the same text, it's a variant
-    return primaryPattern.source !== secondaryPattern.source;
-  });
+  // IMPORTANT: Don't filter secondary keywords - let advanced counting handle priority
+  // Advanced algorithm will automatically prioritize Primary when overlap occurs
+  // Example: primary="dha nordic", secondary=["dha nordic naturals"]
+  // Content: "DHA Nordic Naturals" → counts as PRIMARY (priority rule)
 
-  // Use advanced counting with span masking and longest-match-wins
-  const keywordAnalysis = countKeywordsAdvanced(textContent, primaryKeyword, filteredSecondary);
+  // Use advanced counting with span masking and primary priority
+  const keywordAnalysis = countKeywordsAdvanced(textContent, primaryKeyword, secondaryKeywords);
   const primaryKeywordCount = keywordAnalysis.primaryCount;
   const secondaryKeywordCount = keywordAnalysis.secondaryCount;
 
@@ -304,6 +315,7 @@ export function analyzeSEO(
   const totalKeywordDensity = primaryKeywordDensity + secondaryKeywordDensity;
 
   // Check keyword presence in key locations (using normalized matching)
+  const normalizedPrimary = normalizeText(primaryKeyword);
   const normalizedH1 = normalizeText(h1Title);
   const normalizedTitle = normalizeText(titleTag);
   const normalizedMeta = normalizeText(metaDescription);
@@ -437,9 +449,10 @@ export function analyzeSEO(
 
 /**
  * Calculate average sentence length
+ * Updated to include colon (:) as sentence terminator
  */
 export function calculateAvgSentenceLength(text: string): number {
-  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const sentences = text.split(/[.!?:]+/).filter(s => s.trim().length > 0);
   if (sentences.length === 0) return 0;
 
   const totalWords = sentences.reduce((sum, sentence) => {
@@ -454,7 +467,7 @@ export function calculateAvgSentenceLength(text: string): number {
  * Find sentences that are too long (> 25 words for Vietnamese)
  */
 export function findLongSentences(text: string): number {
-  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 0);
+  const sentences = text.split(/[.!?:]+/).filter(s => s.trim().length > 0);
   return sentences.filter(sentence => {
     const words = sentence.trim().split(/\s+/).filter(Boolean).length;
     return words > 25;
@@ -483,7 +496,7 @@ export function findDifficultParagraphs(htmlContent: string): string[] {
 
   paragraphs.forEach(paragraph => {
     const words = paragraph.split(/\s+/).filter(Boolean).length;
-    const sentences = paragraph.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
+    const sentences = paragraph.split(/[.!?:]+/).filter(s => s.trim().length > 0).length;
 
     // Paragraph is difficult if:
     // - More than 150 words
@@ -499,7 +512,8 @@ export function findDifficultParagraphs(htmlContent: string): string[] {
 }
 
 /**
- * Analyze readability and generate score
+ * Analyze readability and generate comprehensive score
+ * Based on Semrush methodology adapted for Vietnamese
  */
 export function analyzeReadability(htmlContent: string): ReadabilityAnalysis {
   const textContent = stripHTML(htmlContent);
@@ -507,10 +521,12 @@ export function analyzeReadability(htmlContent: string): ReadabilityAnalysis {
   if (!textContent.trim()) {
     return {
       score: 0,
+      grade: 'N/A',
       avgSentenceLength: 0,
       longSentences: 0,
       avgWordLength: 0,
       difficultParagraphs: [],
+      issues: [],
       recommendations: ['Thêm nội dung để phân tích khả năng đọc']
     };
   }
@@ -519,6 +535,9 @@ export function analyzeReadability(htmlContent: string): ReadabilityAnalysis {
   const longSentences = findLongSentences(textContent);
   const avgWordLength = calculateAvgWordLength(textContent);
   const difficultParagraphs = findDifficultParagraphs(htmlContent);
+
+  // Find detailed issues for clickable highlighting
+  const issues = findReadabilityIssues(textContent, htmlContent);
 
   let score = 100;
   const recommendations: string[] = [];
@@ -557,14 +576,120 @@ export function analyzeReadability(htmlContent: string): ReadabilityAnalysis {
     recommendations.push('✓ Đoạn văn dễ đọc');
   }
 
+  const finalScore = Math.max(0, Math.min(100, score));
+  const grade = getReadabilityGrade(finalScore);
+
   return {
-    score: Math.max(0, Math.min(100, score)),
+    score: finalScore,
+    grade,
     avgSentenceLength,
     longSentences,
     avgWordLength,
     difficultParagraphs,
+    issues,
     recommendations
   };
+}
+
+/**
+ * Get readability grade based on Flesch Reading Ease score
+ * Adapted from Semrush's grading system
+ */
+function getReadabilityGrade(score: number): string {
+  if (score >= 90) return 'Rất dễ đọc';
+  if (score >= 80) return 'Dễ đọc';
+  if (score >= 70) return 'Khá dễ đọc';
+  if (score >= 60) return 'Trung bình';
+  if (score >= 50) return 'Khá khó đọc';
+  if (score >= 30) return 'Khó đọc';
+  return 'Rất khó đọc';
+}
+
+/**
+ * Find detailed readability issues for clickable highlighting
+ */
+function findReadabilityIssues(textContent: string, htmlContent: string): ReadabilityIssue[] {
+  const issues: ReadabilityIssue[] = [];
+
+  // Step 1: Pre-process HTML to add sentence terminators after headings
+  // This prevents headings from being merged with following sentences
+  let processedHTML = htmlContent;
+
+  // Replace closing heading tags with period + closing tag
+  // Example: <h2>Title</h2> → <h2>Title.</h2>
+  processedHTML = processedHTML.replace(/<\/h([1-6])>/gi, '.</h$1>');
+
+  // Step 2: Extract text content with processed HTML
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = processedHTML;
+  let processedText = tempDiv.textContent || '';
+
+  // Clean up double periods (in case heading already had period)
+  processedText = processedText.replace(/\.\.+/g, '.');
+
+  // Step 3: Split sentences with ENHANCED pattern
+  // Include colon (:) as sentence terminator for Vietnamese content
+  // Pattern matches: text + terminator (.!?:)
+  const sentencePattern = /[^.!?:]+[.!?:]+/g;
+  const sentences = processedText.match(sentencePattern) || [];
+
+  console.log('📊 Found', sentences.length, 'sentences');
+
+  sentences.forEach(sentence => {
+    const trimmedSentence = sentence.trim();
+    const wordCount = trimmedSentence.split(/\s+/).filter(Boolean).length;
+
+    // Find long sentences (>25 words for Vietnamese)
+    if (wordCount > 25) {
+      const excerpt = trimmedSentence.length > 100
+        ? trimmedSentence.substring(0, 100) + '...'
+        : trimmedSentence;
+
+      issues.push({
+        type: 'long_sentence',
+        text: trimmedSentence, // Now includes punctuation!
+        excerpt,
+        suggestion: `Câu này có ${wordCount} từ. Nên chia thành 2-3 câu ngắn hơn (15-20 từ/câu).`,
+        position: textContent.indexOf(trimmedSentence.substring(0, 50)), // Search first 50 chars for better matching
+        severity: wordCount > 35 ? 'high' : 'medium'
+      });
+
+      console.log(`📝 Long sentence (${wordCount} words):`, trimmedSentence.substring(0, 60) + '...');
+    }
+  });
+
+  // Split into paragraphs
+  const paragraphs = htmlContent.split(/<\/p>|<br\s*\/?>/gi).filter(p => {
+    const text = stripHTML(p).trim();
+    return text.length > 0;
+  });
+
+  paragraphs.forEach(paragraph => {
+    const text = stripHTML(paragraph);
+    const words = text.split(/\s+/).filter(Boolean);
+    const sentenceCount = text.split(/[.!?:]+/).filter(s => s.trim().length > 0).length;
+
+    // Find long paragraphs (>6 sentences or >150 words)
+    if (sentenceCount > 6 || words.length > 150) {
+      const excerpt = text.length > 150
+        ? text.substring(0, 150) + '...'
+        : text;
+
+      issues.push({
+        type: 'long_paragraph',
+        text,
+        excerpt,
+        suggestion: `Đoạn văn này có ${sentenceCount} câu (${words.length} từ). Nên chia thành ${Math.ceil(sentenceCount / 4)} đoạn nhỏ hơn.`,
+        position: htmlContent.indexOf(paragraph),
+        severity: words.length > 200 ? 'high' : 'medium'
+      });
+    }
+  });
+
+  // Sort by position
+  issues.sort((a, b) => a.position - b.position);
+
+  return issues;
 }
 
 // ============================================
@@ -573,16 +698,18 @@ export function analyzeReadability(htmlContent: string): ReadabilityAnalysis {
 
 /**
  * Strip HTML tags and get plain text
+ * Properly decodes ALL HTML entities including &nbsp;, &amp;, etc.
  */
 export function stripHTML(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, ' ')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
+  // First, create a temporary DOM element to decode HTML entities
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+
+  // Get text content (this automatically decodes entities)
+  let text = tempDiv.textContent || tempDiv.innerText || '';
+
+  // Additional cleanup
+  return text
     .replace(/\s+/g, ' ')
     .trim();
 }

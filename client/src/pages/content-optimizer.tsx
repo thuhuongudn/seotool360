@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Loader2, FileText, Lightbulb, Eye, ChevronDown, ChevronUp, Highlighter } from "lucide-react";
+import { Loader2, FileText, Lightbulb, Eye, ChevronDown, ChevronUp, Highlighter, Search, TrendingUp, Copy } from "lucide-react";
 import { Editor } from '@tinymce/tinymce-react';
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
@@ -14,7 +14,7 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useTokenManagement } from "@/hooks/use-token-management";
-import { GEO_TARGET_CONSTANTS } from "@/constants/google-ads-constants";
+import { GEO_TARGET_CONSTANTS, LANGUAGE_CONSTANTS, DEFAULT_LANG } from "@/constants/google-ads-constants";
 import { analyzeSEO, analyzeReadability, type SEOAnalysis, type ReadabilityAnalysis } from "@/lib/content-optimizer-utils";
 
 interface ContentScores {
@@ -40,12 +40,20 @@ function ContentOptimizerContent() {
   const [secondaryKeywords, setSecondaryKeywords] = useState<string[]>([]);
   const [secondaryKeywordInput, setSecondaryKeywordInput] = useState("");
 
-  const [audienceLocation, setAudienceLocation] = useState("2704");
+  const [audienceLanguage, setAudienceLanguage] = useState(DEFAULT_LANG); // Default to Vietnamese
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [showMetadata, setShowMetadata] = useState(true);
   const [h1Title, setH1Title] = useState("");
   const [titleTag, setTitleTag] = useState("");
   const [metaDescription, setMetaDescription] = useState("");
+
+  // Left dock states
+  const [activeTool, setActiveTool] = useState<'seo' | 'competitor' | null>('seo');
+
+  // Competitor data tool states
+  const [competitorLocation, setCompetitorLocation] = useState("2704"); // Default to Vietnam
+  const [competitorLanguage, setCompetitorLanguage] = useState("vi"); // Default to Vietnamese
+  const [competitorKeyword, setCompetitorKeyword] = useState("");
 
   // Scoring states
   const [scores, setScores] = useState<ContentScores>({
@@ -61,6 +69,12 @@ function ContentOptimizerContent() {
   const [keywordHighlightEnabled, setKeywordHighlightEnabled] = useState(false);
 
   const [optimizationTips, setOptimizationTips] = useState<OptimizationTip[]>([]);
+
+  // Readability optimizer states
+  const [selectedIssueIndex, setSelectedIssueIndex] = useState<number | null>(null);
+  const [optimizedText, setOptimizedText] = useState<string>("");
+  const [isOptimizing, setIsOptimizing] = useState(false);
+  const [includeKeywordInOptimization, setIncludeKeywordInOptimization] = useState(false);
 
   const { toast } = useToast();
   const { canUseToken } = useTokenManagement();
@@ -119,6 +133,28 @@ function ContentOptimizerContent() {
 
       toast({
         title: "Đã tắt highlight từ khóa",
+      });
+    }
+  };
+
+  // Copy editor content to clipboard
+  const handleCopyEditorContent = async () => {
+    if (!editorRef.current) return;
+
+    const editor = editorRef.current;
+    const htmlContent = editor.getContent();
+
+    try {
+      await navigator.clipboard.writeText(htmlContent);
+      toast({
+        title: "Đã copy nội dung",
+        description: "Nội dung đã được sao chép với định dạng HTML",
+      });
+    } catch (err) {
+      toast({
+        title: "Lỗi",
+        description: "Không thể copy nội dung",
+        variant: "destructive",
       });
     }
   };
@@ -247,12 +283,581 @@ function ContentOptimizerContent() {
     return "bg-blue-100 text-blue-800 border-blue-200";
   };
 
+  // AI-powered readability optimizer
+  const handleOptimizeText = async (issueIndex: number) => {
+    if (!readabilityAnalysis?.issues?.[issueIndex]) return;
+
+    const issue = readabilityAnalysis.issues[issueIndex];
+    setSelectedIssueIndex(issueIndex);
+    setIsOptimizing(true);
+
+    try {
+      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error("API key không được cấu hình. Vui lòng thêm VITE_OPENAI_API_KEY vào .env");
+      }
+
+      // Get language name for prompt
+      const selectedLanguage = LANGUAGE_CONSTANTS.find(l => l.value === audienceLanguage);
+      const languageName = selectedLanguage?.name || 'Vietnamese';
+
+      // Build prompt based on issue type and keyword inclusion
+      let prompt = `You are an SEO content writing expert. Optimize the following text for better readability in ${languageName}:\n\n"${issue.text}"\n\n`;
+
+      if (issue.type === 'long_sentence') {
+        prompt += `This is a long sentence (${issue.text.split(/\s+/).length} words). Break it into 2-3 shorter sentences (15-20 words each), preserving the meaning.`;
+      } else if (issue.type === 'long_paragraph') {
+        prompt += `This is a long paragraph. Break it into smaller paragraphs, each with 3-4 sentences, preserving the meaning.`;
+      }
+
+      if (includeKeywordInOptimization && primaryKeyword) {
+        prompt += `\n\nIMPORTANT: Naturally insert the keyword "${primaryKeyword}" into the optimized text (if not already present).`;
+      }
+
+      prompt += `\n\nIMPORTANT: Return ONLY the optimized text in ${languageName}, with NO explanations or additional commentary.`;
+
+      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${apiKey}`,
+          "HTTP-Referer": window.location.origin,
+          "X-Title": "N8n Toolkit - Content Optimizer",
+        },
+        body: JSON.stringify({
+          model: "openai/gpt-5-mini",
+          messages: [
+            {
+              role: "user",
+              content: prompt
+            }
+          ],
+          max_tokens: 500,
+          temperature: 0.7,
+          verbosity: "low",
+          reasoning_effort: "minimal",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        const errorMessage = data?.error?.message || `API trả về lỗi ${response.status}`;
+        throw new Error(errorMessage);
+      }
+
+      const optimizedContent = data?.choices?.[0]?.message?.content;
+      if (!optimizedContent) {
+        throw new Error("API không trả về nội dung");
+      }
+
+      setOptimizedText(optimizedContent.trim());
+
+      toast({
+        title: "Tối ưu thành công",
+        description: "Văn bản đã được tối ưu cho khả năng đọc",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Lỗi tối ưu",
+        description: error.message || "Không thể tối ưu văn bản. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsOptimizing(false);
+    }
+  };
+
+  // Scroll to and highlight issue text in editor
+  // IMPROVED: Multi-strategy search with exact text matching
+  const handleScrollToIssue = (issue: any, index: number) => {
+    if (!editorRef.current) return;
+
+    const editor = editorRef.current;
+    editor.focus();
+
+    // Get editor body text (plain text version - same as how we analyze it)
+    const body = editor.getBody();
+    const bodyText = body.textContent || '';
+
+    // Multi-strategy search (in order of preference)
+    let searchText = '';
+    let searchIndex = -1;
+
+    // Strategy 1: Exact match with full sentence (best)
+    searchText = issue.text.trim();
+    searchIndex = bodyText.indexOf(searchText);
+
+    // Strategy 2: Without trailing punctuation
+    if (searchIndex === -1) {
+      searchText = issue.text.replace(/[.!?]+\s*$/, '').trim();
+      searchIndex = bodyText.indexOf(searchText);
+    }
+
+    // Strategy 3: First 10 words
+    if (searchIndex === -1) {
+      const words = issue.text.split(/\s+/).filter(Boolean);
+      searchText = words.slice(0, Math.min(10, words.length)).join(' ');
+      searchIndex = bodyText.indexOf(searchText);
+    }
+
+    // Strategy 4: Case-insensitive
+    if (searchIndex === -1) {
+      searchText = issue.text.trim();
+      const lowerBody = bodyText.toLowerCase();
+      const lowerSearch = searchText.toLowerCase();
+      searchIndex = lowerBody.indexOf(lowerSearch);
+    }
+
+    // Strategy 5: First 5 words (most lenient)
+    if (searchIndex === -1) {
+      const words = issue.text.split(/\s+/).filter(Boolean);
+      searchText = words.slice(0, Math.min(5, words.length)).join(' ');
+      const lowerBody = bodyText.toLowerCase();
+      const lowerSearch = searchText.toLowerCase();
+      searchIndex = lowerBody.indexOf(lowerSearch);
+    }
+
+    if (searchIndex !== -1) {
+      // Now map this index to the actual DOM text node
+      const walker = document.createTreeWalker(
+        body,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let currentNode;
+      let charCount = 0;
+
+      // Walk through all text nodes
+      while ((currentNode = walker.nextNode())) {
+        const nodeText = currentNode.textContent || '';
+        const nodeLength = nodeText.length;
+
+        // Check if our searchIndex falls within this node
+        if (charCount <= searchIndex && charCount + nodeLength > searchIndex) {
+          // Found the node!
+          const offsetInNode = searchIndex - charCount;
+          const endOffset = Math.min(offsetInNode + searchText.length, nodeLength);
+
+          // Create selection range
+          const range = editor.dom.createRng();
+          range.setStart(currentNode, offsetInNode);
+          range.setEnd(currentNode, endOffset);
+
+          editor.selection.setRng(range);
+          editor.selection.scrollIntoView();
+
+          toast({
+            title: "✅ Đã tìm thấy",
+            description: "Đã scroll và highlight đoạn văn cần sửa",
+          });
+
+          break;
+        }
+
+        charCount += nodeLength;
+      }
+    } else {
+      toast({
+        title: "Không tìm thấy",
+        description: "Văn bản đã thay đổi hoặc không còn trong editor",
+        variant: "destructive",
+      });
+    }
+
+    // Select this issue for optimization
+    setSelectedIssueIndex(index);
+  };
+
+  // Copy optimized text to clipboard
+  const handleCopyOptimizedText = async () => {
+    if (!optimizedText) return;
+
+    try {
+      await navigator.clipboard.writeText(optimizedText);
+      toast({
+        title: "Đã copy",
+        description: "Văn bản đã tối ưu đã được copy vào clipboard. Paste vào editor để thay thế.",
+      });
+    } catch (error) {
+      toast({
+        title: "Lỗi copy",
+        description: "Không thể copy vào clipboard. Vui lòng copy thủ công.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Replace original text with optimized version
+  // TODO: Fix this function - currently disabled due to HTML vs plain text mismatch issues
+  // Will be developed in future iteration
+  const handleReplaceText = () => {
+    if (!editorRef.current || !optimizedText || selectedIssueIndex === null) return;
+
+    const issue = readabilityAnalysis?.issues?.[selectedIssueIndex];
+    if (!issue) return;
+
+    const editor = editorRef.current;
+    const currentContent = editor.getContent();
+
+    // Get plain text version
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = currentContent;
+    const plainContent = tempDiv.textContent || '';
+
+    // Try exact match first
+    if (plainContent.includes(issue.text)) {
+      // Found exact match - now replace in HTML
+      // Use a more robust approach: find the text in the DOM and replace it
+      const body = editor.getBody();
+      const bodyText = body.textContent || '';
+
+      if (bodyText.includes(issue.text)) {
+        // Replace using innerHTML manipulation
+        const bodyHTML = body.innerHTML;
+
+        // Escape special regex characters in issue.text
+        const escapedIssueText = issue.text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+        // Create a regex to find the text across HTML tags
+        // This is tricky - we need to find the text even if it spans multiple tags
+
+        // Simplified approach: Replace the entire content's text
+        const newHTML = bodyHTML.replace(
+          new RegExp(escapedIssueText.split(/\s+/).join('\\s*(?:<[^>]*>)?\\s*'), 'i'),
+          optimizedText
+        );
+
+        if (newHTML !== bodyHTML) {
+          editor.setContent(newHTML);
+          setContent(newHTML);
+
+          setOptimizedText("");
+          setSelectedIssueIndex(null);
+          setIncludeKeywordInOptimization(false);
+
+          toast({
+            title: "✅ Đã thay thế",
+            description: "Văn bản đã được thay thế thành công",
+          });
+
+          setTimeout(() => {
+            handleGetImprovementIdeas();
+          }, 500);
+          return;
+        }
+      }
+    }
+
+    // If we get here, replacement failed
+    toast({
+      title: "Không tìm thấy văn bản",
+      description: "Vui lòng sử dụng nút Copy để thay thế thủ công.",
+      variant: "destructive",
+    });
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <Header />
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <PageNavigation breadcrumbItems={[{ label: "Content Optimizer" }]} backLink="/" />
+      <div className="flex">
+        {/* Right Dock */}
+        <div className="fixed right-0 top-16 h-[calc(100vh-4rem)] w-16 bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 flex flex-col items-center py-4 gap-4 z-10">
+          {/* SEO Tool Icon */}
+          <button
+            onClick={() => setActiveTool(activeTool === 'seo' ? null : 'seo')}
+            className={`p-3 rounded-lg transition-colors ${
+              activeTool === 'seo'
+                ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-400'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
+            }`}
+            title="SEO Improvements"
+          >
+            <TrendingUp className="h-5 w-5" />
+          </button>
+
+          {/* Competitor Data Icon */}
+          <button
+            onClick={() => setActiveTool(activeTool === 'competitor' ? null : 'competitor')}
+            className={`p-3 rounded-lg transition-colors ${
+              activeTool === 'competitor'
+                ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-400'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
+            }`}
+            title="Competitor Data"
+          >
+            <Search className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Dock Panel */}
+        <div className={`fixed right-16 top-16 h-[calc(100vh-4rem)] bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 transition-all duration-300 overflow-y-auto z-10 ${
+          activeTool ? 'w-96' : 'w-0'
+        }`}>
+          {activeTool === 'seo' && (
+            <div className="p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-indigo-600" />
+                AI SEO Improvements
+              </h2>
+
+              {/* Audience Language */}
+              <div className="space-y-2 mb-4">
+                <Label className="text-sm font-medium">Audience language (optional)</Label>
+                <Select value={audienceLanguage} onValueChange={setAudienceLanguage}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LANGUAGE_CONSTANTS.map((lang) => (
+                      <SelectItem key={lang.value} value={lang.value}>
+                        {lang.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Get Improvement Ideas Button */}
+              <Button
+                onClick={handleGetImprovementIdeas}
+                disabled={isAnalyzing || !primaryKeyword || !canUseToken}
+                className="w-full bg-indigo-600 hover:bg-indigo-700"
+              >
+                {isAnalyzing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Get improvement ideas
+              </Button>
+
+              {/* Results Section */}
+              {seoAnalysis && (
+                <div className="mt-6 space-y-4">
+                  {/* SEO Content Score */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">SEO content score</span>
+                      <span className={`text-xl font-bold ${getScoreColor(scores.seo)}`}>
+                        {getScoreLabel(scores.seo)}
+                      </span>
+                    </div>
+                    <Progress value={scores.seo} className="h-2 mb-3" />
+                    <div className="flex flex-wrap gap-2">
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${
+                          scores.seo >= 75 ? 'bg-green-50 text-green-700 border-green-200' :
+                          scores.seo >= 50 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                          'bg-red-50 text-red-700 border-red-200'
+                        }`}
+                      >
+                        SEO {scores.seo}
+                      </Badge>
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${
+                          scores.readability >= 75 ? 'bg-purple-50 text-purple-700 border-purple-200' :
+                          scores.readability >= 50 ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                          'bg-red-50 text-red-700 border-red-200'
+                        }`}
+                      >
+                        Readability {scores.readability}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        Tone ✓
+                      </Badge>
+                    </div>
+                  </div>
+
+                  {/* Detailed SEO Breakdown */}
+                  <div className="pt-4 border-t">
+                    <button
+                      onClick={() => setShowSeoTips(!showSeoTips)}
+                      className="flex items-center justify-between w-full text-sm font-medium hover:text-primary transition-colors mb-3"
+                    >
+                      <span>Chi tiết phân tích SEO</span>
+                      {showSeoTips ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                    </button>
+
+                    {showSeoTips && (
+                      <div className="space-y-2 text-xs bg-slate-50 dark:bg-slate-900 p-3 rounded-lg">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Từ khóa trong H1:</span>
+                          <span className={seoAnalysis.h1HasKeyword ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                            {seoAnalysis.h1HasKeyword ? "✓ Có" : "✗ Không"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Từ khóa trong Title:</span>
+                          <span className={seoAnalysis.titleHasKeyword ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                            {seoAnalysis.titleHasKeyword ? "✓ Có" : "✗ Không"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Từ khóa trong Meta:</span>
+                          <span className={seoAnalysis.metaHasKeyword ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                            {seoAnalysis.metaHasKeyword ? "✓ Có" : "✗ Không"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Từ khóa ở đầu bài:</span>
+                          <span className={seoAnalysis.keywordInFirstParagraph ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                            {seoAnalysis.keywordInFirstParagraph ? "✓ Có" : "✗ Không"}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t">
+                          <span className="text-muted-foreground">Mật độ từ khóa chính:</span>
+                          <span className={seoAnalysis.primaryKeywordDensity >= 1 && seoAnalysis.primaryKeywordDensity <= 1.5 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                            {seoAnalysis.primaryKeywordDensity.toFixed(2)}%
+                          </span>
+                        </div>
+                        {secondaryKeywords.length > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Mật độ từ khóa phụ:</span>
+                            <span className={seoAnalysis.secondaryKeywordDensity >= 0.3 && seoAnalysis.secondaryKeywordDensity <= 0.8 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                              {seoAnalysis.secondaryKeywordDensity.toFixed(2)}%
+                            </span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Tổng mật độ:</span>
+                          <span className={seoAnalysis.totalKeywordDensity >= 1.5 && seoAnalysis.totalKeywordDensity <= 2.5 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
+                            {seoAnalysis.totalKeywordDensity.toFixed(2)}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pt-2 border-t">
+                          <span className="text-muted-foreground">Từ khóa chính:</span>
+                          <span className="font-medium">{seoAnalysis.primaryKeywordCount} lần</span>
+                        </div>
+                        {secondaryKeywords.length > 0 && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Từ khóa phụ:</span>
+                            <span className="font-medium">{seoAnalysis.secondaryKeywordCount} lần</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Tổng số từ:</span>
+                          <span className="font-medium">{seoAnalysis.wordCount}</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Readability Section */}
+                  {readabilityAnalysis && (
+                    <div className="pt-4 border-t">
+                      <button
+                        onClick={() => setShowReadabilityTips(!showReadabilityTips)}
+                        className="flex items-center justify-between w-full text-sm font-medium hover:text-primary transition-colors mb-3"
+                      >
+                        <span>Chi tiết Readability</span>
+                        {showReadabilityTips ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </button>
+
+                      {showReadabilityTips && (
+                        <div className="space-y-2 text-xs bg-slate-50 dark:bg-slate-900 p-3 rounded-lg">
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Điểm đọc:</span>
+                            <span className="font-medium">{readabilityAnalysis.grade}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Độ dài trung bình câu:</span>
+                            <span className="font-medium">{readabilityAnalysis.avgSentenceLength.toFixed(1)} từ</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                            <span className="text-muted-foreground">Điểm readability:</span>
+                            <span className="font-medium">{readabilityAnalysis.grade}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!seoAnalysis && scores.seo === 0 && (
+                <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg text-center text-sm text-muted-foreground">
+                  Click "Get improvement ideas" để phân tích
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTool === 'competitor' && (
+            <div className="p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Search className="h-5 w-5 text-indigo-600" />
+                Competitor Data
+              </h2>
+
+              {/* Audience Location */}
+              <div className="space-y-2 mb-4">
+                <Label className="text-sm font-medium">Audience location</Label>
+                <Select value={competitorLocation} onValueChange={setCompetitorLocation}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GEO_TARGET_CONSTANTS.map((geo) => (
+                      <SelectItem key={geo.value} value={geo.value}>
+                        {geo.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Audience Language */}
+              <div className="space-y-2 mb-4">
+                <Label className="text-sm font-medium">Audience language</Label>
+                <Select value={competitorLanguage} onValueChange={setCompetitorLanguage}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {LANGUAGE_CONSTANTS.map((lang) => (
+                      <SelectItem key={lang.value} value={lang.value}>
+                        {lang.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Target Keyword */}
+              <div className="space-y-2 mb-4">
+                <Label className="text-sm font-medium">Your target keywords</Label>
+                <Input
+                  value={competitorKeyword}
+                  onChange={(e) => setCompetitorKeyword(e.target.value)}
+                  placeholder="Enter single keyword..."
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Only 1 keyword allowed
+                </p>
+              </div>
+
+              {/* Unlock Insights Button */}
+              <Button
+                disabled={!competitorKeyword.trim()}
+                className="w-full bg-indigo-600 hover:bg-indigo-700"
+              >
+                <Lightbulb className="h-4 w-4 mr-2" />
+                Unlock insights
+              </Button>
+
+              <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs text-muted-foreground">
+                <p>Feature coming soon...</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Main Content */}
+        <div className={`flex-1 transition-all duration-300 ${activeTool ? 'mr-[28rem]' : 'mr-16'}`}>
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <PageNavigation breadcrumbItems={[{ label: "Content Optimizer" }]} backLink="/" />
 
         {/* Tool Description */}
         <section className="text-center mb-10">
@@ -269,9 +874,9 @@ function ContentOptimizerContent() {
           </p>
         </section>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Main Editor Area - Left 2/3 */}
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[65%_35%] gap-6">
+          {/* Main Editor Area - Left 65% */}
+          <div className="space-y-6">
             {/* Target Settings Card */}
             <Card>
               <CardHeader className={showMetadata ? "" : "pb-6"}>
@@ -401,22 +1006,6 @@ function ContentOptimizerContent() {
                   </div>
                 )}
 
-                <div className="space-y-2">
-                  <Label>Audience location</Label>
-                  <Select value={audienceLocation} onValueChange={setAudienceLocation}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {GEO_TARGET_CONSTANTS.slice(0, 10).map((geo) => (
-                        <SelectItem key={geo.value} value={geo.value}>
-                          {geo.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
                 {/* Primary Keyword Input */}
                 <div className="space-y-2 pb-3 border-b">
                   <Label htmlFor="primary-keyword" className="font-semibold text-base">
@@ -474,15 +1063,6 @@ function ContentOptimizerContent() {
                     ))}
                   </div>
                 </div>
-
-                <Button
-                  onClick={handleGetImprovementIdeas}
-                  disabled={isAnalyzing || !primaryKeyword || !canUseToken}
-                  className="w-full bg-green-600 hover:bg-green-700"
-                >
-                  {isAnalyzing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                  Get improvement ideas
-                </Button>
               </CardContent>
             </Card>
 
@@ -496,16 +1076,28 @@ function ContentOptimizerContent() {
                       Paste your content or start writing. Use the toolbar for formatting.
                     </CardDescription>
                   </div>
-                  <Button
-                    variant={keywordHighlightEnabled ? "default" : "outline"}
-                    size="sm"
-                    onClick={toggleKeywordHighlight}
-                    disabled={allKeywords.length === 0}
-                    className={keywordHighlightEnabled ? "bg-yellow-500 hover:bg-yellow-600 text-white" : ""}
-                  >
-                    <Highlighter className="h-4 w-4 mr-2" />
-                    {keywordHighlightEnabled ? "Tắt Highlight" : "Highlight Từ khóa"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCopyEditorContent}
+                      disabled={!content}
+                      className="bg-red-50 hover:bg-red-100 text-red-600 border-red-200"
+                    >
+                      <Copy className="h-4 w-4 mr-2" />
+                      Copy content
+                    </Button>
+                    <Button
+                      variant={keywordHighlightEnabled ? "default" : "outline"}
+                      size="sm"
+                      onClick={toggleKeywordHighlight}
+                      disabled={allKeywords.length === 0}
+                      className={keywordHighlightEnabled ? "bg-yellow-500 hover:bg-yellow-600 text-white" : ""}
+                    >
+                      <Highlighter className="h-4 w-4 mr-2" />
+                      {keywordHighlightEnabled ? "Tắt Highlight" : "Highlight Từ khóa"}
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent>
@@ -516,7 +1108,7 @@ function ContentOptimizerContent() {
                     value={content}
                     onEditorChange={(newContent: string) => setContent(newContent)}
                     init={{
-                      height: 500,
+                      height: 1000,
                       menubar: false,
                       plugins: [
                         'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
@@ -559,225 +1151,9 @@ function ContentOptimizerContent() {
             </Card>
           </div>
 
-          {/* Right Sidebar - 1/3 */}
+          {/* Right Sidebar - 35% */}
           <div className="space-y-6">
-            {/* SEO Improvements Card */}
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">SEO Improvements</CardTitle>
-                  <Button variant="ghost" size="sm">
-                    <Eye className="h-4 w-4 mr-2" />
-                    Tips
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium">SEO content score</span>
-                    <span className={`text-2xl font-bold ${getScoreColor(scores.seo)}`}>
-                      {getScoreLabel(scores.seo)}
-                    </span>
-                  </div>
-                  <Progress value={scores.seo} className="h-2" />
-                  <div className="flex gap-2 mt-3">
-                    <Badge
-                      variant="outline"
-                      className={`${
-                        scores.seo >= 75 ? 'bg-green-50 text-green-700 border-green-200' :
-                        scores.seo >= 50 ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                        'bg-red-50 text-red-700 border-red-200'
-                      }`}
-                    >
-                      SEO {scores.seo}
-                    </Badge>
-                    <Badge
-                      variant="outline"
-                      className={`${
-                        scores.readability >= 75 ? 'bg-purple-50 text-purple-700 border-purple-200' :
-                        scores.readability >= 50 ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                        'bg-red-50 text-red-700 border-red-200'
-                      }`}
-                    >
-                      Readability {scores.readability}
-                    </Badge>
-                    <Badge variant="outline">
-                      Tone ✓
-                    </Badge>
-                  </div>
-                </div>
-
-                {/* Detailed SEO Breakdown */}
-                {seoAnalysis && (
-                  <div className="mt-4 space-y-2 pt-4 border-t">
-                    <button
-                      onClick={() => setShowSeoTips(!showSeoTips)}
-                      className="flex items-center justify-between w-full text-sm font-medium hover:text-primary transition-colors"
-                    >
-                      <span>Chi tiết phân tích SEO</span>
-                      {showSeoTips ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
-
-                    {showSeoTips && (
-                      <div className="space-y-2 text-xs bg-slate-50 dark:bg-slate-900 p-3 rounded-lg">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Từ khóa trong H1:</span>
-                          <span className={seoAnalysis.h1HasKeyword ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                            {seoAnalysis.h1HasKeyword ? "✓ Có" : "✗ Không"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Từ khóa trong Title:</span>
-                          <span className={seoAnalysis.titleHasKeyword ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                            {seoAnalysis.titleHasKeyword ? "✓ Có" : "✗ Không"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Từ khóa trong Meta:</span>
-                          <span className={seoAnalysis.metaHasKeyword ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                            {seoAnalysis.metaHasKeyword ? "✓ Có" : "✗ Không"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Từ khóa ở đầu bài:</span>
-                          <span className={seoAnalysis.keywordInFirstParagraph ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                            {seoAnalysis.keywordInFirstParagraph ? "✓ Có" : "✗ Không"}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t">
-                          <span className="text-muted-foreground">Mật độ từ khóa chính:</span>
-                          <span className={seoAnalysis.primaryKeywordDensity >= 1 && seoAnalysis.primaryKeywordDensity <= 1.5 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
-                            {seoAnalysis.primaryKeywordDensity.toFixed(2)}%
-                            <span className="text-xs text-muted-foreground ml-1">(tối ưu: 1-1.5%)</span>
-                          </span>
-                        </div>
-                        {secondaryKeywords.length > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">Mật độ từ khóa phụ:</span>
-                            <span className={seoAnalysis.secondaryKeywordDensity >= 0.3 && seoAnalysis.secondaryKeywordDensity <= 0.8 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
-                              {seoAnalysis.secondaryKeywordDensity.toFixed(2)}%
-                              <span className="text-xs text-muted-foreground ml-1">(tối ưu: 0.3-0.8%)</span>
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Tổng mật độ:</span>
-                          <span className={seoAnalysis.totalKeywordDensity >= 1.5 && seoAnalysis.totalKeywordDensity <= 2.5 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
-                            {seoAnalysis.totalKeywordDensity.toFixed(2)}%
-                            <span className="text-xs text-muted-foreground ml-1">(tối ưu: 1.5-2.5%)</span>
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t">
-                          <span className="text-muted-foreground">Hình ảnh thiếu alt:</span>
-                          <span className={seoAnalysis.imagesWithoutAlt === 0 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
-                            {seoAnalysis.imagesWithoutAlt}/{seoAnalysis.totalImages}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center pt-2 border-t">
-                          <span className="text-muted-foreground">Từ khóa chính xuất hiện:</span>
-                          <span className="font-medium">{seoAnalysis.primaryKeywordCount} lần</span>
-                        </div>
-                        {secondaryKeywords.length > 0 && (
-                          <div className="flex justify-between items-center">
-                            <span className="text-muted-foreground">Từ khóa phụ xuất hiện:</span>
-                            <span className="font-medium">{seoAnalysis.secondaryKeywordCount} lần</span>
-                          </div>
-                        )}
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Tổng số từ:</span>
-                          <span className="font-medium">{seoAnalysis.wordCount}</span>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Detailed Readability Breakdown */}
-                {readabilityAnalysis && (
-                  <div className="mt-4 space-y-2 pt-4 border-t">
-                    <button
-                      onClick={() => setShowReadabilityTips(!showReadabilityTips)}
-                      className="flex items-center justify-between w-full text-sm font-medium hover:text-primary transition-colors"
-                    >
-                      <span>Chi tiết phân tích Readability</span>
-                      {showReadabilityTips ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                    </button>
-
-                    {showReadabilityTips && (
-                      <div className="space-y-2 text-xs bg-slate-50 dark:bg-slate-900 p-3 rounded-lg">
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Độ dài câu trung bình:</span>
-                          <span className={readabilityAnalysis.avgSentenceLength <= 20 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
-                            {readabilityAnalysis.avgSentenceLength.toFixed(1)} từ
-                            <span className="text-xs text-muted-foreground ml-1">(tối ưu: 15-20)</span>
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Câu quá dài (&gt;25 từ):</span>
-                          <span className={readabilityAnalysis.longSentences === 0 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
-                            {readabilityAnalysis.longSentences}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-muted-foreground">Đoạn văn phức tạp:</span>
-                          <span className={readabilityAnalysis.difficultParagraphs.length === 0 ? "text-green-600 font-medium" : "text-orange-600 font-medium"}>
-                            {readabilityAnalysis.difficultParagraphs.length}
-                          </span>
-                        </div>
-
-                        {readabilityAnalysis.difficultParagraphs.length > 0 && (
-                          <div className="mt-2 pt-2 border-t space-y-1">
-                            <p className="font-medium text-orange-700">Đoạn văn cần cải thiện:</p>
-                            {readabilityAnalysis.difficultParagraphs.slice(0, 3).map((para, idx) => (
-                              <div key={idx} className="text-xs text-muted-foreground bg-orange-50 dark:bg-orange-950 p-2 rounded border border-orange-200">
-                                {para}
-                              </div>
-                            ))}
-                            {readabilityAnalysis.difficultParagraphs.length > 3 && (
-                              <p className="text-xs text-muted-foreground italic">
-                                +{readabilityAnalysis.difficultParagraphs.length - 3} đoạn khác...
-                              </p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {optimizationTips.length > 0 && (
-                  <div className="space-y-2 pt-4 border-t">
-                    <h4 className="text-sm font-semibold flex items-center justify-between">
-                      SEO Improvements
-                      <span className="text-xs text-muted-foreground">{optimizationTips.filter(t => t.type === 'seo').length}</span>
-                    </h4>
-                    {optimizationTips.filter(t => t.type === 'seo').map((tip, index) => (
-                      <div
-                        key={index}
-                        className={`p-3 rounded-lg border ${getSeverityColor(tip.severity)}`}
-                      >
-                        <div className="flex items-start gap-2">
-                          <Lightbulb className="h-4 w-4 mt-0.5 flex-shrink-0" />
-                          <div className="text-sm">
-                            <div className="font-medium">{tip.message}</div>
-                            <div className="text-xs mt-1 opacity-90">{tip.suggestion}</div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {scores.seo === 0 && (
-                  <div className="text-center py-8 text-sm text-muted-foreground">
-                    Nhấn "Get improvement ideas" để nhận gợi ý tối ưu
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-
-            {/* Quick Stats */}
+            {/* Content Metrics Card - At top */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">Content Metrics</CardTitle>
@@ -787,7 +1163,6 @@ function ContentOptimizerContent() {
                   <span className="text-sm text-muted-foreground">Words</span>
                   <span className="font-semibold">
                     {(() => {
-                      // Include H1 + content for accurate count (same as SEO analysis)
                       const contentWithH1 = h1Title ? `<h1>${h1Title}</h1>\n${content}` : content;
                       const textContent = contentWithH1.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
                       return textContent.split(/\s+/).filter(Boolean).length;
@@ -808,16 +1183,139 @@ function ContentOptimizerContent() {
                   <span className="font-semibold">{allKeywords.length}</span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Location</span>
+                  <span className="text-sm text-muted-foreground">Language</span>
                   <span className="font-semibold text-sm">
-                    {GEO_TARGET_CONSTANTS.find(g => g.value === audienceLocation)?.name || 'N/A'}
+                    {LANGUAGE_CONSTANTS.find(l => l.value === audienceLanguage)?.name || 'N/A'}
                   </span>
                 </div>
               </CardContent>
             </Card>
+
+            {/* Readability Issues Card - Full height matching Content Editor */}
+            {readabilityAnalysis && readabilityAnalysis.issues && readabilityAnalysis.issues.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center justify-between">
+                    <span>Vấn đề Readability cần sửa</span>
+                    <span className="text-sm text-muted-foreground font-normal">
+                      {readabilityAnalysis.issues.length} vấn đề
+                    </span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3 max-h-[1650px] overflow-y-auto">
+                    {readabilityAnalysis.issues.map((issue, index) => (
+                      <div
+                        key={index}
+                        className={`p-3 rounded-lg border cursor-pointer hover:shadow-md transition-all ${
+                          selectedIssueIndex === index
+                            ? 'ring-2 ring-blue-500 border-blue-300 bg-blue-50 dark:bg-blue-950'
+                            : issue.severity === 'high'
+                            ? 'bg-red-50 dark:bg-red-950 border-red-200 dark:border-red-800'
+                            : issue.severity === 'medium'
+                            ? 'bg-orange-50 dark:bg-orange-950 border-orange-200 dark:border-orange-800'
+                            : 'bg-yellow-50 dark:bg-yellow-950 border-yellow-200 dark:border-yellow-800'
+                        }`}
+                        onClick={() => handleScrollToIssue(issue, index)}
+                      >
+                        <div className="space-y-2">
+                          <div className="text-sm">
+                            <div className="font-medium mb-1 flex items-center justify-between">
+                              <span>{issue.type === 'long_sentence' ? '📝 Câu quá dài' : '📄 Đoạn văn quá dài'}</span>
+                              <span className="text-xs text-muted-foreground">👆 Click để xem</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground mb-2 italic">
+                              "{issue.excerpt}"
+                            </div>
+                            <div className="text-xs text-blue-600 dark:text-blue-400 mb-2">
+                              💡 {issue.suggestion}
+                            </div>
+                          </div>
+
+                          {/* Optimizer Controls */}
+                          <div className="flex flex-col gap-2 pt-2 border-t">
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`include-keyword-${index}`}
+                                checked={selectedIssueIndex === index && includeKeywordInOptimization}
+                                onChange={(e) => {
+                                  if (selectedIssueIndex === index) {
+                                    setIncludeKeywordInOptimization(e.target.checked);
+                                  }
+                                }}
+                                disabled={selectedIssueIndex !== index}
+                                className="rounded border-gray-300"
+                              />
+                              <label
+                                htmlFor={`include-keyword-${index}`}
+                                className="text-xs text-muted-foreground cursor-pointer"
+                              >
+                                Bao gồm Primary Keyword "{primaryKeyword || 'N/A'}"
+                              </label>
+                            </div>
+
+                            <div className="flex gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="flex-1 text-xs h-8"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleOptimizeText(index);
+                                }}
+                                disabled={isOptimizing || !primaryKeyword}
+                              >
+                                {isOptimizing && selectedIssueIndex === index ? (
+                                  <>
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    Đang tối ưu...
+                                  </>
+                                ) : (
+                                  <>✨ Tối ưu</>
+                                )}
+                              </Button>
+
+                              {selectedIssueIndex === index && optimizedText && (
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="flex-1 text-xs h-8"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCopyOptimizedText();
+                                  }}
+                                >
+                                  📋 Copy
+                                </Button>
+                              )}
+                            </div>
+
+                            {/* Show optimized text */}
+                            {selectedIssueIndex === index && optimizedText && (
+                              <div className="mt-2 p-2 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded text-xs">
+                                <div className="font-medium text-green-700 dark:text-green-400 mb-1">
+                                  ✅ Văn bản đã tối ưu:
+                                </div>
+                                <div className="text-muted-foreground">
+                                  {optimizedText}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
           </div>
         </div>
-      </main>
+          </main>
+        </div>
+      </div>
     </div>
   );
 }
