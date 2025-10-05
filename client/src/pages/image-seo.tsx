@@ -62,7 +62,7 @@ const DEFAULT_ADDRESS = "224 Thái Thị Bôi, Chính Gián, Thanh Khê, Đà N�
 const ALT_TEXT_MIN_LENGTH = 100;
 const ALT_TEXT_MAX_LENGTH = 125;
 const GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
-const OPENAI_ENDPOINT = "https://api.openai.com/v1/chat/completions";
+const OPENAI_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
 
 const PRESET_LOCATIONS: Array<{ label: string; lat: number; lng: number }> = [
   { label: "Đà Nẵng", lat: 16.0544, lng: 108.2022 },
@@ -96,7 +96,7 @@ const ALT_TEXT_MODELS: Array<{ value: AltTextModel; label: string; description: 
   },
   {
     value: "openai",
-    label: "OpenAI GPT-4o-mini",
+    label: "OpenAI Gpt-4.1-mini",
     description: "Chất lượng cao hơn, chi phí cao hơn",
   },
 ];
@@ -790,10 +790,12 @@ function ImageSeoContent() {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${openAiApiKey}`,
+            "Authorization": `Bearer ${openAiApiKey}`,
+            "HTTP-Referer": window.location.origin,
+            "X-Title": "N8n Toolkit - Image SEO",
           },
           body: JSON.stringify({
-            model: "gpt-4o-mini",
+            model: "openai/gpt-4.1-mini",
             messages: [
               {
                 role: "user",
@@ -814,8 +816,9 @@ function ImageSeoContent() {
         });
 
         const data = await response.json();
+
         if (!response.ok) {
-          const apiMessage = data?.error?.message || `OpenAI trả về lỗi ${response.status}`;
+          const apiMessage = data?.error?.message || data?.error?.code || `OpenRouter trả về lỗi ${response.status}`;
           throw new Error(apiMessage);
         }
 
