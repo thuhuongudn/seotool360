@@ -274,25 +274,39 @@ export function analyzeSEO(
   primaryKeyword: string,
   secondaryKeywords: string[]
 ): SEOAnalysis {
-  const textContent = stripHTML(content);
+  // Extract ONLY content text (excluding title, meta, alt attributes)
+  // But INCLUDE H1 in the content
+  const contentWithH1 = h1Title ? `<h1>${h1Title}</h1>\n${content}` : content;
+  const textContent = stripHTML(contentWithH1);
   const wordCount = textContent.split(/\s+/).filter(Boolean).length;
   const imageAnalysis = analyzeImages(content);
 
+  // IMPORTANT: Filter secondary keywords that are variants of primary
+  // Example: primary="nordic natural", secondary=["nordic naturals"] → treat as same, don't count secondary
+  const normalizedPrimary = normalizeText(primaryKeyword);
+  const filteredSecondary = secondaryKeywords.filter(sk => {
+    const normalizedSk = normalizeText(sk);
+    // Remove if it's a variant (singular/plural) of primary
+    const primaryPattern = createFlexiblePattern(normalizedPrimary);
+    const secondaryPattern = createFlexiblePattern(normalizedSk);
+    // If patterns would match the same text, it's a variant
+    return primaryPattern.source !== secondaryPattern.source;
+  });
+
   // Use advanced counting with span masking and longest-match-wins
-  const keywordAnalysis = countKeywordsAdvanced(textContent, primaryKeyword, secondaryKeywords);
+  const keywordAnalysis = countKeywordsAdvanced(textContent, primaryKeyword, filteredSecondary);
   const primaryKeywordCount = keywordAnalysis.primaryCount;
   const secondaryKeywordCount = keywordAnalysis.secondaryCount;
 
-  // Calculate densities separately using normalized matching
-  const primaryKeywordDensity = calculateKeywordDensity(textContent, [primaryKeyword]);
-  const secondaryKeywordDensity = calculateKeywordDensity(textContent, secondaryKeywords);
+  // Calculate densities using the SAME counts from advanced analysis
+  const primaryKeywordDensity = wordCount > 0 ? (primaryKeywordCount / wordCount) * 100 : 0;
+  const secondaryKeywordDensity = wordCount > 0 ? (secondaryKeywordCount / wordCount) * 100 : 0;
   const totalKeywordDensity = primaryKeywordDensity + secondaryKeywordDensity;
 
   // Check keyword presence in key locations (using normalized matching)
   const normalizedH1 = normalizeText(h1Title);
   const normalizedTitle = normalizeText(titleTag);
   const normalizedMeta = normalizeText(metaDescription);
-  const normalizedPrimary = normalizeText(primaryKeyword);
 
   const h1HasKeyword = normalizedH1.includes(normalizedPrimary);
   const titleHasKeyword = normalizedTitle.includes(normalizedPrimary);
