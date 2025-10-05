@@ -123,14 +123,36 @@ function ContentOptimizerContent() {
     }
   };
 
-  // Auto-update content state when highlighting changes
+  // Auto-refresh highlighting when keywords change
   useEffect(() => {
-    if (editorRef.current && keywordHighlightEnabled && allKeywords.length > 0) {
-      const editor = editorRef.current;
-      const currentContent = editor.getContent();
-      setContent(currentContent);
+    if (!editorRef.current || !keywordHighlightEnabled || allKeywords.length === 0) return;
+
+    const editor = editorRef.current;
+
+    // Remove old highlighting first
+    let currentContent = editor.getContent();
+    const cleanContent = currentContent.replace(/<mark[^>]*>(.*?)<\/mark>/gi, '$1');
+
+    // Re-apply highlighting with current keywords
+    let highlightedContent = cleanContent;
+
+    // Highlight primary keyword in green
+    if (primaryKeyword) {
+      const escapedKeyword = primaryKeyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(?<!<[^>]*)(\\b${escapedKeyword}\\b)(?![^<]*>)`, 'gi');
+      highlightedContent = highlightedContent.replace(regex, '<mark style="background-color: #bbf7d0; padding: 2px 0; font-weight: 600;">$1</mark>');
     }
-  }, [keywordHighlightEnabled, allKeywords]);
+
+    // Highlight secondary keywords in yellow
+    secondaryKeywords.forEach(keyword => {
+      const escapedKeyword = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`(?<!<[^>]*)(\\b${escapedKeyword}\\b)(?![^<]*>)`, 'gi');
+      highlightedContent = highlightedContent.replace(regex, '<mark style="background-color: #fef08a; padding: 2px 0;">$1</mark>');
+    });
+
+    editor.setContent(highlightedContent);
+    setContent(highlightedContent);
+  }, [keywordHighlightEnabled, primaryKeyword, secondaryKeywords]);
 
   const handleGetImprovementIdeas = async () => {
     if (!primaryKeyword) {
@@ -181,7 +203,7 @@ function ContentOptimizerContent() {
       allTips.push({
         type: 'seo',
         severity,
-        message: rec.split('.')[0] || rec,
+        message: rec, // Keep full message (don't split)
         suggestion: rec
       });
     });
@@ -193,7 +215,7 @@ function ContentOptimizerContent() {
       allTips.push({
         type: 'readability',
         severity: rec.includes('quá dài') || rec.includes('phức tạp') ? 'high' : 'medium',
-        message: rec.split('.')[0] || rec,
+        message: rec, // Keep full message (don't split)
         suggestion: rec
       });
     });
@@ -763,11 +785,23 @@ function ContentOptimizerContent() {
               <CardContent className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Words</span>
-                  <span className="font-semibold">{content.replace(/<[^>]*>/g, '').split(/\s+/).filter(Boolean).length}</span>
+                  <span className="font-semibold">
+                    {(() => {
+                      // Include H1 + content for accurate count (same as SEO analysis)
+                      const contentWithH1 = h1Title ? `<h1>${h1Title}</h1>\n${content}` : content;
+                      const textContent = contentWithH1.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                      return textContent.split(/\s+/).filter(Boolean).length;
+                    })()}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Characters</span>
-                  <span className="font-semibold">{content.replace(/<[^>]*>/g, '').length}</span>
+                  <span className="font-semibold">
+                    {(() => {
+                      const contentWithH1 = h1Title ? `<h1>${h1Title}</h1>\n${content}` : content;
+                      return contentWithH1.replace(/<[^>]*>/g, '').length;
+                    })()}
+                  </span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-muted-foreground">Target Keywords</span>
