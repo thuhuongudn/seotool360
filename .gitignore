@@ -11,3 +11,6 @@ vite.config.ts.*
 !.env.example
 dumps/
 tmp/
+
+# Security audit reports (contain sensitive findings)
+docs/SECURITY_AUDIT_CRITICAL_FINDINGS.md
