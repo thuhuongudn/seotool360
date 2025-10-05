@@ -633,8 +633,6 @@ function findReadabilityIssues(textContent: string, htmlContent: string): Readab
   const sentencePattern = /[^.!?:]+[.!?:]+/g;
   const sentences = processedText.match(sentencePattern) || [];
 
-  console.log('📊 Found', sentences.length, 'sentences');
-
   sentences.forEach(sentence => {
     const trimmedSentence = sentence.trim();
     const wordCount = trimmedSentence.split(/\s+/).filter(Boolean).length;
@@ -653,8 +651,6 @@ function findReadabilityIssues(textContent: string, htmlContent: string): Readab
         position: textContent.indexOf(trimmedSentence.substring(0, 50)), // Search first 50 chars for better matching
         severity: wordCount > 35 ? 'high' : 'medium'
       });
-
-      console.log(`📝 Long sentence (${wordCount} words):`, trimmedSentence.substring(0, 60) + '...');
     }
   });
 
