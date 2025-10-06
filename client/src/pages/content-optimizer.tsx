@@ -57,6 +57,23 @@ function ContentOptimizerContent() {
   const [competitorResults, setCompetitorResults] = useState<any[]>([]);
   const [isLoadingCompetitor, setIsLoadingCompetitor] = useState(false);
 
+  // Toggle states for competitor sections
+  const [showGoogleResults, setShowGoogleResults] = useState(true); // Default open after unlock
+  const [showTopImages, setShowTopImages] = useState(false); // Default closed
+
+  // Image results
+  const [imageResults, setImageResults] = useState<any[]>([]);
+  const [isLoadingImages, setIsLoadingImages] = useState(false);
+
+  // Page structure states
+  const [selectedPageStructure, setSelectedPageStructure] = useState<{
+    url: string;
+    title: string;
+    headings: { level: 'h1' | 'h2' | 'h3'; text: string }[];
+  } | null>(null);
+  const [isCrawling, setIsCrawling] = useState(false);
+  const [crawlingUrl, setCrawlingUrl] = useState<string>("");
+
   // Scoring states
   const [scores, setScores] = useState<ContentScores>({
     seo: 0,
@@ -293,6 +310,108 @@ function ContentOptimizerContent() {
   // Domains to exclude from competitor results
   const EXCLUDE_DOMAINS = ['facebook.com', 'shopee.vn'];
 
+  // Extract headings from Firecrawl markdown
+  const extractHeadingsFromMarkdown = (markdown: string) => {
+    const lines = markdown.split('\n');
+    const headings: { level: 'h1' | 'h2' | 'h3'; text: string }[] = [];
+
+    lines.forEach((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('### ')) {
+        headings.push({ level: 'h3', text: trimmed.replace('### ', '') });
+      } else if (trimmed.startsWith('## ')) {
+        headings.push({ level: 'h2', text: trimmed.replace('## ', '') });
+      } else if (trimmed.startsWith('# ')) {
+        headings.push({ level: 'h1', text: trimmed.replace('# ', '') });
+      }
+    });
+
+    return headings;
+  };
+
+  // Handle crawl page structure with Firecrawl
+  const handleCrawlStructure = async (url: string, title: string) => {
+    setIsCrawling(true);
+    setCrawlingUrl(url);
+
+    try {
+      const apiKey = import.meta.env.VITE_FIRECRAWL_API_KEY;
+
+      if (!apiKey) {
+        toast({
+          title: "Lỗi cấu hình",
+          description: "Thiếu VITE_FIRECRAWL_API_KEY trong .env.local",
+          variant: "destructive",
+        });
+        setIsCrawling(false);
+        return;
+      }
+
+      // Call Firecrawl API
+      const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          url: url,
+          formats: ['markdown'],
+          onlyMainContent: true
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Firecrawl API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const markdown = data.data?.markdown || '';
+
+      // Extract headings from markdown
+      const headings = extractHeadingsFromMarkdown(markdown);
+
+      setSelectedPageStructure({
+        url,
+        title,
+        headings
+      });
+
+      toast({
+        title: "Crawl thành công",
+        description: `Tìm thấy ${headings.length} headings trong trang`,
+      });
+    } catch (error) {
+      console.error('Firecrawl error:', error);
+      toast({
+        title: "Lỗi khi crawl",
+        description: error instanceof Error ? error.message : "Vui lòng thử lại sau",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCrawling(false);
+      setCrawlingUrl("");
+    }
+  };
+
+  // Toggle Google results section
+  const handleToggleGoogleResults = () => {
+    if (!showGoogleResults) {
+      // Opening Google results -> close images
+      setShowTopImages(false);
+    }
+    setShowGoogleResults(!showGoogleResults);
+  };
+
+  // Toggle Top Images section
+  const handleToggleTopImages = () => {
+    if (!showTopImages) {
+      // Opening images -> close Google results
+      setShowGoogleResults(false);
+    }
+    setShowTopImages(!showTopImages);
+  };
+
   // Handle competitor insights (consumes 1 token)
   const handleUnlockInsights = async () => {
     if (!competitorKeyword.trim()) {
@@ -309,6 +428,7 @@ function ContentOptimizerContent() {
     // Wrap with token consumption (1 token per analysis)
     await executeWithToken(toolId, 1, async () => {
       setIsLoadingCompetitor(true);
+      setIsLoadingImages(true);
 
       try {
         const apiKey = import.meta.env.VITE_SERPER_API_KEY;
@@ -320,43 +440,68 @@ function ContentOptimizerContent() {
             variant: "destructive",
           });
           setIsLoadingCompetitor(false);
+          setIsLoadingImages(false);
           return false;
         }
 
-        const response = await fetch('https://google.serper.dev/search', {
-          method: 'POST',
-          headers: {
-            'X-API-KEY': apiKey,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            q: competitorKeyword.trim(),
-            gl: 'vn',
-            hl: 'vi'
+        // Fetch both search results and images in parallel
+        const [searchResponse, imagesResponse] = await Promise.all([
+          fetch('https://google.serper.dev/search', {
+            method: 'POST',
+            headers: {
+              'X-API-KEY': apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              q: competitorKeyword.trim(),
+              gl: 'vn',
+              hl: 'vi'
+            })
+          }),
+          fetch('https://google.serper.dev/images', {
+            method: 'POST',
+            headers: {
+              'X-API-KEY': apiKey,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              q: competitorKeyword.trim(),
+              location: 'Vietnam',
+              gl: 'vn',
+              hl: 'vi'
+            })
           })
-        });
+        ]);
 
-        if (!response.ok) {
-          throw new Error(`Serper API error: ${response.status}`);
+        if (!searchResponse.ok) {
+          throw new Error(`Serper Search API error: ${searchResponse.status}`);
         }
 
-        const data = await response.json();
+        if (!imagesResponse.ok) {
+          throw new Error(`Serper Images API error: ${imagesResponse.status}`);
+        }
 
-        // Filter out excluded domains
-        const filteredResults = (data.organic || []).filter((result: any) => {
+        const searchData = await searchResponse.json();
+        const imagesData = await imagesResponse.json();
+
+        // Filter out excluded domains from search results
+        const filteredResults = (searchData.organic || []).filter((result: any) => {
           const url = new URL(result.link);
           const hostname = url.hostname.replace('www.', '');
           return !EXCLUDE_DOMAINS.some(domain => hostname.includes(domain));
         });
 
         setCompetitorResults(filteredResults);
+        setImageResults(imagesData.images || []);
+        setShowGoogleResults(true); // Auto-open Google results after unlock
 
         toast({
           title: "Phân tích hoàn tất",
-          description: `Tìm thấy ${filteredResults.length} kết quả từ Google Search`,
+          description: `Tìm thấy ${filteredResults.length} kết quả và ${imagesData.images?.length || 0} hình ảnh`,
         });
 
         setIsLoadingCompetitor(false);
+        setIsLoadingImages(false);
         return true;
       } catch (error) {
         console.error('Serper API error:', error);
@@ -366,6 +511,7 @@ function ContentOptimizerContent() {
           variant: "destructive",
         });
         setIsLoadingCompetitor(false);
+        setIsLoadingImages(false);
         return false;
       }
     });
@@ -878,38 +1024,38 @@ function ContentOptimizerContent() {
                 Competitor Data
               </h2>
 
-              {/* Audience Location */}
-              <div className="space-y-2 mb-4">
-                <Label className="text-sm font-medium">Audience location</Label>
-                <Select value={competitorLocation} onValueChange={setCompetitorLocation}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {GEO_TARGET_CONSTANTS.map((geo) => (
-                      <SelectItem key={geo.value} value={geo.value}>
-                        {geo.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Location & Language - Same row, locked to Vietnam/Vietnamese */}
+              <div className="mb-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Location */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Location</Label>
+                    <Select value={competitorLocation} onValueChange={setCompetitorLocation}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select location" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="2704">Vietnam</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-              {/* Audience Language */}
-              <div className="space-y-2 mb-4">
-                <Label className="text-sm font-medium">Audience language</Label>
-                <Select value={competitorLanguage} onValueChange={setCompetitorLanguage}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LANGUAGE_CONSTANTS.map((lang) => (
-                      <SelectItem key={lang.value} value={lang.value}>
-                        {lang.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                  {/* Language */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Language</Label>
+                    <Select value={competitorLanguage} onValueChange={setCompetitorLanguage}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="vi">Vietnamese</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  **Chỉ khả dụng ở Việt Nam và ngôn ngữ Tiếng Việt, các vùng/ngôn ngữ khác sẽ được thêm vào sớm.
+                </p>
               </div>
 
               {/* Target Keyword */}
@@ -940,17 +1086,39 @@ function ContentOptimizerContent() {
               {/* Titles Block - Competitor Results */}
               {competitorResults.length > 0 && (
                 <div className="mt-6">
-                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                    <TrendingUp className="h-4 w-4 text-indigo-600" />
-                    Titles
-                  </h3>
-                  <div className="space-y-3">
+                  <div
+                    className="flex items-center justify-between mb-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded transition-colors"
+                    onClick={handleToggleGoogleResults}
+                  >
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-indigo-600" />
+                      Kết quả từ Google
+                    </h3>
+                    {showGoogleResults ? (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
+                  </div>
+
+                  {showGoogleResults && (
+                    <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
                     {competitorResults.map((result, index) => (
-                      <Card key={index} className="border border-gray-200 dark:border-gray-700">
+                      <Card
+                        key={index}
+                        className="border border-gray-200 dark:border-gray-700 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+                        onClick={() => handleCrawlStructure(result.link, result.title)}
+                      >
                         <CardContent className="p-4">
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-medium text-indigo-600 hover:text-indigo-700 mb-1 line-clamp-2">
+                              {isCrawling && crawlingUrl === result.link && (
+                                <div className="mb-2 flex items-center gap-2 text-xs text-indigo-600">
+                                  <Loader2 className="h-3 w-3 animate-spin" />
+                                  <span>Đang crawl structures...</span>
+                                </div>
+                              )}
+                              <h4 className="text-sm font-medium text-indigo-600 hover:text-indigo-700 mb-2">
                                 <a
                                   href={result.link}
                                   target="_blank"
@@ -960,16 +1128,36 @@ function ContentOptimizerContent() {
                                   {result.title}
                                 </a>
                               </h4>
-                              <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
-                                {result.snippet}
-                              </p>
-                              <div className="flex items-center gap-2">
+
+                              {result.snippet && (
+                                <div className="mb-3">
+                                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Mô tả:
+                                  </p>
+                                  <p className="text-xs text-muted-foreground leading-relaxed">
+                                    {result.snippet}
+                                  </p>
+                                </div>
+                              )}
+
+                              {result.priceRange && (
+                                <div className="mb-3">
+                                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                                    Giá:
+                                  </p>
+                                  <p className="text-xs font-medium text-green-700 dark:text-green-400">
+                                    {result.priceRange}
+                                  </p>
+                                </div>
+                              )}
+
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs text-green-600 font-medium">
                                   {new URL(result.link).hostname.replace('www.', '')}
                                 </span>
                                 {result.position && (
                                   <Badge variant="outline" className="text-xs">
-                                    #{result.position}
+                                    Vị trí #{result.position}
                                   </Badge>
                                 )}
                               </div>
@@ -992,13 +1180,79 @@ function ContentOptimizerContent() {
                         </CardContent>
                       </Card>
                     ))}
+                    <div className="mt-4 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-xs text-indigo-700 dark:text-indigo-300">
+                      <p className="flex items-center gap-2">
+                        <Search className="h-3 w-3" />
+                        Tìm thấy {competitorResults.length} kết quả (đã loại bỏ facebook.com, shopee.vn)
+                      </p>
+                    </div>
                   </div>
-                  <div className="mt-4 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-xs text-indigo-700 dark:text-indigo-300">
-                    <p className="flex items-center gap-2">
-                      <Search className="h-3 w-3" />
-                      Tìm thấy {competitorResults.length} kết quả (đã loại bỏ facebook.com, shopee.vn)
-                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Top Images Section - Only show when data is available */}
+              {imageResults.length > 0 && (
+                <div className="mt-6">
+                  <div
+                    className="flex items-center justify-between mb-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 p-2 rounded transition-colors"
+                    onClick={handleToggleTopImages}
+                  >
+                    <h3 className="text-sm font-semibold flex items-center gap-2">
+                      <Eye className="h-4 w-4 text-indigo-600" />
+                      Top hình ảnh (Google Img)
+                    </h3>
+                    {showTopImages ? (
+                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    )}
                   </div>
+
+                  {showTopImages && (
+                    <div className="max-h-[400px] overflow-y-auto pr-2">
+                      <div className="grid grid-cols-2 gap-3">
+                        {imageResults.slice(0, 8).map((image, index) => (
+                          <div
+                            key={index}
+                            className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-shadow"
+                          >
+                            <a
+                              href={image.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <img
+                                src={image.imageUrl}
+                                alt={image.title || 'Google image result'}
+                                className="w-full h-32 object-cover"
+                                loading="lazy"
+                              />
+                            </a>
+                            <div className="p-2 bg-white dark:bg-gray-900">
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {image.title || 'No title'}
+                              </p>
+                              <a
+                                href={image.link}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-indigo-600 hover:underline line-clamp-1"
+                              >
+                                {new URL(image.link).hostname.replace('www.', '')}
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-4 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-xs text-indigo-700 dark:text-indigo-300">
+                        <p className="flex items-center gap-2">
+                          <Eye className="h-3 w-3" />
+                          Hiển thị 8/{imageResults.length} hình ảnh
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1310,41 +1564,98 @@ function ContentOptimizerContent() {
 
           {/* Right Sidebar - 35% */}
           <div className="space-y-6">
-            {/* Content Metrics Card - At top */}
+            {/* Content Metrics / Structures Card - Conditional Display */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Content Metrics</CardTitle>
+                <CardTitle className="text-lg">
+                  {selectedPageStructure ? 'Structures' : 'Content Metrics'}
+                </CardTitle>
+                {selectedPageStructure && (
+                  <CardDescription className="text-xs mt-2">
+                    <a
+                      href={selectedPageStructure.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-indigo-600 hover:underline"
+                    >
+                      {selectedPageStructure.title}
+                    </a>
+                  </CardDescription>
+                )}
               </CardHeader>
               <CardContent className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Words</span>
-                  <span className="font-semibold">
-                    {(() => {
-                      const contentWithH1 = h1Title ? `<h1>${h1Title}</h1>\n${content}` : content;
-                      const textContent = contentWithH1.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-                      return textContent.split(/\s+/).filter(Boolean).length;
-                    })()}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Characters</span>
-                  <span className="font-semibold">
-                    {(() => {
-                      const contentWithH1 = h1Title ? `<h1>${h1Title}</h1>\n${content}` : content;
-                      return contentWithH1.replace(/<[^>]*>/g, '').length;
-                    })()}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Target Keywords</span>
-                  <span className="font-semibold">{allKeywords.length}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm text-muted-foreground">Language</span>
-                  <span className="font-semibold text-sm">
-                    {LANGUAGE_CONSTANTS.find(l => l.value === audienceLanguage)?.name || 'N/A'}
-                  </span>
-                </div>
+                {!selectedPageStructure ? (
+                  <>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Words</span>
+                      <span className="font-semibold">
+                        {(() => {
+                          const contentWithH1 = h1Title ? `<h1>${h1Title}</h1>\n${content}` : content;
+                          const textContent = contentWithH1.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+                          return textContent.split(/\s+/).filter(Boolean).length;
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Characters</span>
+                      <span className="font-semibold">
+                        {(() => {
+                          const contentWithH1 = h1Title ? `<h1>${h1Title}</h1>\n${content}` : content;
+                          return contentWithH1.replace(/<[^>]*>/g, '').length;
+                        })()}
+                      </span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Target Keywords</span>
+                      <span className="font-semibold">{allKeywords.length}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Language</span>
+                      <span className="font-semibold text-sm">
+                        {LANGUAGE_CONSTANTS.find(l => l.value === audienceLanguage)?.name || 'N/A'}
+                      </span>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Structures Display */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          Tìm thấy {selectedPageStructure.headings.length} headings
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setSelectedPageStructure(null)}
+                          className="text-xs h-7"
+                        >
+                          Đóng
+                        </Button>
+                      </div>
+
+                      <div className="max-h-[400px] overflow-y-auto pr-2 space-y-2">
+                        {selectedPageStructure.headings.map((heading, index) => (
+                          <div
+                            key={index}
+                            className={`p-2 rounded text-sm ${
+                              heading.level === 'h1'
+                                ? 'bg-indigo-50 dark:bg-indigo-950 border-l-4 border-indigo-600 pl-3 font-bold'
+                                : heading.level === 'h2'
+                                ? 'bg-blue-50 dark:bg-blue-950 border-l-4 border-blue-500 pl-6 font-semibold'
+                                : 'bg-gray-50 dark:bg-gray-800 border-l-4 border-gray-400 pl-9 font-normal'
+                            }`}
+                          >
+                            <span className="text-xs text-muted-foreground mr-2 uppercase">
+                              {heading.level}
+                            </span>
+                            {heading.text}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
