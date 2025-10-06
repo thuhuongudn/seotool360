@@ -54,6 +54,8 @@ function ContentOptimizerContent() {
   const [competitorLocation, setCompetitorLocation] = useState("2704"); // Default to Vietnam
   const [competitorLanguage, setCompetitorLanguage] = useState("vi"); // Default to Vietnamese
   const [competitorKeyword, setCompetitorKeyword] = useState("");
+  const [competitorResults, setCompetitorResults] = useState<any[]>([]);
+  const [isLoadingCompetitor, setIsLoadingCompetitor] = useState(false);
 
   // Scoring states
   const [scores, setScores] = useState<ContentScores>({
@@ -288,6 +290,9 @@ function ContentOptimizerContent() {
     return "bg-blue-100 text-blue-800 border-blue-200";
   };
 
+  // Domains to exclude from competitor results
+  const EXCLUDE_DOMAINS = ['facebook.com', 'shopee.vn'];
+
   // Handle competitor insights (consumes 1 token)
   const handleUnlockInsights = async () => {
     if (!competitorKeyword.trim()) {
@@ -303,15 +308,66 @@ function ContentOptimizerContent() {
 
     // Wrap with token consumption (1 token per analysis)
     await executeWithToken(toolId, 1, async () => {
-      toast({
-        title: "Đang phân tích...",
-        description: "Competitor insights feature đang trong quá trình phát triển",
-      });
+      setIsLoadingCompetitor(true);
 
-      // TODO: Implement competitor analysis
-      // This will consume 1 token when the feature is implemented
+      try {
+        const apiKey = import.meta.env.VITE_SERPER_API_KEY;
 
-      return true;
+        if (!apiKey) {
+          toast({
+            title: "Lỗi cấu hình",
+            description: "Thiếu VITE_SERPER_API_KEY trong .env.local",
+            variant: "destructive",
+          });
+          setIsLoadingCompetitor(false);
+          return false;
+        }
+
+        const response = await fetch('https://google.serper.dev/search', {
+          method: 'POST',
+          headers: {
+            'X-API-KEY': apiKey,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            q: competitorKeyword.trim(),
+            gl: 'vn',
+            hl: 'vi'
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Serper API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        // Filter out excluded domains
+        const filteredResults = (data.organic || []).filter((result: any) => {
+          const url = new URL(result.link);
+          const hostname = url.hostname.replace('www.', '');
+          return !EXCLUDE_DOMAINS.some(domain => hostname.includes(domain));
+        });
+
+        setCompetitorResults(filteredResults);
+
+        toast({
+          title: "Phân tích hoàn tất",
+          description: `Tìm thấy ${filteredResults.length} kết quả từ Google Search`,
+        });
+
+        setIsLoadingCompetitor(false);
+        return true;
+      } catch (error) {
+        console.error('Serper API error:', error);
+        toast({
+          title: "Lỗi khi gọi API",
+          description: error instanceof Error ? error.message : "Vui lòng thử lại sau",
+          variant: "destructive",
+        });
+        setIsLoadingCompetitor(false);
+        return false;
+      }
     });
   };
 
@@ -873,17 +929,84 @@ function ContentOptimizerContent() {
               {/* Unlock Insights Button */}
               <Button
                 onClick={handleUnlockInsights}
-                disabled={!competitorKeyword.trim() || !canUseToken || isTokenProcessing}
+                disabled={!competitorKeyword.trim() || !canUseToken || isTokenProcessing || isLoadingCompetitor}
                 className="w-full bg-indigo-600 hover:bg-indigo-700"
               >
-                {isTokenProcessing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                {!isTokenProcessing && <Lightbulb className="h-4 w-4 mr-2" />}
+                {(isTokenProcessing || isLoadingCompetitor) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {!isTokenProcessing && !isLoadingCompetitor && <Lightbulb className="h-4 w-4 mr-2" />}
                 Unlock insights
               </Button>
 
-              <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs text-muted-foreground">
-                <p>Feature coming soon...</p>
-              </div>
+              {/* Titles Block - Competitor Results */}
+              {competitorResults.length > 0 && (
+                <div className="mt-6">
+                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-indigo-600" />
+                    Titles
+                  </h3>
+                  <div className="space-y-3">
+                    {competitorResults.map((result, index) => (
+                      <Card key={index} className="border border-gray-200 dark:border-gray-700">
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-medium text-indigo-600 hover:text-indigo-700 mb-1 line-clamp-2">
+                                <a
+                                  href={result.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="hover:underline"
+                                >
+                                  {result.title}
+                                </a>
+                              </h4>
+                              <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                                {result.snippet}
+                              </p>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-green-600 font-medium">
+                                  {new URL(result.link).hostname.replace('www.', '')}
+                                </span>
+                                {result.position && (
+                                  <Badge variant="outline" className="text-xs">
+                                    #{result.position}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="shrink-0"
+                              onClick={() => {
+                                navigator.clipboard.writeText(result.title);
+                                toast({
+                                  title: "Đã sao chép",
+                                  description: "Title đã được copy vào clipboard",
+                                });
+                              }}
+                            >
+                              <Copy className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                  <div className="mt-4 p-3 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg text-xs text-indigo-700 dark:text-indigo-300">
+                    <p className="flex items-center gap-2">
+                      <Search className="h-3 w-3" />
+                      Tìm thấy {competitorResults.length} kết quả (đã loại bỏ facebook.com, shopee.vn)
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {competitorResults.length === 0 && !isLoadingCompetitor && (
+                <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs text-muted-foreground">
+                  <p>Nhập keyword và click "Unlock insights" để xem competitor titles</p>
+                </div>
+              )}
             </div>
           )}
         </div>
