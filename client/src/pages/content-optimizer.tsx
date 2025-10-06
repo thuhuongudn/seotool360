@@ -77,7 +77,7 @@ function ContentOptimizerContent() {
   const [includeKeywordInOptimization, setIncludeKeywordInOptimization] = useState(false);
 
   const { toast } = useToast();
-  const { canUseToken } = useTokenManagement();
+  const { canUseToken, executeWithToken, isProcessing: isTokenProcessing } = useTokenManagement();
 
   // Combine primary and secondary keywords for backward compatibility
   const allKeywords = primaryKeyword ? [primaryKeyword, ...secondaryKeywords] : secondaryKeywords;
@@ -202,66 +202,71 @@ function ContentOptimizerContent() {
 
     if (!toolId) return;
 
-    setIsAnalyzing(true);
+    // Wrap with token consumption (1 token per analysis)
+    await executeWithToken(toolId, 1, async () => {
+      setIsAnalyzing(true);
 
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+      // Simulate API delay
+      await new Promise(resolve => setTimeout(resolve, 1000));
 
-    // Run SEO analysis with real scoring
-    const seoResult = analyzeSEO(
-      content,
-      h1Title,
-      titleTag,
-      metaDescription,
-      primaryKeyword,
-      secondaryKeywords
-    );
-    setSeoAnalysis(seoResult);
+      // Run SEO analysis with real scoring
+      const seoResult = analyzeSEO(
+        content,
+        h1Title,
+        titleTag,
+        metaDescription,
+        primaryKeyword,
+        secondaryKeywords
+      );
+      setSeoAnalysis(seoResult);
 
-    // Run Readability analysis
-    const readabilityResult = analyzeReadability(content);
-    setReadabilityAnalysis(readabilityResult);
+      // Run Readability analysis
+      const readabilityResult = analyzeReadability(content);
+      setReadabilityAnalysis(readabilityResult);
 
-    // Update scores
-    setScores({
-      seo: seoResult.score,
-      readability: readabilityResult.score,
-      toneOfVoice: 100, // Placeholder - implement later
-    });
-
-    // Combine all recommendations
-    const allTips: OptimizationTip[] = [];
-
-    // Add SEO recommendations
-    seoResult.recommendations.forEach((rec) => {
-      const severity = rec.includes('H1') || rec.includes('title') ? 'high' :
-                       rec.includes('meta') || rec.includes('mật độ') ? 'medium' : 'low';
-      allTips.push({
-        type: 'seo',
-        severity,
-        message: rec, // Keep full message (don't split)
-        suggestion: rec
+      // Update scores
+      setScores({
+        seo: seoResult.score,
+        readability: readabilityResult.score,
+        toneOfVoice: 100, // Placeholder - implement later
       });
-    });
 
-    // Add Readability recommendations
-    readabilityResult.recommendations.forEach((rec) => {
-      if (rec.startsWith('✓')) return; // Skip positive feedback
+      // Combine all recommendations
+      const allTips: OptimizationTip[] = [];
 
-      allTips.push({
-        type: 'readability',
-        severity: rec.includes('quá dài') || rec.includes('phức tạp') ? 'high' : 'medium',
-        message: rec, // Keep full message (don't split)
-        suggestion: rec
+      // Add SEO recommendations
+      seoResult.recommendations.forEach((rec) => {
+        const severity = rec.includes('H1') || rec.includes('title') ? 'high' :
+                         rec.includes('meta') || rec.includes('mật độ') ? 'medium' : 'low';
+        allTips.push({
+          type: 'seo',
+          severity,
+          message: rec, // Keep full message (don't split)
+          suggestion: rec
+        });
       });
-    });
 
-    setOptimizationTips(allTips);
-    setIsAnalyzing(false);
+      // Add Readability recommendations
+      readabilityResult.recommendations.forEach((rec) => {
+        if (rec.startsWith('✓')) return; // Skip positive feedback
 
-    toast({
-      title: "Phân tích hoàn tất",
-      description: `SEO Score: ${seoResult.score}/100 | Readability: ${readabilityResult.score}/100`,
+        allTips.push({
+          type: 'readability',
+          severity: rec.includes('quá dài') || rec.includes('phức tạp') ? 'high' : 'medium',
+          message: rec, // Keep full message (don't split)
+          suggestion: rec
+        });
+      });
+
+      setOptimizationTips(allTips);
+      setIsAnalyzing(false);
+
+      toast({
+        title: "Phân tích hoàn tất",
+        description: `SEO Score: ${seoResult.score}/100 | Readability: ${readabilityResult.score}/100`,
+      });
+
+      return true; // executeWithToken expects a return value
     });
   };
 
@@ -281,6 +286,33 @@ function ContentOptimizerContent() {
     if (severity === 'high') return "bg-red-100 text-red-800 border-red-200";
     if (severity === 'medium') return "bg-orange-100 text-orange-800 border-orange-200";
     return "bg-blue-100 text-blue-800 border-blue-200";
+  };
+
+  // Handle competitor insights (consumes 1 token)
+  const handleUnlockInsights = async () => {
+    if (!competitorKeyword.trim()) {
+      toast({
+        title: "Thiếu thông tin",
+        description: "Vui lòng nhập target keyword",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!toolId) return;
+
+    // Wrap with token consumption (1 token per analysis)
+    await executeWithToken(toolId, 1, async () => {
+      toast({
+        title: "Đang phân tích...",
+        description: "Competitor insights feature đang trong quá trình phát triển",
+      });
+
+      // TODO: Implement competitor analysis
+      // This will consume 1 token when the feature is implemented
+
+      return true;
+    });
   };
 
   // AI-powered readability optimizer
@@ -623,10 +655,10 @@ function ContentOptimizerContent() {
               {/* Get Improvement Ideas Button */}
               <Button
                 onClick={handleGetImprovementIdeas}
-                disabled={isAnalyzing || !primaryKeyword || !canUseToken}
+                disabled={isAnalyzing || !primaryKeyword || !canUseToken || isTokenProcessing}
                 className="w-full bg-indigo-600 hover:bg-indigo-700"
               >
-                {isAnalyzing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {(isAnalyzing || isTokenProcessing) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Get improvement ideas
               </Button>
 
@@ -840,10 +872,12 @@ function ContentOptimizerContent() {
 
               {/* Unlock Insights Button */}
               <Button
-                disabled={!competitorKeyword.trim()}
+                onClick={handleUnlockInsights}
+                disabled={!competitorKeyword.trim() || !canUseToken || isTokenProcessing}
                 className="w-full bg-indigo-600 hover:bg-indigo-700"
               >
-                <Lightbulb className="h-4 w-4 mr-2" />
+                {isTokenProcessing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {!isTokenProcessing && <Lightbulb className="h-4 w-4 mr-2" />}
                 Unlock insights
               </Button>
 
