@@ -730,7 +730,8 @@ function ContentOptimizerContent() {
       'T7_disclaimer_transparency': 'T7: Minh bạch thương mại',
       'T8_plain_structure': 'T8: Cấu trúc dễ hiểu',
       'T9_empathy_language': 'T9: Ngôn ngữ đồng cảm',
-      'T10_update_freshness': 'T10: Tính cập nhật & chính xác',
+      'T10_update_freshness': 'T10: Độ mới của nguồn trích dẫn',
+      'T10_source_freshness': 'T10: Độ mới của nguồn trích dẫn',
     };
     return names[key] || key;
   };
