@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useTokenManagement } from "@/hooks/use-token-management";
 import { GEO_TARGET_CONSTANTS, LANGUAGE_CONSTANTS, DEFAULT_LANG } from "@/constants/google-ads-constants";
 import { analyzeSEO, analyzeReadability, type SEOAnalysis, type ReadabilityAnalysis } from "@/lib/content-optimizer-utils";
+import { buildToneAnalysisPrompt } from "@/lib/tone-of-voice-prompts";
 
 interface ContentScores {
   seo: number;
@@ -54,6 +55,7 @@ function ContentOptimizerContent() {
   const [toneIndustry, setToneIndustry] = useState("pharma");
   const [isAnalyzingTone, setIsAnalyzingTone] = useState(false);
   const [toneAnalysisResult, setToneAnalysisResult] = useState<any | null>(null);
+  const [selectedCriterion, setSelectedCriterion] = useState<string | null>(null);
 
   // Competitor data tool states
   const [competitorLocation, setCompetitorLocation] = useState("2704"); // Default to Vietnam
@@ -611,61 +613,8 @@ function ContentOptimizerContent() {
           return false;
         }
 
-        // Read the criteria document
-        const criteriaPrompt = `
-Bạn là một chuyên gia đánh giá nội dung y tế và dược phẩm theo tiêu chuẩn E-E-A-T và YMYL.
-
-Hãy phân tích văn bản sau theo bộ tiêu chí "AI-Evaluable Tone of Voice Framework – Pharma/YMYL v1.0":
-
-## 10 TIÊU CHÍ ĐÁNH GIÁ (mỗi tiêu chí 0-3 điểm):
-
-1. **T1_neutral_tone** - Giọng điệu trung tính: Không có từ tuyệt đối hóa ("chữa khỏi", "an toàn tuyệt đối", "hiệu quả 100%")
-2. **T2_medical_clarity** - Ngôn ngữ chuyên môn rõ ràng: Có thuật ngữ y học được giải thích
-3. **T3_no_exaggeration** - Tránh phóng đại: Không có cụm cảm xúc mạnh ("tuyệt vời", "thần kỳ", "đáng kinh ngạc")
-4. **T4_fair_balance** - Cân bằng lợi ích/rủi ro: Khi nói lợi ích có kèm cảnh báo
-5. **T5_evidence_citation** - Trích dẫn chứng cứ: Có "theo nghiên cứu", "nguồn", DOI/link
-6. **T6_expert_author** - Tác giả/duyệt chuyên môn: Có tên + chức danh hoặc "duyệt bởi dược sĩ/bác sĩ"
-7. **T7_disclaimer_transparency** - Minh bạch thương mại: Có disclaimer về affiliate/tư vấn y khoa
-8. **T8_plain_structure** - Cấu trúc dễ hiểu: Câu chủ động, tiêu đề rõ ràng
-9. **T9_empathy_language** - Ngôn ngữ đồng cảm: Có "nếu bạn", "tham khảo bác sĩ"
-10. **T10_update_freshness** - Tính cập nhật: Có ngày cập nhật hoặc thời gian nguồn
-
-## 5 LỖI CẤM (nếu có bất kỳ lỗi nào → FAIL):
-
-- **E1**: Claim điều trị bệnh không có chứng cứ
-- **E2**: So sánh sản phẩm cạnh tranh không nguồn
-- **E3**: Không có khuyến cáo an toàn
-- **E4**: Không minh bạch affiliate/quảng cáo
-- **E5**: Claim an toàn tuyệt đối
-
-## NHIỆM VỤ:
-Phân tích văn bản và trả về JSON format:
-
-\`\`\`json
-{
-  "total_score": <tổng điểm 0-15>,
-  "verdict": "PASS" | "NEED REVIEW" | "FAIL",
-  "criteria": {
-    "T1_neutral_tone": <0-3>,
-    "T2_medical_clarity": <0-3>,
-    "T3_no_exaggeration": <0-3>,
-    "T4_fair_balance": <0-3>,
-    "T5_evidence_citation": <0-3>,
-    "T6_expert_author": <0-3>,
-    "T7_disclaimer_transparency": <0-3>,
-    "T8_plain_structure": <0-3>,
-    "T9_empathy_language": <0-3>,
-    "T10_update_freshness": <0-3>
-  },
-  "errors": [<danh sách lỗi E1-E5 nếu có, VD: "E1: Claim điều trị ung thư không có nguồn">],
-  "explanation": "<giải thích ngắn gọn về đánh giá tổng thể>"
-}
-\`\`\`
-
-## VĂN BẢN CẦN PHÂN TÍCH:
-
-${content}
-`;
+        // Build prompt from template
+        const criteriaPrompt = buildToneAnalysisPrompt(toneIndustry, content);
 
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
@@ -1967,32 +1916,131 @@ ${content}
                     {/* Critical Errors */}
                     {toneAnalysisResult.errors && toneAnalysisResult.errors.length > 0 && (
                       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-                        <h4 className="text-sm font-semibold text-red-700 dark:text-red-300 mb-2">🚫 Lỗi nghiêm trọng</h4>
-                        <ul className="space-y-1 text-xs text-red-600 dark:text-red-400 list-disc list-inside">
-                          {toneAnalysisResult.errors.map((error: string, idx: number) => (
-                            <li key={idx}>{error}</li>
-                          ))}
-                        </ul>
+                        <h4 className="text-sm font-semibold text-red-700 dark:text-red-300 mb-3 flex items-center gap-2">
+                          🚫 Lỗi nghiêm trọng
+                          <span className="text-xs font-normal">(Tự động FAIL)</span>
+                        </h4>
+                        <div className="space-y-2">
+                          {toneAnalysisResult.errors.map((error: any, idx: number) => {
+                            // Support both string and object format
+                            const errorText = typeof error === 'string' ? error : error.description;
+                            const errorCode = typeof error === 'object' ? error.code : null;
+                            const violationText = typeof error === 'object' ? error.text : null;
+
+                            return (
+                              <div key={idx} className="bg-white dark:bg-gray-900 rounded p-3 space-y-2">
+                                <div className="flex items-start gap-2">
+                                  <span className="text-xs bg-red-600 text-white px-2 py-0.5 rounded font-bold shrink-0">
+                                    {errorCode || `E${idx + 1}`}
+                                  </span>
+                                  <p className="text-xs text-red-700 dark:text-red-300 font-medium flex-1">
+                                    {errorText}
+                                  </p>
+                                </div>
+                                {violationText && (
+                                  <div className="ml-8 pl-3 border-l-2 border-red-300 dark:border-red-700">
+                                    <p className="text-[10px] font-semibold text-gray-600 dark:text-gray-400 mb-1">
+                                      Đoạn vi phạm:
+                                    </p>
+                                    <p className="text-xs text-red-600 dark:text-red-400 italic bg-red-100 dark:bg-red-900/30 rounded px-2 py-1">
+                                      "{violationText}"
+                                    </p>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
 
                     {/* Detailed Criteria Scores */}
                     <div className="space-y-2">
-                      <h4 className="text-sm font-semibold text-foreground">Chi tiết đánh giá</h4>
+                      <h4 className="text-sm font-semibold text-foreground">Chi tiết đánh giá (click để xem lỗi)</h4>
                       <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto pr-2">
-                        {Object.entries(toneAnalysisResult.criteria || {}).map(([key, score]) => (
-                          <div key={key} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded p-2">
-                            <span className="text-xs text-foreground">{formatCriteriaName(key)}</span>
-                            <Badge variant="outline" className={`text-xs ${
-                              score === 3 ? 'bg-green-50 text-green-700 border-green-200' :
-                              score === 2 ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                              score === 1 ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                              'bg-red-50 text-red-700 border-red-200'
-                            }`}>
-                              {score}/3
-                            </Badge>
-                          </div>
-                        ))}
+                        {Object.entries(toneAnalysisResult.criteria || {}).map(([key, criterionData]) => {
+                          const score = typeof criterionData === 'number' ? criterionData : criterionData?.score || 0;
+                          const issues = typeof criterionData === 'object' && criterionData?.issues ? criterionData.issues : [];
+                          const isExpanded = selectedCriterion === key;
+
+                          return (
+                            <div key={key} className="bg-gray-50 dark:bg-gray-800 rounded overflow-hidden">
+                              <button
+                                onClick={() => setSelectedCriterion(isExpanded ? null : key)}
+                                className="flex items-center justify-between w-full p-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                              >
+                                <span className="text-xs text-foreground flex items-center gap-2">
+                                  {formatCriteriaName(key)}
+                                  {issues.length > 0 && (
+                                    <span className="text-[10px] bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 rounded">
+                                      {issues.length} lỗi
+                                    </span>
+                                  )}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className={`text-xs ${
+                                    score === 3 ? 'bg-green-50 text-green-700 border-green-200' :
+                                    score === 2 ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                                    score === 1 ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                                    'bg-red-50 text-red-700 border-red-200'
+                                  }`}>
+                                    {score}/3
+                                  </Badge>
+                                  {issues.length > 0 && (
+                                    isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+                                  )}
+                                </div>
+                              </button>
+
+                              {/* Issue Details */}
+                              {isExpanded && issues.length > 0 && (
+                                <div className="px-2 pb-2 space-y-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                                  {issues.map((issue: any, idx: number) => (
+                                    <div key={idx} className="bg-white dark:bg-gray-900 rounded p-2 space-y-1">
+                                      <div className="flex items-start gap-2">
+                                        <span className="text-[10px] bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-1.5 py-0.5 rounded font-medium shrink-0">
+                                          #{idx + 1}
+                                        </span>
+                                        <div className="flex-1 space-y-1">
+                                          {issue.text && (
+                                            <div>
+                                              <p className="text-[10px] font-semibold text-gray-600 dark:text-gray-400">Đoạn vi phạm:</p>
+                                              <p className="text-xs text-red-600 dark:text-red-400 italic bg-red-50 dark:bg-red-900/20 rounded px-2 py-1">
+                                                "{issue.text}"
+                                              </p>
+                                            </div>
+                                          )}
+                                          {issue.reason && (
+                                            <div>
+                                              <p className="text-[10px] font-semibold text-gray-600 dark:text-gray-400">Lý do:</p>
+                                              <p className="text-xs text-gray-700 dark:text-gray-300">{issue.reason}</p>
+                                            </div>
+                                          )}
+                                          {issue.suggestion && (
+                                            <div>
+                                              <p className="text-[10px] font-semibold text-gray-600 dark:text-gray-400">Gợi ý sửa:</p>
+                                              <p className="text-xs text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 rounded px-2 py-1">
+                                                {issue.suggestion}
+                                              </p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {isExpanded && issues.length === 0 && (
+                                <div className="px-2 pb-2 border-t border-gray-200 dark:border-gray-700 pt-2">
+                                  <p className="text-xs text-green-600 dark:text-green-400 text-center">
+                                    ✓ Không có vấn đề nào được phát hiện
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>
