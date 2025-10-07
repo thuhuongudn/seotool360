@@ -595,7 +595,7 @@ function ContentOptimizerContent() {
       return;
     }
 
-    return executeWithToken(async () => {
+    return executeWithToken(toolId, 1, async () => {
       try {
         setIsAnalyzingTone(true);
 
