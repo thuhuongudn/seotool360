@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { TokenWidget } from "@/components/token-widget";
 
 const contentSeoItems = [
+  { label: "Content Optimizer", href: "/content-optimizer" },
   { label: "Keyword Planner", href: "/keyword-planner" },
   { label: "Search Intent", href: "/search-intent" },
   { label: "Topical Map", href: "/topical-map" },

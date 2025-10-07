@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Loader2, FileText, Lightbulb, Eye, ChevronDown, ChevronUp, Highlighter, Search, TrendingUp, Copy } from "lucide-react";
+import { Loader2, FileText, Lightbulb, Eye, ChevronDown, ChevronUp, Highlighter, Search, TrendingUp, Copy, Image, Download } from "lucide-react";
 import { Editor } from '@tinymce/tinymce-react';
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
@@ -48,7 +48,7 @@ function ContentOptimizerContent() {
   const [metaDescription, setMetaDescription] = useState("");
 
   // Left dock states
-  const [activeTool, setActiveTool] = useState<'seo' | 'competitor' | null>('seo');
+  const [activeTool, setActiveTool] = useState<'seo' | 'competitor' | 'images' | null>('seo');
 
   // Competitor data tool states
   const [competitorLocation, setCompetitorLocation] = useState("2704"); // Default to Vietnam
@@ -73,6 +73,16 @@ function ContentOptimizerContent() {
   } | null>(null);
   const [isCrawling, setIsCrawling] = useState(false);
   const [crawlingUrl, setCrawlingUrl] = useState<string>("");
+
+  // Image search tool states
+  const [imageSearchMode, setImageSearchMode] = useState<'ai' | 'unsplash'>('unsplash');
+  const [aiImagePrompt, setAiImagePrompt] = useState("");
+  const [unsplashQuery, setUnsplashQuery] = useState("");
+  const [unsplashResults, setUnsplashResults] = useState<any[]>([]);
+  const [isLoadingUnsplash, setIsLoadingUnsplash] = useState(false);
+  const [isGeneratingAiImage, setIsGeneratingAiImage] = useState(false);
+  const [generatedAiImage, setGeneratedAiImage] = useState<string | null>(null);
+  const [showPromptGuide, setShowPromptGuide] = useState(false);
 
   // Scoring states
   const [scores, setScores] = useState<ContentScores>({
@@ -419,6 +429,154 @@ function ContentOptimizerContent() {
       setIsCrawling(false);
       setCrawlingUrl("");
     }
+  };
+
+  // Handle AI Image generation with Gemini 2.5 Flash Image via OpenRouter
+  const handleGenerateAiImage = async () => {
+    if (!aiImagePrompt.trim()) {
+      toast({
+        title: "Thiếu mô tả ảnh",
+        description: "Vui lòng mô tả ảnh bạn muốn tạo",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!toolId) return;
+
+    // Wrap with token consumption (1 token per generation)
+    await executeWithToken(toolId, 1, async () => {
+      setIsGeneratingAiImage(true);
+      setGeneratedAiImage(null);
+
+      try {
+        const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+
+        if (!apiKey) {
+          toast({
+            title: "Lỗi cấu hình",
+            description: "Thiếu VITE_OPENROUTER_API_KEY trong .env.local",
+            variant: "destructive",
+          });
+          setIsGeneratingAiImage(false);
+          return;
+        }
+
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            model: 'google/gemini-2.5-flash-image-preview',
+            messages: [
+              {
+                role: 'user',
+                content: aiImagePrompt.trim()
+              }
+            ],
+            modalities: ['image', 'text']
+          })
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text().catch(() => 'Unknown error');
+          throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
+        }
+
+        const data = await response.json();
+
+        // Extract base64 image from response
+        if (data.choices?.[0]?.message?.images?.[0]?.image_url?.url) {
+          const imageDataUrl = data.choices[0].message.images[0].image_url.url;
+          setGeneratedAiImage(imageDataUrl);
+
+          toast({
+            title: "Tạo ảnh thành công",
+            description: "Ảnh AI đã được tạo",
+          });
+        } else {
+          throw new Error('Không nhận được ảnh từ API');
+        }
+      } catch (error) {
+        console.error('AI Image generation error:', error);
+        toast({
+          title: "Lỗi tạo ảnh",
+          description: error instanceof Error ? error.message : "Vui lòng thử lại sau",
+          variant: "destructive",
+        });
+      } finally {
+        setIsGeneratingAiImage(false);
+      }
+
+      return true;
+    });
+  };
+
+  // Handle Unsplash image search
+  const handleUnsplashSearch = async () => {
+    if (!unsplashQuery.trim()) {
+      toast({
+        title: "Thiếu từ khóa",
+        description: "Vui lòng nhập từ khóa tìm kiếm ảnh",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!toolId) return;
+
+    // Wrap with token consumption (1 token per search)
+    await executeWithToken(toolId, 1, async () => {
+      setIsLoadingUnsplash(true);
+
+      try {
+        const apiKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY;
+
+        if (!apiKey) {
+          toast({
+            title: "Lỗi cấu hình",
+            description: "Thiếu VITE_UNSPLASH_ACCESS_KEY trong .env.local",
+            variant: "destructive",
+          });
+          setIsLoadingUnsplash(false);
+          return;
+        }
+
+        const response = await fetch(
+          `https://api.unsplash.com/search/photos?query=${encodeURIComponent(unsplashQuery)}&per_page=12`,
+          {
+            headers: {
+              'Authorization': `Client-ID ${apiKey}`
+            }
+          }
+        );
+
+        if (!response.ok) {
+          throw new Error(`Unsplash API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setUnsplashResults(data.results || []);
+
+        toast({
+          title: "Tìm kiếm thành công",
+          description: `Tìm thấy ${data.results?.length || 0} ảnh`,
+        });
+      } catch (error) {
+        console.error('Unsplash error:', error);
+        toast({
+          title: "Lỗi khi tìm ảnh",
+          description: error instanceof Error ? error.message : "Vui lòng thử lại sau",
+          variant: "destructive",
+        });
+      } finally {
+        setIsLoadingUnsplash(false);
+      }
+
+      return true;
+    });
   };
 
   // Toggle Google results section
@@ -857,6 +1015,19 @@ function ContentOptimizerContent() {
           >
             <Search className="h-5 w-5" />
           </button>
+
+          {/* Images Tool Icon */}
+          <button
+            onClick={() => setActiveTool(activeTool === 'images' ? null : 'images')}
+            className={`p-3 rounded-lg transition-colors ${
+              activeTool === 'images'
+                ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-400'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
+            }`}
+            title="Tìm ảnh"
+          >
+            <Image className="h-5 w-5" />
+          </button>
         </div>
 
         {/* Dock Panel */}
@@ -1293,6 +1464,260 @@ function ContentOptimizerContent() {
               {competitorResults.length === 0 && !isLoadingCompetitor && (
                 <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs text-muted-foreground">
                   <p>Nhập từ khóa và nhấn "Mở khóa thông tin" để xem tiêu đề của đối thủ</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {activeTool === 'images' && (
+            <div className="p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <Image className="h-5 w-5 text-indigo-600" />
+                Tìm Ảnh
+              </h2>
+
+              {/* Mode Selection */}
+              <div className="flex gap-2 mb-4">
+                <Button
+                  variant={imageSearchMode === 'ai' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => {
+                    setImageSearchMode('ai');
+                    setGeneratedAiImage(null); // Reset when switching
+                  }}
+                  className="flex-1 relative"
+                >
+                  <Lightbulb className="h-4 w-4 mr-2" />
+                  AI Image
+                  <span className="ml-2 text-xs bg-green-500 text-white px-2 py-0.5 rounded">new</span>
+                </Button>
+                <Button
+                  variant={imageSearchMode === 'unsplash' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setImageSearchMode('unsplash')}
+                  className="flex-1"
+                >
+                  <Image className="h-4 w-4 mr-2" />
+                  Unsplash
+                </Button>
+              </div>
+
+              {/* AI Image Mode */}
+              {imageSearchMode === 'ai' && (
+                <div className="space-y-4">
+                  {/* Prompt Guide - Collapsible */}
+                  <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 space-y-2">
+                    <div
+                      className="flex items-center justify-between cursor-pointer"
+                      onClick={() => setShowPromptGuide(!showPromptGuide)}
+                    >
+                      <h4 className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 flex items-center gap-1">
+                        <Lightbulb className="h-3 w-3" />
+                        Hướng dẫn viết prompt hiệu quả
+                      </h4>
+                      {showPromptGuide ? (
+                        <ChevronUp className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                      )}
+                    </div>
+
+                    {/* Always show first 2 items (30%) */}
+                    <ul className="text-xs text-indigo-600 dark:text-indigo-400 space-y-1 list-disc list-inside">
+                      <li><strong>Chủ thể:</strong> Mô tả chi tiết đối tượng/cảnh (VD: "Vietnamese street food vendor")</li>
+                      <li><strong>Phong cách:</strong> "photorealistic", "cinematic", "illustration", "watercolor"</li>
+                    </ul>
+
+                    {/* Expandable content */}
+                    {showPromptGuide && (
+                      <>
+                        <ul className="text-xs text-indigo-600 dark:text-indigo-400 space-y-1 list-disc list-inside">
+                          <li><strong>Ánh sáng:</strong> "golden hour", "soft lighting", "dramatic shadows"</li>
+                          <li><strong>Camera:</strong> "35mm lens", "shallow depth of field", "f/1.8", "bokeh"</li>
+                          <li><strong>Màu sắc:</strong> "warm tones", "vibrant colors", "muted palette"</li>
+                          <li><strong>Tránh:</strong> "no text", "no watermark", "no blurry"</li>
+                        </ul>
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400 italic">
+                          💡 Càng chi tiết, kết quả càng chính xác!
+                        </p>
+                      </>
+                    )}
+
+                    {!showPromptGuide && (
+                      <button
+                        onClick={() => setShowPromptGuide(true)}
+                        className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                      >
+                        Xem thêm →
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Mô tả ảnh bạn muốn tạo</Label>
+                    <textarea
+                      value={aiImagePrompt}
+                      onChange={(e) => setAiImagePrompt(e.target.value)}
+                      placeholder="VD: A photorealistic Vietnamese street food vendor at golden hour, serving pho, warm lighting, 35mm lens, shallow depth of field, cinematic, detailed textures, no text, no watermark"
+                      rows={5}
+                      className="w-full px-3 py-2 border border-input rounded-md text-sm resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {aiImagePrompt.length}/500 ký tự
+                    </p>
+                  </div>
+
+                  <Button
+                    onClick={handleGenerateAiImage}
+                    disabled={!aiImagePrompt.trim() || !canUseToken || isTokenProcessing || isGeneratingAiImage}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700"
+                    title="Tốn 1 token"
+                  >
+                    {isGeneratingAiImage && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    {!isGeneratingAiImage && <Lightbulb className="h-4 w-4 mr-2" />}
+                    {isGeneratingAiImage ? 'Đang tạo ảnh...' : 'Tạo ảnh AI'}
+                  </Button>
+
+                  {/* AI Generated Image Result */}
+                  {generatedAiImage && (
+                    <div className="mt-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-foreground">Ảnh đã tạo</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = generatedAiImage;
+                            link.download = `ai-image-${Date.now()}.png`;
+                            link.click();
+
+                            toast({
+                              title: "Đang tải ảnh",
+                              description: "Ảnh AI sẽ được tải xuống máy",
+                            });
+                          }}
+                        >
+                          <Download className="h-3 w-3 mr-1" />
+                          Tải về
+                        </Button>
+                      </div>
+
+                      <div className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                        <img
+                          src={generatedAiImage}
+                          alt="AI Generated"
+                          className="w-full h-auto"
+                        />
+                      </div>
+
+                      <p className="text-xs text-muted-foreground">
+                        Được tạo bởi Gemini 2.5 Flash Image qua <a href="https://openrouter.ai" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">OpenRouter</a>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Unsplash Mode */}
+              {imageSearchMode === 'unsplash' && (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium">Tìm kiếm ảnh</Label>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        value={unsplashQuery}
+                        onChange={(e) => setUnsplashQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleUnsplashSearch()}
+                        placeholder="Nhập từ khóa tìm ảnh..."
+                        className="pl-10"
+                      />
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={handleUnsplashSearch}
+                    disabled={!unsplashQuery.trim() || isLoadingUnsplash || !canUseToken || isTokenProcessing}
+                    className="w-full bg-indigo-600 hover:bg-indigo-700"
+                    title="Tốn 1 token"
+                  >
+                    {isLoadingUnsplash && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    {!isLoadingUnsplash && <Search className="h-4 w-4 mr-2" />}
+                    Tìm kiếm
+                  </Button>
+
+                  {/* Unsplash Results */}
+                  {unsplashResults.length > 0 && (
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium text-muted-foreground">
+                          {unsplashResults.length} kết quả
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 max-h-[500px] overflow-y-auto pr-2">
+                        {unsplashResults.map((photo) => (
+                          <div
+                            key={photo.id}
+                            className="relative group border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden hover:shadow-lg transition-all"
+                          >
+                            <img
+                              src={photo.urls.small}
+                              alt={photo.alt_description || photo.description || 'Unsplash photo'}
+                              className="w-full h-32 object-cover"
+                              loading="lazy"
+                            />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                              <Button
+                                size="sm"
+                                variant="secondary"
+                                onClick={() => {
+                                  // Download image
+                                  const link = document.createElement('a');
+                                  link.href = photo.urls.full;
+                                  link.download = `unsplash-${photo.id}.jpg`;
+                                  link.target = '_blank';
+                                  link.click();
+
+                                  toast({
+                                    title: "Đang tải ảnh",
+                                    description: "Ảnh sẽ được tải xuống máy",
+                                  });
+                                }}
+                              >
+                                <Download className="h-3 w-3 mr-1" />
+                                Tải về
+                              </Button>
+                            </div>
+                            <div className="p-2 bg-white dark:bg-gray-900">
+                              <p className="text-xs text-muted-foreground line-clamp-1">
+                                {photo.alt_description || photo.description || 'No description'}
+                              </p>
+                              <a
+                                href={photo.user.links.html}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-indigo-600 hover:underline"
+                              >
+                                {photo.user.name}
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <p className="text-xs text-muted-foreground mt-3">
+                        Ảnh từ <a href="https://unsplash.com" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">Unsplash</a>
+                      </p>
+                    </div>
+                  )}
+
+                  {unsplashResults.length === 0 && !isLoadingUnsplash && unsplashQuery && (
+                    <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs text-muted-foreground text-center">
+                      <p>Không tìm thấy ảnh nào. Thử từ khóa khác.</p>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
