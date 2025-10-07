@@ -450,12 +450,12 @@ function ContentOptimizerContent() {
       setGeneratedAiImage(null);
 
       try {
-        const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
+        const apiKey = import.meta.env.VITE_GEMINI_2_5_FLASH_IMG;
 
         if (!apiKey) {
           toast({
             title: "Lỗi cấu hình",
-            description: "Thiếu VITE_OPENROUTER_API_KEY trong .env.local",
+            description: "Thiếu VITE_GEMINI_2_5_FLASH_IMG trong .env.local",
             variant: "destructive",
           });
           setIsGeneratingAiImage(false);
