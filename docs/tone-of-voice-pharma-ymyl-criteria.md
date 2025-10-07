@@ -49,7 +49,7 @@ Bộ khung đánh giá Tone of Voice cho lĩnh vực Dược phẩm và YMYL (Yo
 | T7 | Minh bạch thương mại | Có cụm "bài viết có thể chứa liên kết tiếp thị", "không thay thế tư vấn y khoa" | Có = 3; không = 0 | 0-3 |
 | T8 | Cấu trúc dễ hiểu | Câu chủ động, có tiêu đề mô tả, không lặp nhiều từ phức | ≥ 70 % câu chủ động → 3; nhiều câu bị động hoặc lủng củng → < 2 | 0-3 |
 | T9 | Ngôn ngữ đồng cảm | Có cụm "nếu bạn", "hãy", "tham khảo bác sĩ", "nên trao đổi với chuyên gia" | Có ≥ 1 → 3; không có → 0 | 0-3 |
-| T10 | Tính cập nhật & nguồn thời gian | Có "ngày cập nhật" bài viết HOẶC năm xuất bản trong trích dẫn (VD: "Smith, 2020" hoặc "(2020)"). Cả hai đều hợp lệ | Có ngày cập nhật HOẶC năm trong tài liệu → 3; không có → 0 | 0-3 |
+| T10 | Độ mới của nguồn trích dẫn | Có năm xuất bản trong trích dẫn tài liệu/nghiên cứu (VD: "Smith, 2020", "(2020)", "theo nghiên cứu năm 2023"). **LƯU Ý**: Ngày cập nhật bài viết nằm trong schema/metadata, KHÔNG đánh giá ở đây | Có năm trong tài liệu/nghiên cứu → 3; không có → 0 | 0-3 |
 
 ## 🚫 4. BỐN LỖI CẤM (bất kỳ phát hiện nào → tự động "Fail")
 
