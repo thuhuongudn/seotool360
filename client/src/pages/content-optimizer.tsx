@@ -53,6 +53,7 @@ function ContentOptimizerContent() {
 
   // Tone of Voice tool states
   const [toneIndustry, setToneIndustry] = useState("pharma");
+  const [toneModel, setToneModel] = useState<"openai/gpt-5" | "openai/gpt-4.1">("openai/gpt-4.1");
   const [isAnalyzingTone, setIsAnalyzingTone] = useState(false);
   const [toneAnalysisResult, setToneAnalysisResult] = useState<any | null>(null);
   const [selectedCriterion, setSelectedCriterion] = useState<string | null>(null);
@@ -616,6 +617,22 @@ function ContentOptimizerContent() {
         // Build prompt from template
         const criteriaPrompt = buildToneAnalysisPrompt(toneIndustry, content);
 
+        // Build request body based on selected model
+        const requestBody: any = {
+          model: toneModel,
+          messages: [
+            {
+              role: "user",
+              content: criteriaPrompt
+            }
+          ],
+        };
+
+        // Add reasoning_effort only for GPT-5 (not supported by GPT-4.1)
+        if (toneModel === "openai/gpt-5") {
+          requestBody.reasoning_effort = "medium";
+        }
+
         const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
           method: "POST",
           headers: {
@@ -624,16 +641,7 @@ function ContentOptimizerContent() {
             "HTTP-Referer": window.location.origin,
             "X-Title": "N8N Toolkit - Content Optimizer",
           },
-          body: JSON.stringify({
-            model: "openai/gpt-5", // GPT-5 (alias for gpt-5-thinking)
-            messages: [
-              {
-                role: "user",
-                content: criteriaPrompt
-              }
-            ],
-            reasoning_effort: "medium", // Medium reasoning depth for balanced analysis
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
@@ -1863,6 +1871,45 @@ function ContentOptimizerContent() {
                   <p className="text-xs text-muted-foreground">
                     <span className="text-amber-600 dark:text-amber-400">📌 Ghi chú:</span> Hiện Tone of Voice chỉ khả dụng cho lĩnh vực Dược phẩm - YMYL.
                   </p>
+                </div>
+
+                {/* Model Selection */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Mô hình AI</Label>
+                  <Select value={toneModel} onValueChange={(value: "openai/gpt-5" | "openai/gpt-4.1") => setToneModel(value)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="openai/gpt-4.1">
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">GPT-4.1</span>
+                          <span className="text-xs text-muted-foreground">Nhanh, ổn định</span>
+                        </div>
+                      </SelectItem>
+                      <SelectItem value="openai/gpt-5">
+                        <div className="flex flex-col items-start">
+                          <span className="font-medium">GPT-5</span>
+                          <span className="text-xs text-muted-foreground">Suy luận sâu, thời gian chờ lâu</span>
+                        </div>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-2">
+                    <p className="text-xs text-blue-700 dark:text-blue-300">
+                      {toneModel === "openai/gpt-5" ? (
+                        <>
+                          <strong>GPT-5:</strong> Sử dụng suy luận sâu (medium reasoning) để phân tích chính xác hơn.
+                          Phù hợp khi cần đánh giá chi tiết, phức tạp. Thời gian phản hồi: 15-30 giây.
+                        </>
+                      ) : (
+                        <>
+                          <strong>GPT-4.1:</strong> Phản hồi nhanh với độ chính xác cao.
+                          Phù hợp cho đánh giá thông thường. Thời gian phản hồi: 3-8 giây.
+                        </>
+                      )}
+                    </p>
+                  </div>
                 </div>
 
                 {/* Analyze Button */}
