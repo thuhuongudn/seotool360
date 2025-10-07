@@ -598,6 +598,15 @@ function ContentOptimizerContent() {
       return;
     }
 
+    if (!toolId) {
+      toast({
+        title: "Lỗi hệ thống",
+        description: "Không tìm thấy tool ID",
+        variant: "destructive",
+      });
+      return;
+    }
+
     return executeWithToken(toolId, 1, async () => {
       try {
         setIsAnalyzingTone(true);
@@ -2050,8 +2059,8 @@ function ContentOptimizerContent() {
                       <h4 className="text-sm font-semibold text-foreground">Chi tiết đánh giá (click để xem lỗi)</h4>
                       <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto pr-2">
                         {Object.entries(toneAnalysisResult.criteria || {}).map(([key, criterionData]) => {
-                          const score = typeof criterionData === 'number' ? criterionData : criterionData?.score || 0;
-                          const issues = typeof criterionData === 'object' && criterionData?.issues ? criterionData.issues : [];
+                          const score = typeof criterionData === 'number' ? criterionData : (criterionData as any)?.score || 0;
+                          const issues = typeof criterionData === 'object' && (criterionData as any)?.issues ? (criterionData as any).issues : [];
                           const isExpanded = selectedCriterion === key;
 
                           return (
