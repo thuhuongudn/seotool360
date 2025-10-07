@@ -10,6 +10,7 @@
 -- Tools to auto-grant:
 -- 1. keyword-planner: 1b2f8454-3fef-425d-bef8-b445dc54dbac
 -- 2. search-intent: 1ff742f6-52d2-49ef-8979-7647423438ca
+-- 3. content-optimizer: 62e53fcd-263e-48c6-bca2-820af25aa4b8
 
 -- ============================================
 -- CREATE FUNCTION: auto_grant_tools_to_new_user
@@ -24,7 +25,8 @@ DECLARE
     v_system_user_id text := '00000000-0000-0000-0000-000000000000'; -- System user ID
     v_tool_ids text[] := ARRAY[
         '1b2f8454-3fef-425d-bef8-b445dc54dbac', -- keyword-planner
-        '1ff742f6-52d2-49ef-8979-7647423438ca'  -- search-intent
+        '1ff742f6-52d2-49ef-8979-7647423438ca', -- search-intent
+        '62e53fcd-263e-48c6-bca2-820af25aa4b8'  -- content-optimizer
     ];
     v_tool_id text;
     v_granted_count integer := 0;
@@ -102,7 +104,8 @@ DECLARE
     v_user RECORD;
     v_tool_ids text[] := ARRAY[
         '1b2f8454-3fef-425d-bef8-b445dc54dbac',
-        '1ff742f6-52d2-49ef-8979-7647423438ca'
+        '1ff742f6-52d2-49ef-8979-7647423438ca',
+        '62e53fcd-263e-48c6-bca2-820af25aa4b8'
     ];
     v_tool_id text;
     v_total_granted integer := 0;
@@ -361,7 +364,8 @@ BEGIN
     AND p.status = 'active'
     AND uta.tool_id IN (
         '1b2f8454-3fef-425d-bef8-b445dc54dbac',
-        '1ff742f6-52d2-49ef-8979-7647423438ca'
+        '1ff742f6-52d2-49ef-8979-7647423438ca',
+        '62e53fcd-263e-48c6-bca2-820af25aa4b8'
     );
 
     -- Count total active trial users
@@ -383,6 +387,7 @@ BEGIN
     RAISE NOTICE 'Default Tools Auto-Granted:';
     RAISE NOTICE '  1. Keyword Planner (1b2f8454-3fef-425d-bef8-b445dc54dbac)';
     RAISE NOTICE '  2. Search Intent (1ff742f6-52d2-49ef-8979-7647423438ca)';
+    RAISE NOTICE '  3. Content Optimizer (62e53fcd-263e-48c6-bca2-820af25aa4b8)';
     RAISE NOTICE '';
     RAISE NOTICE 'Helper Functions:';
     RAISE NOTICE '  ✓ get_user_granted_tools() - Get tools for a user';
