@@ -676,14 +676,14 @@ ${content}
             "X-Title": "N8N Toolkit - Content Optimizer",
           },
           body: JSON.stringify({
-            model: "openai/gpt-4o", // Using GPT-4o as GPT-5 might not be available yet
+            model: "openai/gpt-5", // GPT-5 (alias for gpt-5-thinking)
             messages: [
               {
                 role: "user",
                 content: criteriaPrompt
               }
             ],
-            temperature: 0.3, // Lower temperature for more consistent analysis
+            reasoning_effort: "medium", // Medium reasoning depth for balanced analysis
           }),
         });
 
