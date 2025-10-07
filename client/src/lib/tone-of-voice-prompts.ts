@@ -26,24 +26,37 @@ Hãy phân tích văn bản sau theo bộ tiêu chí "AI-Evaluable Tone of Voice
 
 ## 10 TIÊU CHÍ ĐÁNH GIÁ (mỗi tiêu chí 0-3 điểm):
 
-1. **T1_neutral_tone** - Giọng điệu trung tính: Không có từ tuyệt đối hóa ("chữa khỏi", "an toàn tuyệt đối", "hiệu quả 100%")
+1. **T1_neutral_tone** - Giọng điệu trung tính:
+   - VI PHẠM NGHIÊM TRỌNG: "chữa khỏi hoàn toàn", "không có tác dụng phụ", "hiệu quả 100%"
+   - ĐƯỢC PHÉP: "an toàn cho [đối tượng cụ thể]" nếu sản phẩm không có chống chỉ định/cảnh báo và nằm trong chỉ định cho đối tượng đó
+   - VÍ DỤ HỢP LỆ: "an toàn cho mẹ cho con bú" (nếu không chống chỉ định, không cảnh báo, có chỉ định cho phụ nữ cho con bú)
+   - CHỈ CẢN BÁO nếu: claim "an toàn cho MỌI NGƯỜI" hoặc "an toàn tuyệt đối" mà không có ngữ cảnh/đối tượng cụ thể
+
 2. **T2_medical_clarity** - Ngôn ngữ chuyên môn rõ ràng: Có thuật ngữ y học được giải thích
+
 3. **T3_no_exaggeration** - Tránh phóng đại: Không có cụm cảm xúc mạnh ("tuyệt vời", "thần kỳ", "đáng kinh ngạc")
+
 4. **T4_fair_balance** - Cân bằng lợi ích/rủi ro: Khi nói lợi ích có kèm cảnh báo
+
 5. **T5_evidence_citation** - Trích dẫn chứng cứ: Có "theo nghiên cứu", "nguồn", DOI/link
+
 6. **T6_expert_author** - Tác giả/duyệt chuyên môn: Có tên + chức danh hoặc "duyệt bởi dược sĩ/bác sĩ"
+
 7. **T7_disclaimer_transparency** - Minh bạch thương mại: Có disclaimer về affiliate/tư vấn y khoa
+
 8. **T8_plain_structure** - Cấu trúc dễ hiểu: Câu chủ động, tiêu đề rõ ràng
+
 9. **T9_empathy_language** - Ngôn ngữ đồng cảm: Có "nếu bạn", "tham khảo bác sĩ"
+
 10. **T10_update_freshness** - Tính cập nhật: Có ngày cập nhật hoặc thời gian nguồn
 
 ## 5 LỖI CẤM (nếu có bất kỳ lỗi nào → FAIL):
 
-- **E1**: Claim điều trị bệnh không có chứng cứ
+- **E1**: Claim điều trị/chữa khỏi bệnh không có chứng cứ
 - **E2**: So sánh sản phẩm cạnh tranh không nguồn
-- **E3**: Không có khuyến cáo an toàn
-- **E4**: Không minh bạch affiliate/quảng cáo
-- **E5**: Claim an toàn tuyệt đối
+- **E3**: Không có khuyến cáo an toàn khi cần thiết (với thuốc/TPCN có tác dụng mạnh)
+- **E4**: Không minh bạch affiliate/quảng cáo khi có liên kết thương mại
+- **E5**: Claim "an toàn tuyệt đối" hoặc "an toàn cho mọi người" mà không có ngữ cảnh cụ thể
 
 ## NHIỆM VỤ:
 Phân tích văn bản và trả về JSON format với THÔNG TIN CHI TIẾT về vị trí lỗi:
@@ -88,7 +101,18 @@ Phân tích văn bản và trả về JSON format với THÔNG TIN CHI TIẾT v�
 - Với mỗi tiêu chí, hãy chỉ ra CỤ THỂ đoạn text nào vi phạm
 - Trích dẫn CHÍNH XÁC nội dung gốc, không diễn giải
 - Đưa ra gợi ý SỬA CỤ THỂ cho từng vấn đề
-- Nếu không có vấn đề, để issues = []`,
+- Nếu không có vấn đề, để issues = []
+
+**LOGIC ĐÁNH GIÁ "AN TOÀN" (T1 & E5):**
+✅ HỢP LỆ:
+- "An toàn cho [đối tượng cụ thể]" + có ngữ cảnh/chỉ định rõ ràng
+- Ví dụ: "An toàn cho trẻ em từ 6 tháng tuổi", "An toàn cho phụ nữ mang thai", "An toàn cho người lớn"
+- Điều kiện: Sản phẩm không có chống chỉ định, không có cảnh báo, nằm trong chỉ định cho đối tượng đó
+
+❌ VI PHẠM:
+- "An toàn tuyệt đối", "An toàn cho mọi người", "Hoàn toàn an toàn"
+- "Không có tác dụng phụ", "Không có nguy cơ"
+- Claim an toàn nhưng thiếu ngữ cảnh/đối tượng cụ thể`,
 };
 
 /**

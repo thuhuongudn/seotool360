@@ -40,7 +40,7 @@ Bộ khung đánh giá Tone of Voice cho lĩnh vực Dược phẩm và YMYL (Yo
 
 | Mã | Tên tiêu chí | Mô tả logic kiểm tra | Tín hiệu đạt (AI nên tìm) | Điểm |
 |----|--------------|---------------------|---------------------------|------|
-| T1 | Giọng điệu trung tính | Không xuất hiện từ tuyệt đối hóa ("chữa khỏi", "an toàn tuyệt đối", "hiệu quả 100%") | 0 = có nhiều; 1 = có 1–2; 2 = cảnh báo nhẹ; 3 = không có | 0-3 |
+| T1 | Giọng điệu trung tính | Không xuất hiện từ tuyệt đối hóa MÀ KHÔNG CÓ NGỮ CẢNH. VI PHẠM: "chữa khỏi hoàn toàn", "an toàn tuyệt đối", "an toàn cho mọi người". ĐƯỢC PHÉP: "an toàn cho [đối tượng cụ thể]" khi sản phẩm không có chống chỉ định/cảnh báo và nằm trong chỉ định | 0 = nhiều vi phạm nghiêm trọng; 1 = 1–2 vi phạm; 2 = cảnh báo nhẹ có ngữ cảnh; 3 = không vi phạm hoặc có đủ ngữ cảnh | 0-3 |
 | T2 | Ngôn ngữ chuyên môn rõ ràng | Có ≥ 1 thuật ngữ y học được giải thích ngay sau (trong cùng đoạn) | ví dụ: "magnesium bisglycinate (dạng muối dễ hấp thu)" | 0-3 |
 | T3 | Tránh phóng đại cảm xúc | Không có cụm cảm xúc mạnh ("tuyệt vời", "thần kỳ", "đáng kinh ngạc") | 0 = ≥ 3 cụm; 1 = 2; 2 = 1; 3 = 0 | 0-3 |
 | T4 | Cân bằng lợi ích/rủi ro (Fair balance) | Khi có claim lợi ích → xuất hiện đồng thời cụm cảnh báo ("cần hỏi bác sĩ", "có thể gây", "không dùng cho…") | AI phát hiện cặp [positive claim] ↔ [caution phrase] | 0-3 |
@@ -55,11 +55,11 @@ Bộ khung đánh giá Tone of Voice cho lĩnh vực Dược phẩm và YMYL (Yo
 
 | Mã | Lỗi nghiêm trọng | Mô tả |
 |----|------------------|-------|
-| E1 | Claim điều trị bệnh mà không có chứng cứ | "Chữa khỏi", "điều trị", "ngăn ngừa ung thư"… |
+| E1 | Claim điều trị/chữa khỏi bệnh không chứng cứ | "Chữa khỏi hoàn toàn", "điều trị", "ngăn ngừa ung thư"… mà không có nguồn khoa học |
 | E2 | So sánh sản phẩm cạnh tranh không nguồn | "Tốt hơn X", "hiệu quả gấp đôi Y" mà không dẫn chứng |
-| E3 | Không có khuyến cáo an toàn | Thiếu hoàn toàn cụm "tham khảo bác sĩ", "không dùng cho…" |
-| E4 | Không minh bạch affiliate/quảng cáo | Không có bất kỳ disclaimer nào |
-| E5 | Thông tin sai lệch nguy cơ (claim an toàn tuyệt đối) | "Không có tác dụng phụ", "an toàn cho mọi người" |
+| E3 | Không có khuyến cáo an toàn khi cần thiết | Với thuốc/TPCN có tác dụng mạnh mà thiếu hoàn toàn cụm "tham khảo bác sĩ", "không dùng cho…" |
+| E4 | Không minh bạch affiliate/quảng cáo | Có liên kết thương mại nhưng không có disclaimer |
+| E5 | Claim an toàn tuyệt đối không ngữ cảnh | "An toàn tuyệt đối", "an toàn cho mọi người", "không có tác dụng phụ". CHÚ Ý: "An toàn cho [đối tượng cụ thể]" + có chỉ định rõ ràng là HỢP LỆ |
 
 **Khi E1-E5 xuất hiện → bài bị khóa, không xuất bản.**
 
@@ -139,8 +139,55 @@ Mỗi subcheck trả về `{score, found_phrases}`, sau đó tổng hợp.
 | 9. Có giọng điệu đồng cảm, hỗ trợ? | ✅ |
 | 10. Có ngày cập nhật hoặc thời gian nguồn? | ✅ |
 
+## 📝 10. VÍ DỤ CỤ THỂ VỀ CLAIM "AN TOÀN"
+
+### ✅ HỢP LỆ (Không vi phạm T1 & E5):
+
+1. **"An toàn cho trẻ em từ 6 tháng tuổi"**
+   - Có đối tượng cụ thể: trẻ em từ 6 tháng
+   - Giả định: sản phẩm có chỉ định cho trẻ em, không có chống chỉ định
+
+2. **"An toàn cho phụ nữ cho con bú"**
+   - Có đối tượng cụ thể: phụ nữ cho con bú
+   - Giả định: không có chống chỉ định/cảnh báo cho phụ nữ cho con bú
+
+3. **"An toàn cho trẻ sơ sinh khi dùng đúng liều lượng"**
+   - Có đối tượng cụ thể + điều kiện sử dụng
+   - Giả định: sản phẩm có chỉ định cho trẻ sơ sinh
+
+4. **"Được coi là an toàn cho người lớn khỏe mạnh theo FDA"**
+   - Có nguồn ủy quyền (FDA)
+   - Có ngữ cảnh (người lớn khỏe mạnh)
+   - Có tính điều kiện ("được coi là")
+
+### ❌ VI PHẠM (Vi phạm T1 & E5):
+
+1. **"Hoàn toàn an toàn"** / **"An toàn tuyệt đối"**
+   - Không có đối tượng cụ thể
+   - Tuyệt đối hóa
+
+2. **"An toàn cho mọi người"** / **"An toàn cho tất cả mọi người"**
+   - Quá rộng, không có ngữ cảnh
+
+3. **"Không có tác dụng phụ"** / **"Không có nguy cơ"**
+   - Tuyệt đối hóa nguy cơ
+
+4. **"100% an toàn"**
+   - Tuyệt đối hóa bằng con số
+
+### 🔄 CẦN NGỮ CẢNH THÊM:
+
+1. **"An toàn khi sử dụng đúng cách"**
+   - ⚠️ Cần thêm: đối tượng cụ thể
+   - ✅ Tốt hơn: "An toàn cho người lớn khi sử dụng đúng cách"
+
+2. **"Sản phẩm an toàn"**
+   - ⚠️ Cần thêm: cho ai?
+   - ✅ Tốt hơn: "Sản phẩm an toàn cho trẻ em trên 2 tuổi"
+
 ## 🧩 Tóm tắt
 
 - Bộ tiêu chí này hoàn toàn tự kiểm được bằng AI, không cần tool ngoài, không đếm từ.
 - Dựa trên 3 logic: ngôn ngữ học – ngữ cảnh – sự hiện diện của tín hiệu E-E-A-T.
 - Đảm bảo nội dung dược phẩm/YMYL tuân thủ tiêu chuẩn chuyên nghiệp, an toàn và minh bạch.
+- **Logic "an toàn"**: Chấp nhận claim có đối tượng cụ thể + ngữ cảnh rõ ràng, chỉ cảnh báo khi tuyệt đối hóa hoặc thiếu ngữ cảnh.
