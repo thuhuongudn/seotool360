@@ -657,11 +657,50 @@ function ContentOptimizerContent() {
 
         const result = JSON.parse(jsonText.trim());
 
-        setToneAnalysisResult(result);
+        // Normalize criteria and recalculate total score
+        let calculatedScore = 0;
+        const normalizedCriteria: Record<string, any> = {};
+
+        Object.entries(result.criteria || {}).forEach(([key, value]) => {
+          const score = typeof value === 'number' ? value : (value as any)?.score || 0;
+          const issues = typeof value === 'object' && (value as any)?.issues ? (value as any).issues : [];
+
+          // Ensure score is between 0-3
+          const normalizedScore = Math.max(0, Math.min(3, score));
+          calculatedScore += normalizedScore;
+
+          normalizedCriteria[key] = {
+            score: normalizedScore,
+            issues: issues,
+          };
+        });
+
+        // Determine verdict based on calculated score (max 30 points: 10 criteria x 3 points)
+        // PASS: >= 24/30 (80%), NEED REVIEW: >= 20/30 (67%), FAIL: < 20/30
+        let verdict = 'FAIL';
+        if (calculatedScore >= 24) {
+          verdict = 'PASS';
+        } else if (calculatedScore >= 20) {
+          verdict = 'NEED REVIEW';
+        }
+
+        // Override verdict to FAIL if there are critical errors
+        if (result.errors && result.errors.length > 0) {
+          verdict = 'FAIL';
+        }
+
+        const normalizedResult = {
+          ...result,
+          total_score: calculatedScore,
+          verdict: verdict,
+          criteria: normalizedCriteria,
+        };
+
+        setToneAnalysisResult(normalizedResult);
 
         toast({
           title: "Phân tích hoàn tất",
-          description: `Điểm: ${result.total_score}/15 - ${result.verdict}`,
+          description: `Điểm: ${calculatedScore}/30 - ${verdict}`,
         });
 
         return true;
@@ -1887,9 +1926,9 @@ function ContentOptimizerContent() {
                           <span className="text-xs text-muted-foreground">Nhanh, ổn định</span>
                         </div>
                       </SelectItem>
-                      <SelectItem value="openai/gpt-5">
+                      <SelectItem value="openai/gpt-5" disabled>
                         <div className="flex flex-col items-start">
-                          <span className="font-medium">GPT-5</span>
+                          <span className="font-medium">GPT-5 (Tạm thời không khả dụng)</span>
                           <span className="text-xs text-muted-foreground">Suy luận sâu, thời gian chờ lâu</span>
                         </div>
                       </SelectItem>
@@ -1905,7 +1944,7 @@ function ContentOptimizerContent() {
                       ) : (
                         <>
                           <strong>GPT-4.1:</strong> Phản hồi nhanh với độ chính xác cao.
-                          Phù hợp cho đánh giá thông thường. Thời gian phản hồi: 3-8 giây.
+                          Phù hợp cho đánh giá thông thường. Thời gian phản hồi: dưới 1 phút.
                         </>
                       )}
                     </p>
@@ -1916,12 +1955,16 @@ function ContentOptimizerContent() {
                 <Button
                   onClick={handleAnalyzeTone}
                   disabled={!content.trim() || isAnalyzingTone || !canUseToken || isTokenProcessing}
-                  className="w-full bg-indigo-600 hover:bg-indigo-700"
-                  title="Phân tích Tone of Voice (tốn 1 token)"
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 relative"
                 >
                   {isAnalyzingTone && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                   {!isAnalyzingTone && <MessageSquare className="h-4 w-4 mr-2" />}
-                  {isAnalyzingTone ? 'Đang phân tích...' : 'Phân tích Tone of Voice'}
+                  <span>{isAnalyzingTone ? 'Đang phân tích...' : 'Phân tích Tone of Voice'}</span>
+                  {!isAnalyzingTone && (
+                    <span className="ml-2 px-2 py-0.5 bg-indigo-500 text-white text-xs rounded-full font-medium">
+                      -1 token
+                    </span>
+                  )}
                 </Button>
 
                 {!content.trim() && (
@@ -1939,14 +1982,14 @@ function ContentOptimizerContent() {
                         <span className="text-sm font-semibold text-foreground">Tổng điểm</span>
                         <Badge
                           className={`text-base ${
-                            toneAnalysisResult.total_score >= 12 ? 'bg-green-500' :
-                            toneAnalysisResult.total_score >= 10 ? 'bg-amber-500' : 'bg-red-500'
+                            toneAnalysisResult.total_score >= 24 ? 'bg-green-500' :
+                            toneAnalysisResult.total_score >= 20 ? 'bg-amber-500' : 'bg-red-500'
                           }`}
                         >
-                          {toneAnalysisResult.total_score}/15
+                          {toneAnalysisResult.total_score}/30
                         </Badge>
                       </div>
-                      <Progress value={(toneAnalysisResult.total_score / 15) * 100} className="h-2" />
+                      <Progress value={(toneAnalysisResult.total_score / 30) * 100} className="h-2" />
                       <p className="text-xs mt-2 font-medium">
                         {toneAnalysisResult.verdict === 'PASS' && (
                           <span className="text-green-600 dark:text-green-400">✅ ĐẠT - Đủ chuẩn xuất bản</span>
