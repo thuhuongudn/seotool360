@@ -834,12 +834,12 @@ function ContentOptimizerContent() {
             <div className="p-6">
               <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-indigo-600" />
-                AI SEO Improvements
+                Cải Thiện SEO Bằng AI
               </h2>
 
               {/* Audience Language */}
               <div className="space-y-2 mb-4">
-                <Label className="text-sm font-medium">Audience language (optional)</Label>
+                <Label className="text-sm font-medium">Ngôn ngữ độc giả (tuỳ chọn)</Label>
                 <Select value={audienceLanguage} onValueChange={setAudienceLanguage}>
                   <SelectTrigger className="w-full">
                     <SelectValue />
@@ -861,7 +861,7 @@ function ContentOptimizerContent() {
                 className="w-full bg-indigo-600 hover:bg-indigo-700"
               >
                 {(isAnalyzing || isTokenProcessing) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                Get improvement ideas
+                Nhận Gợi Ý Cải Thiện
               </Button>
 
               {/* Results Section */}
@@ -1268,19 +1268,19 @@ function ContentOptimizerContent() {
         {/* Main Content */}
         <div className={`flex-1 transition-all duration-300 ${activeTool ? 'mr-[28rem]' : 'mr-16'}`}>
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-            <PageNavigation breadcrumbItems={[{ label: "Content Optimizer" }]} backLink="/" />
+            <PageNavigation breadcrumbItems={[{ label: "Tối Ưu Nội Dung" }]} backLink="/" />
 
         {/* Tool Description */}
         <section className="text-center mb-10">
           <span className="inline-flex items-center gap-2 rounded-full bg-indigo-600/10 px-4 py-1 text-sm font-medium text-indigo-600 mb-4">
             <FileText className="h-4 w-4" />
-            AI-Powered Content Optimization
+            Tối Ưu Nội Dung Bằng AI
           </span>
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-4">
-            Tối ưu hóa <span className="text-indigo-600">Content</span> toàn diện
+            Tối Ưu Hóa <span className="text-indigo-600">Nội Dung</span> Toàn Diện
           </h1>
           <p className="text-gray-600 dark:text-gray-300 max-w-3xl mx-auto">
-            Phân tích và cải thiện nội dung theo 3 khía cạnh: SEO, Readability, và Tone of Voice.
+            Phân tích và cải thiện nội dung theo 3 khía cạnh: SEO, Độ dễ đọc và Giọng văn.
             Nhận gợi ý từ AI dựa trên đối thủ cạnh tranh hàng đầu.
           </p>
         </section>
@@ -1290,22 +1290,11 @@ function ContentOptimizerContent() {
           <div className="space-y-6">
             {/* Target Settings Card */}
             <Card>
-              <CardHeader className={showMetadata ? "" : "pb-6"}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Track your content metrics in real time</CardTitle>
-                    <CardDescription className="mt-1">
-                      Provide your targets to get ideas for improvement based on your competitors' content.
-                    </CardDescription>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => setShowMetadata(!showMetadata)}
-                  >
-                    {showMetadata ? "Ẩn" : "Hiện"} Title Tag & Meta Description
-                  </Button>
-                </div>
+              <CardHeader>
+                <CardTitle className="text-lg">Theo dõi chỉ số nội dung theo thời gian thực</CardTitle>
+                <CardDescription className="mt-1">
+                  Cung cấp mục tiêu của bạn để nhận gợi ý cải thiện dựa trên nội dung đối thủ cạnh tranh.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* H1 Title - Always visible */}
@@ -1345,82 +1334,10 @@ function ContentOptimizerContent() {
                   </p>
                 </div>
 
-                {showMetadata && (
-                  <div className="space-y-4 pb-4 border-b">
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="title-tag">Title Tag</Label>
-                        <span className="text-xs text-muted-foreground">{titleTag.length}/70</span>
-                      </div>
-                      <Input
-                        id="title-tag"
-                        value={titleTag}
-                        onChange={(e) => setTitleTag(e.target.value)}
-                        placeholder="Nhập title tag..."
-                        maxLength={70}
-                        className="w-full"
-                      />
-                      {allKeywords.length > 0 && titleTag && (
-                        <p className="text-xs text-muted-foreground">
-                          Từ khóa tìm thấy: {allKeywords.filter(kw => titleTag.toLowerCase().includes(kw.toLowerCase())).map(kw => (
-                            <span
-                              key={kw}
-                              className={`inline-block px-1 rounded mx-0.5 ${
-                                kw === primaryKeyword
-                                  ? 'bg-green-100 text-green-800 font-semibold'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}
-                            >
-                              {kw}
-                            </span>
-                          ))}
-                          {allKeywords.filter(kw => titleTag.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
-                            <span className="text-orange-600">Chưa có từ khóa nào</span>
-                          }
-                        </p>
-                      )}
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label htmlFor="meta-description">Mô tả trang (Meta Description)</Label>
-                        <span className="text-xs text-muted-foreground">{metaDescription.length}/320</span>
-                      </div>
-                      <textarea
-                        id="meta-description"
-                        value={metaDescription}
-                        onChange={(e) => setMetaDescription(e.target.value)}
-                        placeholder="Nhập mô tả trang..."
-                        maxLength={320}
-                        rows={4}
-                        className="w-full px-3 py-2 border border-input rounded-md text-sm resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                      {allKeywords.length > 0 && metaDescription && (
-                        <p className="text-xs text-muted-foreground">
-                          Từ khóa tìm thấy: {allKeywords.filter(kw => metaDescription.toLowerCase().includes(kw.toLowerCase())).map(kw => (
-                            <span
-                              key={kw}
-                              className={`inline-block px-1 rounded mx-0.5 ${
-                                kw === primaryKeyword
-                                  ? 'bg-green-100 text-green-800 font-semibold'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}
-                            >
-                              {kw}
-                            </span>
-                          ))}
-                          {allKeywords.filter(kw => metaDescription.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
-                            <span className="text-orange-600">Chưa có từ khóa nào</span>
-                          }
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )}
-
                 {/* Primary Keyword Input */}
                 <div className="space-y-2 pb-3 border-b">
                   <Label htmlFor="primary-keyword" className="font-semibold text-base">
-                    Primary Keyword <span className="text-red-500">*</span>
+                    Từ Khóa Chính <span className="text-red-500">*</span>
                   </Label>
                   <Input
                     id="primary-keyword"
@@ -1444,7 +1361,7 @@ function ContentOptimizerContent() {
                 {/* Secondary Keywords Input */}
                 <div className="space-y-2">
                   <Label htmlFor="secondary-keywords" className="font-semibold text-base">
-                    Secondary Keywords
+                    Từ Khóa Phụ
                   </Label>
                   <div className="flex gap-2">
                     <Input
@@ -1452,7 +1369,7 @@ function ContentOptimizerContent() {
                       value={secondaryKeywordInput}
                       onChange={(e) => setSecondaryKeywordInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleAddSecondaryKeyword()}
-                      placeholder="Nhập từ khóa phụ và Enter..."
+                      placeholder="Nhập từ khóa phụ và nhấn Enter..."
                     />
                     <Button onClick={handleAddSecondaryKeyword} size="sm">Add</Button>
                   </div>
@@ -1482,9 +1399,9 @@ function ContentOptimizerContent() {
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Content Editor</CardTitle>
+                    <CardTitle>Trình Soạn Thảo Nội Dung</CardTitle>
                     <CardDescription>
-                      Paste your content or start writing. Use the toolbar for formatting.
+                      Dán nội dung của bạn hoặc bắt đầu viết. Sử dụng thanh công cụ để định dạng.
                     </CardDescription>
                   </div>
                   <div className="flex gap-2">
@@ -1496,7 +1413,7 @@ function ContentOptimizerContent() {
                       className="bg-red-50 hover:bg-red-100 text-red-600 border-red-200"
                     >
                       <Copy className="h-4 w-4 mr-2" />
-                      Copy content
+                      Sao chép nội dung
                     </Button>
                     <Button
                       variant={keywordHighlightEnabled ? "default" : "outline"}
@@ -1506,7 +1423,7 @@ function ContentOptimizerContent() {
                       className={keywordHighlightEnabled ? "bg-yellow-500 hover:bg-yellow-600 text-white" : ""}
                     >
                       <Highlighter className="h-4 w-4 mr-2" />
-                      {keywordHighlightEnabled ? "Tắt Highlight" : "Highlight Từ khóa"}
+                      {keywordHighlightEnabled ? "Tắt Highlight" : "Highlight Từ Khóa"}
                     </Button>
                   </div>
                 </div>
@@ -1568,7 +1485,7 @@ function ContentOptimizerContent() {
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg">
-                  {selectedPageStructure ? 'Structures' : 'Content Metrics'}
+                  {selectedPageStructure ? 'Cấu Trúc Trang' : 'Chỉ Số Nội Dung'}
                 </CardTitle>
                 {selectedPageStructure && (
                   <CardDescription className="text-xs mt-2">
@@ -1587,7 +1504,7 @@ function ContentOptimizerContent() {
                 {!selectedPageStructure ? (
                   <>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Words</span>
+                      <span className="text-sm text-muted-foreground">Số từ</span>
                       <span className="font-semibold">
                         {(() => {
                           const contentWithH1 = h1Title ? `<h1>${h1Title}</h1>\n${content}` : content;
@@ -1597,7 +1514,7 @@ function ContentOptimizerContent() {
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Characters</span>
+                      <span className="text-sm text-muted-foreground">Số ký tự</span>
                       <span className="font-semibold">
                         {(() => {
                           const contentWithH1 = h1Title ? `<h1>${h1Title}</h1>\n${content}` : content;
@@ -1606,11 +1523,11 @@ function ContentOptimizerContent() {
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Target Keywords</span>
+                      <span className="text-sm text-muted-foreground">Từ khóa mục tiêu</span>
                       <span className="font-semibold">{allKeywords.length}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-sm text-muted-foreground">Language</span>
+                      <span className="text-sm text-muted-foreground">Ngôn ngữ</span>
                       <span className="font-semibold text-sm">
                         {LANGUAGE_CONSTANTS.find(l => l.value === audienceLanguage)?.name || 'N/A'}
                       </span>
