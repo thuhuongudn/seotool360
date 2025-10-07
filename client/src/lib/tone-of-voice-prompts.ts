@@ -42,21 +42,25 @@ Hãy phân tích văn bản sau theo bộ tiêu chí "AI-Evaluable Tone of Voice
 
 6. **T6_expert_author** - Tác giả/duyệt chuyên môn: Có tên + chức danh hoặc "duyệt bởi dược sĩ/bác sĩ"
 
-7. **T7_disclaimer_transparency** - Minh bạch thương mại: Có disclaimer về affiliate/tư vấn y khoa
+7. **T7_disclaimer_transparency** - Minh bạch thương mại: Có disclaimer về affiliate/tư vấn y khoa (KHÔNG làm FAIL tự động vì đây là nội dung thương mại/e-commerce)
 
 8. **T8_plain_structure** - Cấu trúc dễ hiểu: Câu chủ động, tiêu đề rõ ràng
 
 9. **T9_empathy_language** - Ngôn ngữ đồng cảm: Có "nếu bạn", "tham khảo bác sĩ"
 
-10. **T10_update_freshness** - Tính cập nhật: Có ngày cập nhật hoặc thời gian nguồn
+10. **T10_update_freshness** - Tính cập nhật & nguồn thời gian:
+    - Có ngày cập nhật bài viết HOẶC
+    - Có năm xuất bản trong trích dẫn tài liệu (VD: "Smith, 2020" hoặc "(2020)")
+    - Cả hai đều hợp lệ, ưu tiên bài viết có cả hai
 
-## 5 LỖI CẤM (nếu có bất kỳ lỗi nào → FAIL):
+## 4 LỖI CẤM (nếu có bất kỳ lỗi nào → FAIL):
 
 - **E1**: Claim điều trị/chữa khỏi bệnh không có chứng cứ
 - **E2**: So sánh sản phẩm cạnh tranh không nguồn
 - **E3**: Không có khuyến cáo an toàn khi cần thiết (với thuốc/TPCN có tác dụng mạnh)
-- **E4**: Không minh bạch affiliate/quảng cáo khi có liên kết thương mại
-- **E5**: Claim "an toàn tuyệt đối" hoặc "an toàn cho mọi người" mà không có ngữ cảnh cụ thể
+- **E4**: Claim "an toàn tuyệt đối" hoặc "an toàn cho mọi người" mà không có ngữ cảnh cụ thể
+
+**GHI CHÚ:** Tiêu chí E4 cũ (Không minh bạch affiliate/quảng cáo) đã được loại bỏ khỏi lỗi nghiêm trọng vì nội dung này dành cho e-commerce/thương mại. T7 vẫn đánh giá nhưng KHÔNG tự động FAIL.
 
 ## NHIỆM VỤ:
 Phân tích văn bản và trả về JSON format với THÔNG TIN CHI TIẾT về vị trí lỗi:
@@ -84,7 +88,7 @@ Phân tích văn bản và trả về JSON format với THÔNG TIN CHI TIẾT v�
   },
   "errors": [
     {
-      "code": "E1|E2|E3|E4|E5",
+      "code": "E1|E2|E3|E4",
       "description": "<mô tả lỗi>",
       "text": "<đoạn text vi phạm>",
       "severity": "critical"

@@ -49,19 +49,20 @@ Bộ khung đánh giá Tone of Voice cho lĩnh vực Dược phẩm và YMYL (Yo
 | T7 | Minh bạch thương mại | Có cụm "bài viết có thể chứa liên kết tiếp thị", "không thay thế tư vấn y khoa" | Có = 3; không = 0 | 0-3 |
 | T8 | Cấu trúc dễ hiểu | Câu chủ động, có tiêu đề mô tả, không lặp nhiều từ phức | ≥ 70 % câu chủ động → 3; nhiều câu bị động hoặc lủng củng → < 2 | 0-3 |
 | T9 | Ngôn ngữ đồng cảm | Có cụm "nếu bạn", "hãy", "tham khảo bác sĩ", "nên trao đổi với chuyên gia" | Có ≥ 1 → 3; không có → 0 | 0-3 |
-| T10 | Tính cập nhật & chính xác | Có "ngày cập nhật", "nguồn năm …", hoặc cụm thời gian | Có ≥ 1 → 3; không có → 0 | 0-3 |
+| T10 | Tính cập nhật & nguồn thời gian | Có "ngày cập nhật" bài viết HOẶC năm xuất bản trong trích dẫn (VD: "Smith, 2020" hoặc "(2020)"). Cả hai đều hợp lệ | Có ngày cập nhật HOẶC năm trong tài liệu → 3; không có → 0 | 0-3 |
 
-## 🚫 4. NĂM LỖI CẤM (bất kỳ phát hiện nào → tự động "Fail")
+## 🚫 4. BỐN LỖI CẤM (bất kỳ phát hiện nào → tự động "Fail")
 
 | Mã | Lỗi nghiêm trọng | Mô tả |
 |----|------------------|-------|
 | E1 | Claim điều trị/chữa khỏi bệnh không chứng cứ | "Chữa khỏi hoàn toàn", "điều trị", "ngăn ngừa ung thư"… mà không có nguồn khoa học |
 | E2 | So sánh sản phẩm cạnh tranh không nguồn | "Tốt hơn X", "hiệu quả gấp đôi Y" mà không dẫn chứng |
 | E3 | Không có khuyến cáo an toàn khi cần thiết | Với thuốc/TPCN có tác dụng mạnh mà thiếu hoàn toàn cụm "tham khảo bác sĩ", "không dùng cho…" |
-| E4 | Không minh bạch affiliate/quảng cáo | Có liên kết thương mại nhưng không có disclaimer |
-| E5 | Claim an toàn tuyệt đối không ngữ cảnh | "An toàn tuyệt đối", "an toàn cho mọi người", "không có tác dụng phụ". CHÚ Ý: "An toàn cho [đối tượng cụ thể]" + có chỉ định rõ ràng là HỢP LỆ |
+| E4 | Claim an toàn tuyệt đối không ngữ cảnh | "An toàn tuyệt đối", "an toàn cho mọi người", "không có tác dụng phụ". CHÚ Ý: "An toàn cho [đối tượng cụ thể]" + có chỉ định rõ ràng là HỢP LỆ |
 
-**Khi E1-E5 xuất hiện → bài bị khóa, không xuất bản.**
+**Khi E1-E4 xuất hiện → bài bị khóa, không xuất bản.**
+
+**📌 LƯU Ý:** Tiêu chí "Minh bạch thương mại" (T7) vẫn được đánh giá và cho điểm, nhưng KHÔNG tự động FAIL vì nội dung này dành cho mục đích thương mại/e-commerce. Tiêu chí E4 cũ (Không minh bạch affiliate/quảng cáo) đã bị loại bỏ khỏi danh sách lỗi nghiêm trọng.
 
 ## 🧮 5. QUY TRÌNH CHẤM ĐIỂM (AI nội bộ)
 
