@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Loader2, FileText, Lightbulb, Eye, ChevronDown, ChevronUp, Highlighter, Search, TrendingUp, Copy, Image, Download } from "lucide-react";
+import { Loader2, FileText, Lightbulb, Eye, ChevronDown, ChevronUp, Highlighter, Search, TrendingUp, Copy, Image, Download, MessageSquare } from "lucide-react";
 import { Editor } from '@tinymce/tinymce-react';
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
@@ -48,7 +48,12 @@ function ContentOptimizerContent() {
   const [metaDescription, setMetaDescription] = useState("");
 
   // Left dock states
-  const [activeTool, setActiveTool] = useState<'seo' | 'competitor' | 'images' | null>('seo');
+  const [activeTool, setActiveTool] = useState<'seo' | 'competitor' | 'images' | 'tone' | null>('seo');
+
+  // Tone of Voice tool states
+  const [toneIndustry, setToneIndustry] = useState("pharma");
+  const [isAnalyzingTone, setIsAnalyzingTone] = useState(false);
+  const [toneAnalysisResult, setToneAnalysisResult] = useState<any | null>(null);
 
   // Competitor data tool states
   const [competitorLocation, setCompetitorLocation] = useState("2704"); // Default to Vietnam
@@ -579,6 +584,161 @@ function ContentOptimizerContent() {
     });
   };
 
+  // Handle Tone of Voice analysis
+  const handleAnalyzeTone = async () => {
+    if (!content.trim()) {
+      toast({
+        title: "Lỗi",
+        description: "Vui lòng nhập nội dung để phân tích",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    return executeWithToken(async () => {
+      try {
+        setIsAnalyzingTone(true);
+
+        const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+
+        if (!apiKey) {
+          toast({
+            title: "Lỗi cấu hình",
+            description: "Thiếu VITE_OPENAI_API_KEY trong .env.local",
+            variant: "destructive",
+          });
+          setIsAnalyzingTone(false);
+          return false;
+        }
+
+        // Read the criteria document
+        const criteriaPrompt = `
+Bạn là một chuyên gia đánh giá nội dung y tế và dược phẩm theo tiêu chuẩn E-E-A-T và YMYL.
+
+Hãy phân tích văn bản sau theo bộ tiêu chí "AI-Evaluable Tone of Voice Framework – Pharma/YMYL v1.0":
+
+## 10 TIÊU CHÍ ĐÁNH GIÁ (mỗi tiêu chí 0-3 điểm):
+
+1. **T1_neutral_tone** - Giọng điệu trung tính: Không có từ tuyệt đối hóa ("chữa khỏi", "an toàn tuyệt đối", "hiệu quả 100%")
+2. **T2_medical_clarity** - Ngôn ngữ chuyên môn rõ ràng: Có thuật ngữ y học được giải thích
+3. **T3_no_exaggeration** - Tránh phóng đại: Không có cụm cảm xúc mạnh ("tuyệt vời", "thần kỳ", "đáng kinh ngạc")
+4. **T4_fair_balance** - Cân bằng lợi ích/rủi ro: Khi nói lợi ích có kèm cảnh báo
+5. **T5_evidence_citation** - Trích dẫn chứng cứ: Có "theo nghiên cứu", "nguồn", DOI/link
+6. **T6_expert_author** - Tác giả/duyệt chuyên môn: Có tên + chức danh hoặc "duyệt bởi dược sĩ/bác sĩ"
+7. **T7_disclaimer_transparency** - Minh bạch thương mại: Có disclaimer về affiliate/tư vấn y khoa
+8. **T8_plain_structure** - Cấu trúc dễ hiểu: Câu chủ động, tiêu đề rõ ràng
+9. **T9_empathy_language** - Ngôn ngữ đồng cảm: Có "nếu bạn", "tham khảo bác sĩ"
+10. **T10_update_freshness** - Tính cập nhật: Có ngày cập nhật hoặc thời gian nguồn
+
+## 5 LỖI CẤM (nếu có bất kỳ lỗi nào → FAIL):
+
+- **E1**: Claim điều trị bệnh không có chứng cứ
+- **E2**: So sánh sản phẩm cạnh tranh không nguồn
+- **E3**: Không có khuyến cáo an toàn
+- **E4**: Không minh bạch affiliate/quảng cáo
+- **E5**: Claim an toàn tuyệt đối
+
+## NHIỆM VỤ:
+Phân tích văn bản và trả về JSON format:
+
+\`\`\`json
+{
+  "total_score": <tổng điểm 0-15>,
+  "verdict": "PASS" | "NEED REVIEW" | "FAIL",
+  "criteria": {
+    "T1_neutral_tone": <0-3>,
+    "T2_medical_clarity": <0-3>,
+    "T3_no_exaggeration": <0-3>,
+    "T4_fair_balance": <0-3>,
+    "T5_evidence_citation": <0-3>,
+    "T6_expert_author": <0-3>,
+    "T7_disclaimer_transparency": <0-3>,
+    "T8_plain_structure": <0-3>,
+    "T9_empathy_language": <0-3>,
+    "T10_update_freshness": <0-3>
+  },
+  "errors": [<danh sách lỗi E1-E5 nếu có, VD: "E1: Claim điều trị ung thư không có nguồn">],
+  "explanation": "<giải thích ngắn gọn về đánh giá tổng thể>"
+}
+\`\`\`
+
+## VĂN BẢN CẦN PHÂN TÍCH:
+
+${content}
+`;
+
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${apiKey}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": window.location.origin,
+            "X-Title": "N8N Toolkit - Content Optimizer",
+          },
+          body: JSON.stringify({
+            model: "openai/gpt-4o", // Using GPT-4o as GPT-5 might not be available yet
+            messages: [
+              {
+                role: "user",
+                content: criteriaPrompt
+              }
+            ],
+            temperature: 0.3, // Lower temperature for more consistent analysis
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`OpenRouter API error: ${response.status}`);
+        }
+
+        const data = await response.json();
+        const resultText = data.choices[0].message.content;
+
+        // Extract JSON from markdown code blocks if present
+        const jsonMatch = resultText.match(/```json\n([\s\S]*?)\n```/) || resultText.match(/```\n([\s\S]*?)\n```/);
+        const jsonText = jsonMatch ? jsonMatch[1] : resultText;
+
+        const result = JSON.parse(jsonText.trim());
+
+        setToneAnalysisResult(result);
+
+        toast({
+          title: "Phân tích hoàn tất",
+          description: `Điểm: ${result.total_score}/15 - ${result.verdict}`,
+        });
+
+        return true;
+      } catch (error) {
+        console.error('Tone analysis error:', error);
+        toast({
+          title: "Lỗi khi phân tích",
+          description: error instanceof Error ? error.message : "Vui lòng thử lại",
+          variant: "destructive",
+        });
+        return false;
+      } finally {
+        setIsAnalyzingTone(false);
+      }
+    });
+  };
+
+  // Format criteria name for display
+  const formatCriteriaName = (key: string): string => {
+    const names: Record<string, string> = {
+      'T1_neutral_tone': 'T1: Giọng điệu trung tính',
+      'T2_medical_clarity': 'T2: Ngôn ngữ chuyên môn rõ ràng',
+      'T3_no_exaggeration': 'T3: Tránh phóng đại cảm xúc',
+      'T4_fair_balance': 'T4: Cân bằng lợi ích/rủi ro',
+      'T5_evidence_citation': 'T5: Trích dẫn chứng cứ',
+      'T6_expert_author': 'T6: Tác giả/duyệt chuyên môn',
+      'T7_disclaimer_transparency': 'T7: Minh bạch thương mại',
+      'T8_plain_structure': 'T8: Cấu trúc dễ hiểu',
+      'T9_empathy_language': 'T9: Ngôn ngữ đồng cảm',
+      'T10_update_freshness': 'T10: Tính cập nhật & chính xác',
+    };
+    return names[key] || key;
+  };
+
   // Toggle Google results section
   const handleToggleGoogleResults = () => {
     if (!showGoogleResults) {
@@ -1028,6 +1188,18 @@ function ContentOptimizerContent() {
           >
             <Image className="h-5 w-5" />
           </button>
+
+          <button
+            onClick={() => setActiveTool(activeTool === 'tone' ? null : 'tone')}
+            className={`p-3 rounded-lg transition-colors ${
+              activeTool === 'tone'
+                ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-400'
+                : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
+            }`}
+            title="Tone of Voice"
+          >
+            <MessageSquare className="h-5 w-5" />
+          </button>
         </div>
 
         {/* Dock Panel */}
@@ -1100,9 +1272,6 @@ function ContentOptimizerContent() {
                         }`}
                       >
                         Readability {scores.readability}
-                      </Badge>
-                      <Badge variant="outline" className="text-xs">
-                        Tone ✓
                       </Badge>
                     </div>
                   </div>
@@ -1720,6 +1889,115 @@ function ContentOptimizerContent() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTool === 'tone' && (
+            <div className="p-6">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <MessageSquare className="h-5 w-5 text-indigo-600" />
+                Tone of Voice
+              </h2>
+
+              <div className="space-y-4">
+                {/* Industry Selection */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Lĩnh vực</Label>
+                  <Select value={toneIndustry} onValueChange={setToneIndustry} disabled>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pharma">Dược phẩm - YMYL</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    <span className="text-amber-600 dark:text-amber-400">📌 Ghi chú:</span> Hiện Tone of Voice chỉ khả dụng cho lĩnh vực Dược phẩm - YMYL.
+                  </p>
+                </div>
+
+                {/* Analyze Button */}
+                <Button
+                  onClick={handleAnalyzeTone}
+                  disabled={!content.trim() || isAnalyzingTone || !canUseToken || isTokenProcessing}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700"
+                  title="Phân tích Tone of Voice (tốn 1 token)"
+                >
+                  {isAnalyzingTone && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                  {!isAnalyzingTone && <MessageSquare className="h-4 w-4 mr-2" />}
+                  {isAnalyzingTone ? 'Đang phân tích...' : 'Phân tích Tone of Voice'}
+                </Button>
+
+                {!content.trim() && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-2">
+                    Vui lòng nhập nội dung trong trình soạn thảo để phân tích.
+                  </p>
+                )}
+
+                {/* Analysis Results */}
+                {toneAnalysisResult && (
+                  <div className="mt-4 space-y-4">
+                    {/* Overall Score */}
+                    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-sm font-semibold text-foreground">Tổng điểm</span>
+                        <Badge
+                          className={`text-base ${
+                            toneAnalysisResult.total_score >= 12 ? 'bg-green-500' :
+                            toneAnalysisResult.total_score >= 10 ? 'bg-amber-500' : 'bg-red-500'
+                          }`}
+                        >
+                          {toneAnalysisResult.total_score}/15
+                        </Badge>
+                      </div>
+                      <Progress value={(toneAnalysisResult.total_score / 15) * 100} className="h-2" />
+                      <p className="text-xs mt-2 font-medium">
+                        {toneAnalysisResult.verdict === 'PASS' && (
+                          <span className="text-green-600 dark:text-green-400">✅ ĐẠT - Đủ chuẩn xuất bản</span>
+                        )}
+                        {toneAnalysisResult.verdict === 'NEED REVIEW' && (
+                          <span className="text-amber-600 dark:text-amber-400">⚠️ CẦN REVIEW - Cần chỉnh sửa thêm</span>
+                        )}
+                        {toneAnalysisResult.verdict === 'FAIL' && (
+                          <span className="text-red-600 dark:text-red-400">❌ KHÔNG ĐẠT - Cần sửa đổi nghiêm trọng</span>
+                        )}
+                      </p>
+                    </div>
+
+                    {/* Critical Errors */}
+                    {toneAnalysisResult.errors && toneAnalysisResult.errors.length > 0 && (
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                        <h4 className="text-sm font-semibold text-red-700 dark:text-red-300 mb-2">🚫 Lỗi nghiêm trọng</h4>
+                        <ul className="space-y-1 text-xs text-red-600 dark:text-red-400 list-disc list-inside">
+                          {toneAnalysisResult.errors.map((error: string, idx: number) => (
+                            <li key={idx}>{error}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Detailed Criteria Scores */}
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold text-foreground">Chi tiết đánh giá</h4>
+                      <div className="grid grid-cols-1 gap-2 max-h-[400px] overflow-y-auto pr-2">
+                        {Object.entries(toneAnalysisResult.criteria || {}).map(([key, score]) => (
+                          <div key={key} className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded p-2">
+                            <span className="text-xs text-foreground">{formatCriteriaName(key)}</span>
+                            <Badge variant="outline" className={`text-xs ${
+                              score === 3 ? 'bg-green-50 text-green-700 border-green-200' :
+                              score === 2 ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                              score === 1 ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                              'bg-red-50 text-red-700 border-red-200'
+                            }`}>
+                              {score}/3
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>
