@@ -94,6 +94,7 @@ function ContentOptimizerContent() {
   const [optimizedText, setOptimizedText] = useState<string>("");
   const [isOptimizing, setIsOptimizing] = useState(false);
   const [includeKeywordInOptimization, setIncludeKeywordInOptimization] = useState(false);
+  const [showReadabilityCard, setShowReadabilityCard] = useState(true);
 
   const { toast } = useToast();
   const { canUseToken, executeWithToken, isProcessing: isTokenProcessing } = useTokenManagement();
@@ -213,7 +214,7 @@ function ContentOptimizerContent() {
     if (!primaryKeyword) {
       toast({
         title: "Thiếu từ khóa chính",
-        description: "Vui lòng thêm từ khóa chính (Primary keyword)",
+        description: "Vui lòng nhập từ khóa chính để bắt đầu phân tích",
         variant: "destructive",
       });
       return;
@@ -242,6 +243,7 @@ function ContentOptimizerContent() {
       // Run Readability analysis
       const readabilityResult = analyzeReadability(content);
       setReadabilityAnalysis(readabilityResult);
+      setShowReadabilityCard(true); // Auto-show card when new analysis is done
 
       // Update scores
       setScores({
@@ -296,9 +298,9 @@ function ContentOptimizerContent() {
   };
 
   const getScoreLabel = (score: number) => {
-    if (score >= 75) return "Good";
-    if (score >= 50) return "Average";
-    return "Needs work";
+    if (score >= 75) return "Tốt";
+    if (score >= 50) return "Trung bình";
+    return "Cần cải thiện";
   };
 
   const getSeverityColor = (severity: string) => {
@@ -347,7 +349,10 @@ function ContentOptimizerContent() {
         return;
       }
 
-      // Call Firecrawl API
+      // Call Firecrawl API with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+
       const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
         method: 'POST',
         headers: {
@@ -358,11 +363,16 @@ function ContentOptimizerContent() {
           url: url,
           formats: ['markdown'],
           onlyMainContent: true
-        })
+          // NOTE: Do NOT add 'timeout' parameter - it causes SCRAPE_TIMEOUT errors
+        }),
+        signal: controller.signal
       });
 
+      clearTimeout(timeoutId);
+
       if (!response.ok) {
-        throw new Error(`Firecrawl API error: ${response.status}`);
+        const errorText = await response.text().catch(() => 'Unknown error');
+        throw new Error(`Firecrawl API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
@@ -383,9 +393,26 @@ function ContentOptimizerContent() {
       });
     } catch (error) {
       console.error('Firecrawl error:', error);
+
+      let errorMessage = "Vui lòng thử lại sau";
+
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = "Request timeout - Trang web quá chậm hoặc quá lớn để crawl";
+        } else if (error.message.includes('408')) {
+          errorMessage = "Timeout (408) - Trang web không phản hồi kịp thời. Thử trang khác hoặc đợi vài phút.";
+        } else if (error.message.includes('403')) {
+          errorMessage = "Bị chặn (403) - Website này chặn bot crawling";
+        } else if (error.message.includes('429')) {
+          errorMessage = "Quá nhiều request (429) - Đợi vài phút rồi thử lại";
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
       toast({
         title: "Lỗi khi crawl",
-        description: error instanceof Error ? error.message : "Vui lòng thử lại sau",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
@@ -520,16 +547,19 @@ function ContentOptimizerContent() {
   // AI-powered readability optimizer
   const handleOptimizeText = async (issueIndex: number) => {
     if (!readabilityAnalysis?.issues?.[issueIndex]) return;
+    if (!toolId) return;
 
-    const issue = readabilityAnalysis.issues[issueIndex];
-    setSelectedIssueIndex(issueIndex);
-    setIsOptimizing(true);
+    // Wrap with token consumption (1 token per optimization)
+    await executeWithToken(toolId, 1, async () => {
+      const issue = readabilityAnalysis.issues[issueIndex];
+      setSelectedIssueIndex(issueIndex);
+      setIsOptimizing(true);
 
-    try {
-      const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-      if (!apiKey) {
-        throw new Error("API key không được cấu hình. Vui lòng thêm VITE_OPENAI_API_KEY vào .env");
-      }
+      try {
+        const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
+        if (!apiKey) {
+          throw new Error("API key không được cấu hình. Vui lòng thêm VITE_OPENAI_API_KEY vào .env");
+        }
 
       // Get language name for prompt
       const selectedLanguage = LANGUAGE_CONSTANTS.find(l => l.value === audienceLanguage);
@@ -587,19 +617,22 @@ function ContentOptimizerContent() {
 
       setOptimizedText(optimizedContent.trim());
 
-      toast({
-        title: "Tối ưu thành công",
-        description: "Văn bản đã được tối ưu cho khả năng đọc",
-      });
-    } catch (error: any) {
-      toast({
-        title: "Lỗi tối ưu",
-        description: error.message || "Không thể tối ưu văn bản. Vui lòng thử lại.",
-        variant: "destructive",
-      });
-    } finally {
-      setIsOptimizing(false);
-    }
+        toast({
+          title: "Tối ưu thành công",
+          description: "Văn bản đã được tối ưu cho khả năng đọc",
+        });
+      } catch (error: any) {
+        toast({
+          title: "Lỗi tối ưu",
+          description: error.message || "Không thể tối ưu văn bản. Vui lòng thử lại.",
+          variant: "destructive",
+        });
+      } finally {
+        setIsOptimizing(false);
+      }
+
+      return true; // executeWithToken expects a return value
+    });
   };
 
   // Scroll to and highlight issue text in editor
@@ -807,7 +840,7 @@ function ContentOptimizerContent() {
                 ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-400'
                 : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
             }`}
-            title="SEO Improvements"
+            title="Cải thiện SEO"
           >
             <TrendingUp className="h-5 w-5" />
           </button>
@@ -820,14 +853,14 @@ function ContentOptimizerContent() {
                 ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-900 dark:text-indigo-400'
                 : 'hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-600 dark:text-gray-400'
             }`}
-            title="Competitor Data"
+            title="Dữ liệu đối thủ"
           >
             <Search className="h-5 w-5" />
           </button>
         </div>
 
         {/* Dock Panel */}
-        <div className={`fixed right-16 top-16 h-[calc(100vh-4rem)] bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 transition-all duration-300 overflow-y-auto z-10 ${
+        <div className={`fixed right-16 top-16 h-[calc(100vh-4rem)] bg-white dark:bg-gray-900 border-l border-gray-200 dark:border-gray-800 transition-all duration-300 overflow-y-auto z-20 shadow-lg ${
           activeTool ? 'w-96' : 'w-0'
         }`}>
           {activeTool === 'seo' && (
@@ -860,7 +893,7 @@ function ContentOptimizerContent() {
                 disabled={isAnalyzing || !primaryKeyword || !canUseToken || isTokenProcessing}
                 className="w-full bg-indigo-600 hover:bg-indigo-700"
               >
-                {(isAnalyzing || isTokenProcessing) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {isAnalyzing && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Nhận Gợi Ý Cải Thiện
               </Button>
 
@@ -1011,7 +1044,7 @@ function ContentOptimizerContent() {
 
               {!seoAnalysis && scores.seo === 0 && (
                 <div className="mt-6 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg text-center text-sm text-muted-foreground">
-                  Click "Get improvement ideas" để phân tích
+                  Nhấn "Nhận Gợi Ý Cải Thiện" để bắt đầu phân tích
                 </div>
               )}
             </div>
@@ -1060,15 +1093,15 @@ function ContentOptimizerContent() {
 
               {/* Target Keyword */}
               <div className="space-y-2 mb-4">
-                <Label className="text-sm font-medium">Your target keywords</Label>
+                <Label className="text-sm font-medium">Từ khóa mục tiêu của bạn</Label>
                 <Input
                   value={competitorKeyword}
                   onChange={(e) => setCompetitorKeyword(e.target.value)}
-                  placeholder="Enter single keyword..."
+                  placeholder="Nhập từ khóa đơn..."
                   className="w-full"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Only 1 keyword allowed
+                  Chỉ cho phép 1 từ khóa
                 </p>
               </div>
 
@@ -1077,10 +1110,11 @@ function ContentOptimizerContent() {
                 onClick={handleUnlockInsights}
                 disabled={!competitorKeyword.trim() || !canUseToken || isTokenProcessing || isLoadingCompetitor}
                 className="w-full bg-indigo-600 hover:bg-indigo-700"
+                title="Tốn 1 token"
               >
-                {(isTokenProcessing || isLoadingCompetitor) && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-                {!isTokenProcessing && !isLoadingCompetitor && <Lightbulb className="h-4 w-4 mr-2" />}
-                Unlock insights
+                {isLoadingCompetitor && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                {!isLoadingCompetitor && <Lightbulb className="h-4 w-4 mr-2" />}
+                Mở khóa thông tin
               </Button>
 
               {/* Titles Block - Competitor Results */}
@@ -1258,7 +1292,7 @@ function ContentOptimizerContent() {
 
               {competitorResults.length === 0 && !isLoadingCompetitor && (
                 <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg text-xs text-muted-foreground">
-                  <p>Nhập keyword và click "Unlock insights" để xem competitor titles</p>
+                  <p>Nhập từ khóa và nhấn "Mở khóa thông tin" để xem tiêu đề của đối thủ</p>
                 </div>
               )}
             </div>
@@ -1266,7 +1300,7 @@ function ContentOptimizerContent() {
         </div>
 
         {/* Main Content */}
-        <div className={`flex-1 transition-all duration-300 ${activeTool ? 'mr-[28rem]' : 'mr-16'}`}>
+        <div className={`flex-1 transition-all duration-300 ${activeTool ? 'mr-[29rem]' : 'mr-16'}`}>
           <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <PageNavigation breadcrumbItems={[{ label: "Tối Ưu Nội Dung" }]} backLink="/" />
 
@@ -1297,7 +1331,7 @@ function ContentOptimizerContent() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {/* H1 Title - Always visible */}
+                {/* H1 Title */}
                 <div className="space-y-2 pb-4 border-b">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="h1-title" className="font-semibold">Tên sản phẩm/Blog (H1)</Label>
@@ -1332,6 +1366,83 @@ function ContentOptimizerContent() {
                   <p className="text-xs text-muted-foreground italic">
                     Đây là tiêu đề chính (thẻ H1) sẽ xuất hiện trên trang của bạn
                   </p>
+                </div>
+
+                {/* Title Tag & Meta Description - Always visible */}
+                <div className="space-y-4 pb-4 border-b">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="title-tag">Title Tag</Label>
+                      <span className="text-xs text-muted-foreground">{titleTag.length}/70</span>
+                    </div>
+                    <Input
+                      id="title-tag"
+                      value={titleTag}
+                      onChange={(e) => setTitleTag(e.target.value)}
+                      placeholder="Nhập title tag hiển thị trên kết quả tìm kiếm..."
+                      maxLength={70}
+                      className="w-full"
+                    />
+                    {allKeywords.length > 0 && titleTag && (
+                      <p className="text-xs text-muted-foreground">
+                        Từ khóa tìm thấy: {allKeywords.filter(kw => titleTag.toLowerCase().includes(kw.toLowerCase())).map(kw => (
+                          <span
+                            key={kw}
+                            className={`inline-block px-1 rounded mx-0.5 ${
+                              kw === primaryKeyword
+                                ? 'bg-green-100 text-green-800 font-semibold'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}
+                          >
+                            {kw}
+                          </span>
+                        ))}
+                        {allKeywords.filter(kw => titleTag.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
+                          <span className="text-orange-600">Chưa có từ khóa nào</span>
+                        }
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground italic">
+                      Title Tag xuất hiện trên kết quả tìm kiếm Google và tab trình duyệt
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="meta-description">Meta Description</Label>
+                      <span className="text-xs text-muted-foreground">{metaDescription.length}/320</span>
+                    </div>
+                    <textarea
+                      id="meta-description"
+                      value={metaDescription}
+                      onChange={(e) => setMetaDescription(e.target.value)}
+                      placeholder="Nhập mô tả trang hiển thị dưới tiêu đề trên kết quả tìm kiếm..."
+                      maxLength={320}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-input rounded-md text-sm resize-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    />
+                    {allKeywords.length > 0 && metaDescription && (
+                      <p className="text-xs text-muted-foreground">
+                        Từ khóa tìm thấy: {allKeywords.filter(kw => metaDescription.toLowerCase().includes(kw.toLowerCase())).map(kw => (
+                          <span
+                            key={kw}
+                            className={`inline-block px-1 rounded mx-0.5 ${
+                              kw === primaryKeyword
+                                ? 'bg-green-100 text-green-800 font-semibold'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}
+                          >
+                            {kw}
+                          </span>
+                        ))}
+                        {allKeywords.filter(kw => metaDescription.toLowerCase().includes(kw.toLowerCase())).length === 0 &&
+                          <span className="text-orange-600">Chưa có từ khóa nào</span>
+                        }
+                      </p>
+                    )}
+                    <p className="text-xs text-muted-foreground italic">
+                      Meta Description hiển thị dưới tiêu đề trên Google, thu hút người dùng click vào
+                    </p>
+                  </div>
                 </div>
 
                 {/* Primary Keyword Input */}
@@ -1577,15 +1688,27 @@ function ContentOptimizerContent() {
             </Card>
 
             {/* Readability Issues Card - Full height matching Content Editor */}
-            {readabilityAnalysis && readabilityAnalysis.issues && readabilityAnalysis.issues.length > 0 && (
+            {readabilityAnalysis && readabilityAnalysis.issues && readabilityAnalysis.issues.length > 0 && showReadabilityCard && (
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-lg flex items-center justify-between">
-                    <span>Vấn đề Readability cần sửa</span>
-                    <span className="text-sm text-muted-foreground font-normal">
+                  <CardTitle className="text-lg">Vấn đề Readability cần sửa</CardTitle>
+                  <div className="flex items-center justify-between mt-2">
+                    <span className="text-sm text-muted-foreground">
                       {readabilityAnalysis.issues.length} vấn đề
                     </span>
-                  </CardTitle>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowReadabilityCard(false);
+                        setSelectedIssueIndex(null);
+                        setOptimizedText("");
+                      }}
+                      className="text-xs h-7"
+                    >
+                      Đóng
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3 max-h-[1650px] overflow-y-auto">
@@ -1649,7 +1772,8 @@ function ContentOptimizerContent() {
                                   e.stopPropagation();
                                   handleOptimizeText(index);
                                 }}
-                                disabled={isOptimizing || !primaryKeyword}
+                                disabled={isOptimizing || !primaryKeyword || !canUseToken || isTokenProcessing}
+                                title="Tốn 1 token"
                               >
                                 {isOptimizing && selectedIssueIndex === index ? (
                                   <>
