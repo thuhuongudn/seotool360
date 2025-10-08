@@ -17,6 +17,7 @@ import { useTokenManagement } from "@/hooks/use-token-management";
 import { GEO_TARGET_CONSTANTS, LANGUAGE_CONSTANTS, DEFAULT_LANG } from "@/constants/google-ads-constants";
 import { analyzeSEO, analyzeReadability, type SEOAnalysis, type ReadabilityAnalysis } from "@/lib/content-optimizer-utils";
 import { buildToneAnalysisPrompt } from "@/lib/tone-of-voice-prompts";
+import { serperSearch, serperImages, openaiCompletion, firecrawlScrape, geminiGenerateImage, unsplashSearch } from "@/lib/secure-api-client";
 
 interface ContentScores {
   seo: number;
@@ -355,45 +356,11 @@ function ContentOptimizerContent() {
     setCrawlingUrl(url);
 
     try {
-      const apiKey = import.meta.env.VITE_FIRECRAWL_API_KEY;
-
-      if (!apiKey) {
-        toast({
-          title: "Lỗi cấu hình",
-          description: "Thiếu VITE_FIRECRAWL_API_KEY trong .env.local",
-          variant: "destructive",
-        });
-        setIsCrawling(false);
-        return;
-      }
-
-      // Call Firecrawl API with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
-
-      const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          url: url,
-          formats: ['markdown'],
-          onlyMainContent: true
-          // NOTE: Do NOT add 'timeout' parameter - it causes SCRAPE_TIMEOUT errors
-        }),
-        signal: controller.signal
+      // Use secure API client instead of direct API call
+      const data = await firecrawlScrape({
+        url: url,
+        formats: ['markdown']
       });
-
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        throw new Error(`Firecrawl API error: ${response.status} - ${errorText}`);
-      }
-
-      const data = await response.json();
       const markdown = data.data?.markdown || '';
 
       // Extract headings from markdown
@@ -458,42 +425,10 @@ function ContentOptimizerContent() {
       setGeneratedAiImage(null);
 
       try {
-        const apiKey = import.meta.env.VITE_GEMINI_2_5_FLASH_IMG;
-
-        if (!apiKey) {
-          toast({
-            title: "Lỗi cấu hình",
-            description: "Thiếu VITE_GEMINI_2_5_FLASH_IMG trong .env.local",
-            variant: "destructive",
-          });
-          setIsGeneratingAiImage(false);
-          return;
-        }
-
-        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model: 'google/gemini-2.5-flash-image-preview',
-            messages: [
-              {
-                role: 'user',
-                content: aiImagePrompt.trim()
-              }
-            ],
-            modalities: ['image', 'text']
-          })
+        // Use secure API client instead of direct API call
+        const data = await geminiGenerateImage({
+          prompt: aiImagePrompt.trim()
         });
-
-        if (!response.ok) {
-          const errorText = await response.text().catch(() => 'Unknown error');
-          throw new Error(`OpenRouter API error: ${response.status} - ${errorText}`);
-        }
-
-        const data = await response.json();
 
         // Extract base64 image from response
         if (data.choices?.[0]?.message?.images?.[0]?.image_url?.url) {
@@ -540,32 +475,11 @@ function ContentOptimizerContent() {
       setIsLoadingUnsplash(true);
 
       try {
-        const apiKey = import.meta.env.VITE_UNSPLASH_ACCESS_KEY;
-
-        if (!apiKey) {
-          toast({
-            title: "Lỗi cấu hình",
-            description: "Thiếu VITE_UNSPLASH_ACCESS_KEY trong .env.local",
-            variant: "destructive",
-          });
-          setIsLoadingUnsplash(false);
-          return;
-        }
-
-        const response = await fetch(
-          `https://api.unsplash.com/search/photos?query=${encodeURIComponent(unsplashQuery)}&per_page=12`,
-          {
-            headers: {
-              'Authorization': `Client-ID ${apiKey}`
-            }
-          }
-        );
-
-        if (!response.ok) {
-          throw new Error(`Unsplash API error: ${response.status}`);
-        }
-
-        const data = await response.json();
+        // Use secure API client instead of direct API call
+        const data = await unsplashSearch({
+          query: unsplashQuery,
+          per_page: 12
+        });
         setUnsplashResults(data.results || []);
 
         toast({
@@ -611,18 +525,6 @@ function ContentOptimizerContent() {
       try {
         setIsAnalyzingTone(true);
 
-        const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-
-        if (!apiKey) {
-          toast({
-            title: "Lỗi cấu hình",
-            description: "Thiếu VITE_OPENAI_API_KEY trong .env.local",
-            variant: "destructive",
-          });
-          setIsAnalyzingTone(false);
-          return false;
-        }
-
         // Build prompt from template
         const criteriaPrompt = buildToneAnalysisPrompt(toneIndustry, content);
 
@@ -642,22 +544,8 @@ function ContentOptimizerContent() {
           requestBody.reasoning_effort = "medium";
         }
 
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${apiKey}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": window.location.origin,
-            "X-Title": "N8N Toolkit - Content Optimizer",
-          },
-          body: JSON.stringify(requestBody),
-        });
-
-        if (!response.ok) {
-          throw new Error(`OpenRouter API error: ${response.status}`);
-        }
-
-        const data = await response.json();
+        // Use secure API client instead of direct API call
+        const data = await openaiCompletion(requestBody);
         const resultText = data.choices[0].message.content;
 
         // Extract JSON from markdown code blocks if present
@@ -782,58 +670,19 @@ function ContentOptimizerContent() {
       setIsLoadingImages(true);
 
       try {
-        const apiKey = import.meta.env.VITE_SERPER_API_KEY;
-
-        if (!apiKey) {
-          toast({
-            title: "Lỗi cấu hình",
-            description: "Thiếu VITE_SERPER_API_KEY trong .env.local",
-            variant: "destructive",
-          });
-          setIsLoadingCompetitor(false);
-          setIsLoadingImages(false);
-          return false;
-        }
-
-        // Fetch both search results and images in parallel
-        const [searchResponse, imagesResponse] = await Promise.all([
-          fetch('https://google.serper.dev/search', {
-            method: 'POST',
-            headers: {
-              'X-API-KEY': apiKey,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              q: competitorKeyword.trim(),
-              gl: 'vn',
-              hl: 'vi'
-            })
+        // Use secure API client instead of direct API calls
+        const [searchData, imagesData] = await Promise.all([
+          serperSearch({
+            q: competitorKeyword.trim(),
+            gl: 'vn',
+            num: 10
           }),
-          fetch('https://google.serper.dev/images', {
-            method: 'POST',
-            headers: {
-              'X-API-KEY': apiKey,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              q: competitorKeyword.trim(),
-              location: 'Vietnam',
-              gl: 'vn',
-              hl: 'vi'
-            })
+          serperImages({
+            q: competitorKeyword.trim(),
+            location: 'Vietnam',
+            num: 10
           })
         ]);
-
-        if (!searchResponse.ok) {
-          throw new Error(`Serper Search API error: ${searchResponse.status}`);
-        }
-
-        if (!imagesResponse.ok) {
-          throw new Error(`Serper Images API error: ${imagesResponse.status}`);
-        }
-
-        const searchData = await searchResponse.json();
-        const imagesData = await imagesResponse.json();
 
         // Filter out excluded domains from search results
         const filteredResults = (searchData.organic || []).filter((result: any) => {
@@ -880,39 +729,27 @@ function ContentOptimizerContent() {
       setIsOptimizing(true);
 
       try {
-        const apiKey = import.meta.env.VITE_OPENAI_API_KEY;
-        if (!apiKey) {
-          throw new Error("API key không được cấu hình. Vui lòng thêm VITE_OPENAI_API_KEY vào .env");
+        // Get language name for prompt
+        const selectedLanguage = LANGUAGE_CONSTANTS.find(l => l.value === audienceLanguage);
+        const languageName = selectedLanguage?.name || 'Vietnamese';
+
+        // Build prompt based on issue type and keyword inclusion
+        let prompt = `You are an SEO content writing expert. Optimize the following text for better readability in ${languageName}:\n\n"${issue.text}"\n\n`;
+
+        if (issue.type === 'long_sentence') {
+          prompt += `This is a long sentence (${issue.text.split(/\s+/).length} words). Break it into 2-3 shorter sentences (15-20 words each), preserving the meaning.`;
+        } else if (issue.type === 'long_paragraph') {
+          prompt += `This is a long paragraph. Break it into smaller paragraphs, each with 3-4 sentences, preserving the meaning.`;
         }
 
-      // Get language name for prompt
-      const selectedLanguage = LANGUAGE_CONSTANTS.find(l => l.value === audienceLanguage);
-      const languageName = selectedLanguage?.name || 'Vietnamese';
+        if (includeKeywordInOptimization && primaryKeyword) {
+          prompt += `\n\nIMPORTANT: Naturally insert the keyword "${primaryKeyword}" into the optimized text (if not already present).`;
+        }
 
-      // Build prompt based on issue type and keyword inclusion
-      let prompt = `You are an SEO content writing expert. Optimize the following text for better readability in ${languageName}:\n\n"${issue.text}"\n\n`;
+        prompt += `\n\nIMPORTANT: Return ONLY the optimized text in ${languageName}, with NO explanations or additional commentary.`;
 
-      if (issue.type === 'long_sentence') {
-        prompt += `This is a long sentence (${issue.text.split(/\s+/).length} words). Break it into 2-3 shorter sentences (15-20 words each), preserving the meaning.`;
-      } else if (issue.type === 'long_paragraph') {
-        prompt += `This is a long paragraph. Break it into smaller paragraphs, each with 3-4 sentences, preserving the meaning.`;
-      }
-
-      if (includeKeywordInOptimization && primaryKeyword) {
-        prompt += `\n\nIMPORTANT: Naturally insert the keyword "${primaryKeyword}" into the optimized text (if not already present).`;
-      }
-
-      prompt += `\n\nIMPORTANT: Return ONLY the optimized text in ${languageName}, with NO explanations or additional commentary.`;
-
-      const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${apiKey}`,
-          "HTTP-Referer": window.location.origin,
-          "X-Title": "N8n Toolkit - Content Optimizer",
-        },
-        body: JSON.stringify({
+        // Use secure API client instead of direct API call
+        const data = await openaiCompletion({
           model: "openai/gpt-5-mini",
           messages: [
             {
@@ -922,17 +759,7 @@ function ContentOptimizerContent() {
           ],
           max_tokens: 500,
           temperature: 0.7,
-          verbosity: "low",
-          reasoning_effort: "minimal",
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        const errorMessage = data?.error?.message || `API trả về lỗi ${response.status}`;
-        throw new Error(errorMessage);
-      }
+        });
 
       const optimizedContent = data?.choices?.[0]?.message?.content;
       if (!optimizedContent) {

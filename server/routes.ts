@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { authMiddleware, requireAdmin, type AuthenticatedRequest } from "./auth-middleware";
 import { z } from "zod";
 import { generateKeywordIdeas, generateKeywordHistoricalMetrics, GoogleAdsApiError } from "./services/google-ads";
+import { registerApiProxyRoutes } from "./routes/api-proxy";
 
 // Validate required environment variables at startup
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -76,6 +77,15 @@ async function assertToolAccessOrAdmin(
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // ============================================
+  // API PROXY ROUTES (Secure API Key Protection)
+  // ============================================
+  registerApiProxyRoutes(app);
+
+  // ============================================
+  // SEO TOOLS ROUTES
+  // ============================================
+
   // Get all SEO tools (public - only active tools)
   app.get("/api/seo-tools", async (req: Request, res: Response) => {
     try {
