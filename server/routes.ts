@@ -7,6 +7,7 @@ import { authMiddleware, requireAdmin, type AuthenticatedRequest } from "./auth-
 import { z } from "zod";
 import { generateKeywordIdeas, generateKeywordHistoricalMetrics, GoogleAdsApiError } from "./services/google-ads";
 import { registerApiProxyRoutes } from "./routes/api-proxy";
+import { registerTestRoutes } from "./routes/test-api";
 
 // Validate required environment variables at startup
 const supabaseUrl = process.env.SUPABASE_URL;
@@ -81,6 +82,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // API PROXY ROUTES (Secure API Key Protection)
   // ============================================
   registerApiProxyRoutes(app);
+
+  // ============================================
+  // TEST ROUTES (Development/Debug)
+  // ============================================
+  if (process.env.NODE_ENV === 'development') {
+    registerTestRoutes(app);
+  }
 
   // ============================================
   // SEO TOOLS ROUTES

@@ -77,7 +77,16 @@ export async function serperImages(params: SerperImagesParams) {
 
 export interface OpenAICompletionParams {
   model: string;
-  messages: Array<{ role: string; content: string }>;
+  messages: Array<{
+    role: string;
+    content: string | Array<{
+      type: string;
+      text?: string;
+      image_url?: {
+        url: string;
+      };
+    }>;
+  }>;
   temperature?: number;
   max_tokens?: number;
   stream?: boolean;
@@ -123,4 +132,24 @@ export interface UnsplashSearchParams {
 
 export async function unsplashSearch(params: UnsplashSearchParams) {
   return secureRequest('/api/proxy/unsplash/search', params);
+}
+
+// ============================================
+// GEMINI VISION API (Image Analysis)
+// ============================================
+
+export interface GeminiVisionParams {
+  contents: Array<{
+    parts: Array<{
+      text?: string;
+      inline_data?: {
+        mime_type: string;
+        data: string;
+      };
+    }>;
+  }>;
+}
+
+export async function geminiVision(params: GeminiVisionParams) {
+  return secureRequest('/api/proxy/gemini/vision', params);
 }

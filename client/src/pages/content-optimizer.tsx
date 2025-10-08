@@ -749,8 +749,9 @@ function ContentOptimizerContent() {
         prompt += `\n\nIMPORTANT: Return ONLY the optimized text in ${languageName}, with NO explanations or additional commentary.`;
 
         // Use secure API client instead of direct API call
+        // Note: Using gpt-4.1-mini - stable model without reasoning mode
         const data = await openaiCompletion({
-          model: "openai/gpt-5-mini",
+          model: "openai/gpt-4.1-mini",
           messages: [
             {
               role: "user",
@@ -761,10 +762,13 @@ function ContentOptimizerContent() {
           temperature: 0.7,
         });
 
-      const optimizedContent = data?.choices?.[0]?.message?.content;
-      if (!optimizedContent) {
-        throw new Error("API không trả về nội dung");
-      }
+        // GPT-5 models may return content in 'reasoning' field instead of 'content'
+        const message = data?.choices?.[0]?.message;
+        const optimizedContent = message?.content || message?.reasoning;
+
+        if (!optimizedContent || optimizedContent.trim() === "") {
+          throw new Error("API không trả về nội dung");
+        }
 
       setOptimizedText(optimizedContent.trim());
 

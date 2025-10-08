@@ -44,6 +44,7 @@ import ExifReader from "exifreader";
 import type { ChangeEvent, DragEvent } from "react";
 import type { LeafletEventHandlerFn, Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import { format } from "date-fns";
+import { geminiVision, openaiCompletion } from "@/lib/secure-api-client";
 
 type ExifRational = [number, number];
 
@@ -319,8 +320,8 @@ function ImageSeoContent() {
   const [altTextValue, setAltTextValue] = useState("");
   const [altTextError, setAltTextError] = useState<string | null>(null);
   const [altTextCopied, setAltTextCopied] = useState(false);
-  const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
-  const openAiApiKey = import.meta.env.VITE_OPENAI_API_KEY as string | undefined;
+  // API keys are now handled securely through backend proxy
+  // No need to access client-side environment variables
 
   const selectedAltTextModelInfo = useMemo(
     () => ALT_TEXT_MODELS.find((item) => item.value === altTextModel),
@@ -334,7 +335,8 @@ function ImageSeoContent() {
     return "";
   }, [rawKeywords, metadata.keywords, extractedMetadata.keywords]);
 
-  const modelIsConfigured = altTextModel === "gemini" ? Boolean(geminiApiKey) : Boolean(openAiApiKey);
+  // Backend proxy handles API keys, so models are always configured
+  const modelIsConfigured = true;
   const hasImageForAltText = Boolean(processedDataUrl || imagePreview);
 
   const normalizedManualSlug = useMemo(
@@ -742,37 +744,22 @@ function ImageSeoContent() {
       let responseText = "";
 
       if (altTextModel === "gemini") {
-        if (!geminiApiKey) {
-          throw new Error("GEMINI_API_KEY_MISSING");
-        }
-
-        const response = await fetch(`${GEMINI_ENDPOINT}?key=${geminiApiKey}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: prompt },
-                  {
-                    inline_data: {
-                      mime_type: imagePayload.mime,
-                      data: imagePayload.base64,
-                    },
+        // Use secure API client - backend handles API key
+        const data = await geminiVision({
+          contents: [
+            {
+              parts: [
+                { text: prompt },
+                {
+                  inline_data: {
+                    mime_type: imagePayload.mime,
+                    data: imagePayload.base64,
                   },
-                ],
-              },
-            ],
-          }),
+                },
+              ],
+            },
+          ],
         });
-
-        const data = await response.json();
-        if (!response.ok) {
-          const apiMessage = data?.error?.message || `Gemini trả về lỗi ${response.status}`;
-          throw new Error(apiMessage);
-        }
 
         const parts = data?.candidates?.[0]?.content?.parts;
         if (Array.isArray(parts)) {
@@ -782,45 +769,26 @@ function ImageSeoContent() {
             .trim();
         }
       } else {
-        if (!openAiApiKey) {
-          throw new Error("OPENAI_API_KEY_MISSING");
-        }
-
-        const response = await fetch(OPENAI_ENDPOINT, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${openAiApiKey}`,
-            "HTTP-Referer": window.location.origin,
-            "X-Title": "N8n Toolkit - Image SEO",
-          },
-          body: JSON.stringify({
-            model: "openai/gpt-4.1-mini",
-            messages: [
-              {
-                role: "user",
-                content: [
-                  { type: "text", text: prompt },
-                  {
-                    type: "image_url",
-                    image_url: {
-                      url: `data:${imagePayload.mime};base64,${imagePayload.base64}`,
-                    },
+        // Use secure API client - backend handles API key
+        const data = await openaiCompletion({
+          model: "openai/gpt-4.1-mini",
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "text", text: prompt },
+                {
+                  type: "image_url",
+                  image_url: {
+                    url: `data:${imagePayload.mime};base64,${imagePayload.base64}`,
                   },
-                ],
-              },
-            ],
-            max_tokens: 180,
-            temperature: 0.7,
-          }),
+                },
+              ],
+            },
+          ],
+          max_tokens: 180,
+          temperature: 0.7,
         });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-          const apiMessage = data?.error?.message || data?.error?.code || `OpenRouter trả về lỗi ${response.status}`;
-          throw new Error(apiMessage);
-        }
 
         const messageContent = data?.choices?.[0]?.message?.content;
         if (typeof messageContent === "string") {
@@ -850,11 +818,7 @@ function ImageSeoContent() {
       console.error("Alt text generation error", error);
       let message = "Không thể tạo alt text, vui lòng thử lại sau.";
       if (error instanceof Error) {
-        if (error.message === "GEMINI_API_KEY_MISSING") {
-          message = "Vui lòng cấu hình GEMINI_API_KEY trong .env.local.";
-        } else if (error.message === "OPENAI_API_KEY_MISSING") {
-          message = "Vui lòng cấu hình OPENAI_API_KEY trong .env.local.";
-        } else if (error.message === "EMPTY_RESPONSE") {
+        if (error.message === "EMPTY_RESPONSE") {
           message = "AI không trả về kết quả. Hãy thử nhập thêm thông tin hoặc chọn model khác.";
         } else if (error.message.trim().length > 0) {
           message = error.message;

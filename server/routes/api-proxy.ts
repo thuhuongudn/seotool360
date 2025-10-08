@@ -6,7 +6,8 @@ import { z } from "zod";
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_2_5_FLASH_IMG;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Direct Gemini API key
+const GEMINI_IMAGE_KEY = process.env.GEMINI_2_5_FLASH_IMG; // OpenRouter key for image gen
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
 
 // Request validation schemas
@@ -422,6 +423,63 @@ export function registerApiProxyRoutes(app: Express) {
     } catch (error) {
       console.error("[Unsplash Proxy] Unexpected error:", error);
       return res.status(500).json({ message: "Failed to search images" });
+    }
+  });
+
+  // ============================================
+  // GEMINI VISION API PROXY
+  // ============================================
+
+  /**
+   * Proxy for Gemini Vision API (image analysis)
+   * Protects GEMINI_API_KEY from client exposure
+   */
+  app.post("/api/proxy/gemini/vision", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      if (!GEMINI_API_KEY) {
+        return res.status(500).json({
+          message: "Server configuration error: GEMINI_API_KEY not configured"
+        });
+      }
+
+      const { contents } = req.body;
+
+      if (!contents || !Array.isArray(contents)) {
+        return res.status(400).json({
+          message: "Invalid request: contents array is required"
+        });
+      }
+
+      const response = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ contents }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[Gemini Vision Proxy] API error:", response.status, errorText);
+        return res.status(response.status).json({
+          message: "Gemini Vision API request failed",
+          details: errorText
+        });
+      }
+
+      const data = await response.json();
+      return res.json(data);
+
+    } catch (error) {
+      console.error("[Gemini Vision Proxy] Unexpected error:", error);
+      return res.status(500).json({ message: "Failed to analyze image" });
     }
   });
 }
