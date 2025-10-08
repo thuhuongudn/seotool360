@@ -66,7 +66,7 @@ Phân tích văn bản và trả về JSON format với THÔNG TIN CHI TIẾT v�
 
 \`\`\`json
 {
-  "total_score": <tổng điểm 0-15>,
+  "total_score": <tổng điểm 0-30>,
   "verdict": "PASS" | "NEED REVIEW" | "FAIL",
   "criteria": {
     "T1_neutral_tone": {
