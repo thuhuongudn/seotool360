@@ -5,8 +5,11 @@ import { registerRoutes } from "./routes";
 import { serveStatic, log } from "./vite";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+
+// Increase payload size limit for image uploads (base64 images can be large)
+// Default is 100kb, increase to 50mb for image analysis endpoints
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: false, limit: '50mb' }));
 
 app.use((req, res, next) => {
   const start = Date.now();

@@ -9,6 +9,7 @@ const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Direct Gemini API key
 const GEMINI_IMAGE_KEY = process.env.GEMINI_2_5_FLASH_IMG; // OpenRouter key for image gen
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
+const GOONG_API_KEY = process.env.GOONG_API_KEY; // Goong Maps API key
 
 // Request validation schemas
 const serperSearchSchema = z.object({
@@ -40,6 +41,10 @@ const firecrawlScrapeSchema = z.object({
 const unsplashSearchSchema = z.object({
   query: z.string().min(1, "Query is required"),
   per_page: z.number().min(1).max(30).optional(),
+});
+
+const goongGeocodeSchema = z.object({
+  address: z.string().min(1, "Address is required"),
 });
 
 export function registerApiProxyRoutes(app: Express) {
@@ -480,6 +485,58 @@ export function registerApiProxyRoutes(app: Express) {
     } catch (error) {
       console.error("[Gemini Vision Proxy] Unexpected error:", error);
       return res.status(500).json({ message: "Failed to analyze image" });
+    }
+  });
+
+  // ============================================
+  // GOONG MAPS API PROXY
+  // ============================================
+
+  /**
+   * Proxy for Goong Maps Geocoding API
+   * Protects GOONG_API_KEY from client exposure
+   */
+  app.post("/api/proxy/goong/geocode", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      if (!GOONG_API_KEY) {
+        return res.status(500).json({
+          message: "Server configuration error: GOONG_API_KEY not configured"
+        });
+      }
+
+      const validation = goongGeocodeSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          errors: validation.error.issues,
+        });
+      }
+
+      const { address } = validation.data;
+
+      const response = await fetch(
+        `https://rsapi.goong.io/geocode?address=${encodeURIComponent(address)}&api_key=${GOONG_API_KEY}`
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[Goong Proxy] API error:", response.status, errorText);
+        return res.status(response.status).json({
+          message: "Goong API request failed",
+          details: errorText
+        });
+      }
+
+      const data = await response.json();
+      return res.json(data);
+
+    } catch (error) {
+      console.error("[Goong Proxy] Unexpected error:", error);
+      return res.status(500).json({ message: "Failed to geocode address" });
     }
   });
 }

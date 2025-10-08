@@ -153,3 +153,15 @@ export interface GeminiVisionParams {
 export async function geminiVision(params: GeminiVisionParams) {
   return secureRequest('/api/proxy/gemini/vision', params);
 }
+
+// ============================================
+// GOONG MAPS API (Geocoding)
+// ============================================
+
+export interface GoongGeocodeParams {
+  address: string;
+}
+
+export async function goongGeocode(params: GoongGeocodeParams) {
+  return secureRequest('/api/proxy/goong/geocode', params);
+}

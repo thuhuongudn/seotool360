@@ -44,7 +44,7 @@ import ExifReader from "exifreader";
 import type { ChangeEvent, DragEvent } from "react";
 import type { LeafletEventHandlerFn, Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import { format } from "date-fns";
-import { geminiVision, openaiCompletion } from "@/lib/secure-api-client";
+import { geminiVision, openaiCompletion, goongGeocode } from "@/lib/secure-api-client";
 
 type ExifRational = [number, number];
 
@@ -55,8 +55,7 @@ const MAX_FILE_SIZE_MB = 15;
 const MAX_CANVAS_DIMENSION = 4000;
 const JPEG_QUALITY = 0.92;
 const SUPPORTED_TYPES = ["image/jpeg", "image/png", "image/webp"];
-const GOONG_API_KEY = "vmBdGIeUBdmUX4ARIhfa4iygOubW9A73K51syJgF";
-const GOONG_GEOCODE_ENDPOINT = "https://rsapi.goong.io/geocode";
+// Goong API key is now handled securely through backend proxy
 const SEARCH_THROTTLE_MS = 1500;
 const DEFAULT_COPYRIGHT = "nhathuocvietnhat.vn";
 const DEFAULT_ADDRESS = "224 Thái Thị Bôi, Chính Gián, Thanh Khê, Đà Nẵng";
@@ -642,12 +641,8 @@ function ImageSeoContent() {
       let apiErrorType: "network" | "zero-results" | "invalid-response" | null = null;
 
       try {
-        const response = await fetch(`${GOONG_GEOCODE_ENDPOINT}?address=${encodeURIComponent(trimmed)}&api_key=${GOONG_API_KEY}`);
-        if (!response.ok) {
-          apiErrorType = "network";
-          throw new Error(`HTTP ${response.status}`);
-        }
-        const data = await response.json();
+        // Use secure API client instead of direct API call
+        const data = await goongGeocode({ address: trimmed });
         if (Array.isArray(data?.results) && data.results.length > 0) {
           const best = data.results[0];
           const lat = best?.geometry?.location?.lat;
