@@ -319,7 +319,7 @@ export function registerApiProxyRoutes(app: Express) {
 
   /**
    * Proxy for Gemini Image Generation API (via OpenRouter)
-   * Protects GEMINI_API_KEY from client exposure
+   * Protects GEMINI_IMAGE_KEY from client exposure
    */
   app.post("/api/proxy/gemini/generate-image", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -327,9 +327,9 @@ export function registerApiProxyRoutes(app: Express) {
         return res.status(401).json({ message: "Authentication required" });
       }
 
-      if (!GEMINI_API_KEY) {
+      if (!GEMINI_IMAGE_KEY) {
         return res.status(500).json({
-          message: "Server configuration error: GEMINI_API_KEY not configured"
+          message: "Server configuration error: GEMINI_IMAGE_KEY not configured"
         });
       }
 
@@ -342,7 +342,7 @@ export function registerApiProxyRoutes(app: Express) {
       const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${GEMINI_API_KEY}`,
+          'Authorization': `Bearer ${GEMINI_IMAGE_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
