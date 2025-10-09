@@ -12,6 +12,29 @@ const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
 const GOONG_API_KEY = process.env.GOONG_API_KEY; // Goong Maps API key
 const N8N_API_KEY = process.env.N8N_API_KEY; // N8N webhook API key
 
+// Job queue for async N8N webhooks (to handle Heroku 30s timeout)
+interface JobStatus {
+  status: 'processing' | 'completed' | 'failed';
+  keyword?: string;
+  result?: any;
+  error?: string;
+  startedAt: number;
+  completedAt?: number;
+}
+
+const jobStore = new Map<string, JobStatus>();
+
+// Cleanup old jobs every 10 minutes
+setInterval(() => {
+  const now = Date.now();
+  const tenMinutes = 10 * 60 * 1000;
+  Array.from(jobStore.entries()).forEach(([jobId, job]) => {
+    if (now - job.startedAt > tenMinutes) {
+      jobStore.delete(jobId);
+    }
+  });
+}, 10 * 60 * 1000);
+
 // Request validation schemas
 const serperSearchSchema = z.object({
   q: z.string().min(1, "Query is required"),
@@ -546,8 +569,62 @@ export function registerApiProxyRoutes(app: Express) {
   // ============================================
 
   /**
-   * Proxy for N8N Search Intent Webhook
-   * Protects N8N_API_KEY from client exposure
+   * Background processor for N8N Search Intent Webhook
+   */
+  async function processN8NSearchIntent(jobId: string, keyword: string, branch_id?: number) {
+    try {
+      console.log(`[N8N Search Intent] Starting job ${jobId} for keyword: "${keyword}"`);
+
+      const response = await fetch(
+        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-search-intent-2025-09-26",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": N8N_API_KEY!,
+          },
+          body: JSON.stringify({ keyword, branch_id }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[N8N Search Intent] Job ${jobId} failed:`, response.status, errorText);
+        jobStore.set(jobId, {
+          status: 'failed',
+          error: `N8N webhook returned ${response.status}: ${errorText}`,
+          startedAt: jobStore.get(jobId)!.startedAt,
+          completedAt: Date.now()
+        });
+        return;
+      }
+
+      const data = await response.json();
+      console.log(`[N8N Search Intent] Job ${jobId} completed, response size: ${JSON.stringify(data).length} bytes`);
+
+      jobStore.set(jobId, {
+        status: 'completed',
+        keyword,
+        result: data,
+        startedAt: jobStore.get(jobId)!.startedAt,
+        completedAt: Date.now()
+      });
+
+    } catch (error: any) {
+      console.error(`[N8N Search Intent] Job ${jobId} error:`, error);
+      jobStore.set(jobId, {
+        status: 'failed',
+        error: error.message || 'Unknown error occurred',
+        startedAt: jobStore.get(jobId)!.startedAt,
+        completedAt: Date.now()
+      });
+    }
+  }
+
+  /**
+   * Proxy for N8N Search Intent Webhook (Async Pattern)
+   * Returns job_id immediately, client polls /api/job-status/:job_id
+   * This avoids Heroku 30s timeout for long-running N8N workflows (30-60s)
    */
   app.post("/api/proxy/n8n/search-intent", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -567,33 +644,31 @@ export function registerApiProxyRoutes(app: Express) {
         return res.status(400).json({ message: "Valid keyword is required" });
       }
 
-      const response = await fetch(
-        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-search-intent-2025-09-26",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": N8N_API_KEY,
-          },
-          body: JSON.stringify({ keyword, branch_id }),
-        }
-      );
+      // Generate unique job ID
+      const jobId = `job_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[N8N Search Intent Proxy] API error:", response.status, errorText);
-        return res.status(response.status).json({
-          message: "N8N webhook request failed",
-          details: errorText
-        });
-      }
+      // Store initial job status
+      jobStore.set(jobId, {
+        status: 'processing',
+        keyword,
+        startedAt: Date.now()
+      });
 
-      const data = await response.json();
-      return res.json(data);
+      // Process in background (don't await)
+      processN8NSearchIntent(jobId, keyword, branch_id).catch(err => {
+        console.error(`[N8N Search Intent] Unexpected error in background job ${jobId}:`, err);
+      });
+
+      // Return job ID immediately (within milliseconds, no timeout)
+      return res.status(202).json({
+        job_id: jobId,
+        status: 'processing',
+        message: 'Content strategy generation started. Poll /api/job-status/:job_id for results.'
+      });
 
     } catch (error) {
       console.error("[N8N Search Intent Proxy] Unexpected error:", error);
-      return res.status(500).json({ message: "Failed to call N8N search intent webhook" });
+      return res.status(500).json({ message: "Failed to start N8N search intent job" });
     }
   });
 
@@ -686,6 +761,46 @@ export function registerApiProxyRoutes(app: Express) {
     } catch (error) {
       console.error("[N8N Internal Link Proxy] Unexpected error:", error);
       return res.status(500).json({ message: "Failed to call N8N internal link webhook" });
+    }
+  });
+
+  // ============================================
+  // JOB STATUS ENDPOINT (for async N8N webhooks)
+  // ============================================
+
+  /**
+   * Get job status for async webhook processing
+   * Used by clients to poll for N8N search intent results
+   */
+  app.get("/api/job-status/:job_id", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const { job_id } = req.params;
+      const job = jobStore.get(job_id);
+
+      if (!job) {
+        return res.status(404).json({
+          message: "Job not found. It may have expired (jobs are kept for 10 minutes)."
+        });
+      }
+
+      return res.json({
+        job_id,
+        status: job.status,
+        keyword: job.keyword,
+        result: job.result,
+        error: job.error,
+        startedAt: job.startedAt,
+        completedAt: job.completedAt,
+        duration: job.completedAt ? job.completedAt - job.startedAt : Date.now() - job.startedAt
+      });
+
+    } catch (error) {
+      console.error("[Job Status] Unexpected error:", error);
+      return res.status(500).json({ message: "Failed to retrieve job status" });
     }
   });
 }

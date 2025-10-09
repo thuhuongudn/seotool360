@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatNumber } from "@/lib/search-intent-utils";
 import { n8nSearchIntent } from "@/lib/secure-api-client";
+import supabase from "@/lib/supabase";
 import {
   DEFAULT_LANG,
   DEFAULT_GEO,
@@ -361,37 +362,99 @@ function SearchIntentContent() {
         // Generate random branch_id (1, 2, or 3) for n8n workflow routing
         const branchId = Math.floor(Math.random() * 3) + 1;
 
-        // Send request to n8n webhook via secure proxy
-        const webhookResponse = await n8nSearchIntent({
+        // Start async job via N8N proxy (returns job_id immediately)
+        const startResponse = await n8nSearchIntent({
           keyword: trimmedKeyword,
           branch_id: branchId
         });
 
-        // Parse the response - try different possible fields
-        const content =
-          webhookResponse.output ||
-          webhookResponse.content ||
-          webhookResponse.result ||
-          JSON.stringify(webhookResponse, null, 2);
+        const jobId = startResponse.job_id;
 
-        setContentStrategy(content);
+        if (!jobId) {
+          throw new Error("No job_id returned from server");
+        }
 
-        toast({
-          title: "Thành công!",
-          description: "Chiến lược nội dung đã được tạo thành công.",
-        });
+        console.log(`[Search Intent] Started job ${jobId}, polling for results...`);
+
+        // Poll job status every 3 seconds
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResponse = await fetch(`/api/job-status/${jobId}`, {
+              headers: {
+                'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+              }
+            });
+
+            if (!statusResponse.ok) {
+              throw new Error(`Failed to fetch job status: ${statusResponse.status}`);
+            }
+
+            const jobStatus = await statusResponse.json();
+
+            if (jobStatus.status === 'completed') {
+              clearInterval(pollInterval);
+
+              // Parse the response - try different possible fields
+              const content =
+                jobStatus.result?.output ||
+                jobStatus.result?.content ||
+                jobStatus.result?.result ||
+                JSON.stringify(jobStatus.result, null, 2);
+
+              setContentStrategy(content);
+              setIsGeneratingStrategy(false);
+
+              toast({
+                title: "Thành công!",
+                description: `Chiến lược nội dung đã được tạo thành công trong ${Math.round(jobStatus.duration / 1000)}s.`,
+              });
+            } else if (jobStatus.status === 'failed') {
+              clearInterval(pollInterval);
+              setIsGeneratingStrategy(false);
+
+              toast({
+                title: "Có lỗi xảy ra",
+                description: jobStatus.error || "Không thể tạo chiến lược nội dung.",
+                variant: "destructive",
+              });
+            }
+            // If 'processing', keep polling
+          } catch (pollError) {
+            console.error("Polling error:", pollError);
+            clearInterval(pollInterval);
+            setIsGeneratingStrategy(false);
+
+            toast({
+              title: "Có lỗi xảy ra",
+              description: "Mất kết nối khi kiểm tra trạng thái. Vui lòng thử lại.",
+              variant: "destructive",
+            });
+          }
+        }, 3000);
+
+        // Cleanup interval after 5 minutes (failsafe)
+        setTimeout(() => {
+          if (pollInterval) {
+            clearInterval(pollInterval);
+            setIsGeneratingStrategy(false);
+            toast({
+              title: "Timeout",
+              description: "Quá trình tạo chiến lược mất quá lâu. Vui lòng thử lại.",
+              variant: "destructive",
+            });
+          }
+        }, 5 * 60 * 1000);
 
         return true;
       } catch (error) {
         console.error("Webhook error:", error);
+        setIsGeneratingStrategy(false);
         toast({
           title: "Có lỗi xảy ra",
           description: "Không thể tạo chiến lược nội dung. Vui lòng thử lại sau.",
           variant: "destructive",
         });
         return false;
-      } finally {
-        setIsGeneratingStrategy(false);
       }
     });
   };
