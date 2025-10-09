@@ -45,6 +45,8 @@ import type { SocialMediaPost } from "@shared/schema";
 const socialMediaFormSchema = z.object({
   postType: z.string().min(1, "Vui lòng chọn loại bài viết"),
   title: z.string().min(1, "Vui lòng nhập tiêu đề"),
+  usp: z.string().optional(),
+  targetAudience: z.string().optional(),
   framework: z.string().optional(),
   writingStyle: z.string().optional(),
   structure: z.string().optional(),
@@ -91,6 +93,8 @@ export default function SocialMediaWriter() {
     defaultValues: {
       postType: "",
       title: "",
+      usp: "",
+      targetAudience: "",
       framework: "",
       writingStyle: "",
       structure: "",
@@ -108,6 +112,8 @@ export default function SocialMediaWriter() {
       const payload = {
         loai_bai_viet: data.postType,
         tieu_de: data.title,
+        usp: data.usp || "",
+        doi_tuong_muc_tieu: data.targetAudience || "",
         framework: data.framework || "",
         phong_cach_viet: data.writingStyle || "",
         cau_truc_bai_viet: data.structure || "",
@@ -143,6 +149,8 @@ export default function SocialMediaWriter() {
             await apiRequest("POST", "/api/social-media-posts", {
               postType: data.postType,
               title: data.title,
+              usp: data.usp || "",
+              targetAudience: data.targetAudience || "",
               framework: data.framework || "",
               writingStyle: data.writingStyle || "",
               structure: data.structure || "",
@@ -263,6 +271,9 @@ export default function SocialMediaWriter() {
                             <SelectItem value="blog">
                               Giới thiệu blog (article)
                             </SelectItem>
+                            <SelectItem value="USP-first-storytelling">
+                              USP-first-storytelling
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
@@ -295,16 +306,69 @@ export default function SocialMediaWriter() {
                     )}
                   />
 
-                  {/* Field 3: Framework */}
+                  {/* Field 3: USP */}
+                  <FormField
+                    control={form.control}
+                    name="usp"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel
+                          className="text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2"
+                          data-testid="label-usp"
+                        >
+                          <span className="text-green-500">✨</span>
+                          USP (Unique Selling Point)
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="VD: viên uống nội tiết không chứa hormon, mầm đậu nành,...dùng được cho cả người có u xơ"
+                            className="min-h-[80px]"
+                            {...field}
+                            data-testid="textarea-usp"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Field 4: Đối tượng mục tiêu */}
+                  <FormField
+                    control={form.control}
+                    name="targetAudience"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel
+                          className="text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2"
+                          data-testid="label-target-audience"
+                        >
+                          <span className="text-pink-500">👥</span>
+                          Đối tượng mục tiêu
+                        </FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder="VD: phụ nữ rối loạn nội tiết, tiền mãn kinh, mãn kinh"
+                            className="min-h-[80px]"
+                            {...field}
+                            data-testid="textarea-target-audience"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  {/* Field 5: Framework */}
                   <FormField
                     control={form.control}
                     name="framework"
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel
-                          className="text-sm font-medium text-gray-700 dark:text-gray-200"
+                          className="text-sm font-medium text-gray-700 dark:text-gray-200 flex items-center gap-2"
                           data-testid="label-framework"
                         >
+                          <span className="text-teal-500">📐</span>
                           Framework
                         </FormLabel>
                         <Select
@@ -343,7 +407,7 @@ export default function SocialMediaWriter() {
                     )}
                   />
 
-                  {/* Field 4: Phong cách viết */}
+                  {/* Field 6: Phong cách viết */}
                   <FormField
                     control={form.control}
                     name="writingStyle"
@@ -386,7 +450,7 @@ export default function SocialMediaWriter() {
                     )}
                   />
 
-                  {/* Field 5: Cấu trúc bài viết */}
+                  {/* Field 7: Cấu trúc bài viết */}
                   <FormField
                     control={form.control}
                     name="structure"
@@ -431,7 +495,7 @@ export default function SocialMediaWriter() {
                     )}
                   />
 
-                  {/* Field 6: Số từ tối đa */}
+                  {/* Field 8: Số từ tối đa */}
                   <FormField
                     control={form.control}
                     name="maxWords"
@@ -464,7 +528,7 @@ export default function SocialMediaWriter() {
                     )}
                   />
 
-                  {/* Field 7: Hashtag bài viết */}
+                  {/* Field 9: Hashtag bài viết */}
                   <FormField
                     control={form.control}
                     name="hashtags"

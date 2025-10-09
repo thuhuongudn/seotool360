@@ -38,8 +38,10 @@ export const socialMediaPosts = pgTable("social_media_posts", {
   id: serial("id").primaryKey(),
   postType: text("post_type").notNull(), // Loại bài viết
   title: text("title").notNull(), // Tiêu đề (tên sản phẩm hoặc bài blog)
+  usp: text("usp"), // USP (Unique Selling Point)
+  targetAudience: text("target_audience"), // Đối tượng mục tiêu
   framework: text("framework"), // Framework
-  writingStyle: text("writing_style"), // Phong cách viết  
+  writingStyle: text("writing_style"), // Phong cách viết
   structure: text("structure"), // Cấu trúc bài viết
   maxWords: text("max_words"), // Số từ tối đa
   hashtags: text("hashtags"), // Hashtag bài viết
