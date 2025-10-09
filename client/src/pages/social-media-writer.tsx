@@ -274,6 +274,9 @@ export default function SocialMediaWriter() {
                             <SelectItem value="USP-first-storytelling">
                               USP-first-storytelling
                             </SelectItem>
+                            <SelectItem value="facebook-reels-script">
+                              Facebook Reels Script
+                            </SelectItem>
                           </SelectContent>
                         </Select>
                         <FormMessage />
