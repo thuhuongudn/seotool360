@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { n8nSocialMedia } from "@/lib/secure-api-client";
+import { pollN8NJobStatus } from "@/lib/n8n-job-polling";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import CopyMarkdownButton from "@/components/copy-markdown-button";
@@ -114,52 +115,72 @@ export default function SocialMediaWriter() {
         hashtag_bai_viet: data.hashtags || "",
       };
 
-      // Send request to n8n webhook via secure proxy
-      const webhookResponse: WebhookResponse = await n8nSocialMedia(payload);
+      // Start async job via N8N proxy (returns job_id immediately)
+      const startResponse = await n8nSocialMedia(payload);
+      const jobId = startResponse.job_id;
 
-      // Parse the response - try different possible fields
-      const content =
-        webhookResponse.output ||
-        webhookResponse.content ||
-        webhookResponse.result ||
-        JSON.stringify(webhookResponse, null, 2);
-
-      setResult(content);
-
-      // Save form data and result to database
-      try {
-        await apiRequest("POST", "/api/social-media-posts", {
-          postType: data.postType,
-          title: data.title,
-          framework: data.framework || "",
-          writingStyle: data.writingStyle || "",
-          structure: data.structure || "",
-          maxWords: data.maxWords || "",
-          hashtags: data.hashtags || "",
-          result: content,
-        });
-        
-        // Invalidate React Query caches to update UI
-        await queryClient.invalidateQueries({ queryKey: ['/api/social-media-posts'] });
-        await queryClient.invalidateQueries({ queryKey: ['/api/social-media-posts', { limit: 5 }] });
-      } catch (dbError) {
-        console.warn("Failed to save post to database:", dbError);
-        // Don't show error to user as the main functionality worked
+      if (!jobId) {
+        throw new Error("No job_id returned from server");
       }
 
-      toast({
-        title: "Thành công!",
-        description: "Bài đăng MXH đã được tạo thành công.",
+      console.log(`[Social Media] Started job ${jobId}, polling for results...`);
+
+      // Poll job status until complete
+      pollN8NJobStatus(jobId, {
+        onComplete: async (result, duration) => {
+          // Parse the response - try different possible fields
+          const content =
+            result?.output ||
+            result?.content ||
+            result?.result ||
+            JSON.stringify(result, null, 2);
+
+          setResult(content);
+          setIsSubmitting(false);
+
+          // Save form data and result to database
+          try {
+            await apiRequest("POST", "/api/social-media-posts", {
+              postType: data.postType,
+              title: data.title,
+              framework: data.framework || "",
+              writingStyle: data.writingStyle || "",
+              structure: data.structure || "",
+              maxWords: data.maxWords || "",
+              hashtags: data.hashtags || "",
+              result: content,
+            });
+
+            // Invalidate React Query caches to update UI
+            await queryClient.invalidateQueries({ queryKey: ['/api/social-media-posts'] });
+            await queryClient.invalidateQueries({ queryKey: ['/api/social-media-posts', { limit: 5 }] });
+          } catch (dbError) {
+            console.warn("Failed to save post to database:", dbError);
+          }
+
+          toast({
+            title: "Thành công!",
+            description: `Bài đăng MXH đã được tạo thành công trong ${Math.round(duration / 1000)}s.`,
+          });
+        },
+        onError: (error) => {
+          setIsSubmitting(false);
+          toast({
+            title: "Có lỗi xảy ra",
+            description: error || "Không thể tạo bài đăng. Vui lòng thử lại sau.",
+            variant: "destructive",
+          });
+        }
       });
+
     } catch (error) {
       console.error("Webhook error:", error);
+      setIsSubmitting(false);
       toast({
         title: "Có lỗi xảy ra",
         description: "Không thể tạo bài đăng. Vui lòng thử lại sau.",
         variant: "destructive",
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 

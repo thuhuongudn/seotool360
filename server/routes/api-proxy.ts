@@ -673,8 +673,60 @@ export function registerApiProxyRoutes(app: Express) {
   });
 
   /**
-   * Proxy for N8N Social Media Post Webhook
-   * Protects N8N_API_KEY from client exposure
+   * Background processor for N8N Social Media Webhook
+   */
+  async function processN8NSocialMedia(jobId: string, payload: any) {
+    try {
+      console.log(`[N8N Social Media] Starting job ${jobId}`);
+
+      const response = await fetch(
+        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-product-social",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": N8N_API_KEY!,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`[N8N Social Media] Job ${jobId} failed:`, response.status, errorText);
+        jobStore.set(jobId, {
+          status: 'failed',
+          error: `N8N webhook returned ${response.status}: ${errorText}`,
+          startedAt: jobStore.get(jobId)!.startedAt,
+          completedAt: Date.now()
+        });
+        return;
+      }
+
+      const data = await response.json();
+      console.log(`[N8N Social Media] Job ${jobId} completed`);
+
+      jobStore.set(jobId, {
+        status: 'completed',
+        result: data,
+        startedAt: jobStore.get(jobId)!.startedAt,
+        completedAt: Date.now()
+      });
+
+    } catch (error: any) {
+      console.error(`[N8N Social Media] Job ${jobId} error:`, error);
+      jobStore.set(jobId, {
+        status: 'failed',
+        error: error.message || 'Unknown error occurred',
+        startedAt: jobStore.get(jobId)!.startedAt,
+        completedAt: Date.now()
+      });
+    }
+  }
+
+  /**
+   * Proxy for N8N Social Media Post Webhook (Async Pattern)
+   * Returns job_id immediately, client polls /api/job-status/:job_id
    */
   app.post("/api/proxy/n8n/social-media", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -688,39 +740,88 @@ export function registerApiProxyRoutes(app: Express) {
         });
       }
 
+      // Generate unique job ID
+      const jobId = `job_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+      // Store initial job status
+      jobStore.set(jobId, {
+        status: 'processing',
+        startedAt: Date.now()
+      });
+
+      // Process in background
+      processN8NSocialMedia(jobId, req.body).catch(err => {
+        console.error(`[N8N Social Media] Unexpected error in background job ${jobId}:`, err);
+      });
+
+      // Return job ID immediately
+      return res.status(202).json({
+        job_id: jobId,
+        status: 'processing',
+        message: 'Social media post generation started. Poll /api/job-status/:job_id for results.'
+      });
+
+    } catch (error) {
+      console.error("[N8N Social Media Proxy] Unexpected error:", error);
+      return res.status(500).json({ message: "Failed to start N8N social media job" });
+    }
+  });
+
+  /**
+   * Background processor for N8N Internal Link Helper Webhook
+   */
+  async function processN8NInternalLink(jobId: string, payload: any) {
+    try {
+      console.log(`[N8N Internal Link] Starting job ${jobId}`);
+
       const response = await fetch(
-        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-product-social",
+        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-internal-link",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-api-key": N8N_API_KEY,
+            "x-api-key": N8N_API_KEY!,
           },
-          body: JSON.stringify(req.body),
+          body: JSON.stringify(payload),
         }
       );
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("[N8N Social Media Proxy] API error:", response.status, errorText);
-        return res.status(response.status).json({
-          message: "N8N webhook request failed",
-          details: errorText
+        console.error(`[N8N Internal Link] Job ${jobId} failed:`, response.status, errorText);
+        jobStore.set(jobId, {
+          status: 'failed',
+          error: `N8N webhook returned ${response.status}: ${errorText}`,
+          startedAt: jobStore.get(jobId)!.startedAt,
+          completedAt: Date.now()
         });
+        return;
       }
 
       const data = await response.json();
-      return res.json(data);
+      console.log(`[N8N Internal Link] Job ${jobId} completed`);
 
-    } catch (error) {
-      console.error("[N8N Social Media Proxy] Unexpected error:", error);
-      return res.status(500).json({ message: "Failed to call N8N social media webhook" });
+      jobStore.set(jobId, {
+        status: 'completed',
+        result: data,
+        startedAt: jobStore.get(jobId)!.startedAt,
+        completedAt: Date.now()
+      });
+
+    } catch (error: any) {
+      console.error(`[N8N Internal Link] Job ${jobId} error:`, error);
+      jobStore.set(jobId, {
+        status: 'failed',
+        error: error.message || 'Unknown error occurred',
+        startedAt: jobStore.get(jobId)!.startedAt,
+        completedAt: Date.now()
+      });
     }
-  });
+  }
 
   /**
-   * Proxy for N8N Internal Link Helper Webhook
-   * Protects N8N_API_KEY from client exposure
+   * Proxy for N8N Internal Link Helper Webhook (Async Pattern)
+   * Returns job_id immediately, client polls /api/job-status/:job_id
    */
   app.post("/api/proxy/n8n/internal-link", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -734,33 +835,30 @@ export function registerApiProxyRoutes(app: Express) {
         });
       }
 
-      const response = await fetch(
-        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-internal-link",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": N8N_API_KEY,
-          },
-          body: JSON.stringify(req.body),
-        }
-      );
+      // Generate unique job ID
+      const jobId = `job_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("[N8N Internal Link Proxy] API error:", response.status, errorText);
-        return res.status(response.status).json({
-          message: "N8N webhook request failed",
-          details: errorText
-        });
-      }
+      // Store initial job status
+      jobStore.set(jobId, {
+        status: 'processing',
+        startedAt: Date.now()
+      });
 
-      const data = await response.json();
-      return res.json(data);
+      // Process in background
+      processN8NInternalLink(jobId, req.body).catch(err => {
+        console.error(`[N8N Internal Link] Unexpected error in background job ${jobId}:`, err);
+      });
+
+      // Return job ID immediately
+      return res.status(202).json({
+        job_id: jobId,
+        status: 'processing',
+        message: 'Internal link suggestions generation started. Poll /api/job-status/:job_id for results.'
+      });
 
     } catch (error) {
       console.error("[N8N Internal Link Proxy] Unexpected error:", error);
-      return res.status(500).json({ message: "Failed to call N8N internal link webhook" });
+      return res.status(500).json({ message: "Failed to start N8N internal link job" });
     }
   });
 

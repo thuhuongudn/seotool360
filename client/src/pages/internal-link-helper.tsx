@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link as RouterLink } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { n8nInternalLink } from "@/lib/secure-api-client";
+import { pollN8NJobStatus } from "@/lib/n8n-job-polling";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import MarkdownRenderer from "@/components/markdown-renderer";
@@ -107,50 +108,70 @@ function AuthorizedInternalLinkContent() {
         "Nội dung chính bài viết": data.draftContent,
       };
 
-      // Send request to n8n webhook via secure proxy
-      const webhookResponse: WebhookResponse = await n8nInternalLink(payload);
+      // Start async job via N8N proxy (returns job_id immediately)
+      const startResponse = await n8nInternalLink(payload);
+      const jobId = startResponse.job_id;
 
-      // Parse the response - try different possible fields
-      const content =
-        webhookResponse.output ||
-        webhookResponse.content ||
-        webhookResponse.result ||
-        JSON.stringify(webhookResponse, null, 2);
-
-      setResult(content);
-
-      // Save form data and result to database
-      try {
-        await apiRequest("POST", "/api/internal-link-suggestions", {
-          postType: data.postType,
-          title: data.title,
-          primaryKeywords: data.primaryKeywords,
-          secondaryKeywords: data.secondaryKeywords || "",
-          draftContent: data.draftContent,
-          result: content,
-        });
-        
-        // Invalidate React Query caches to update UI
-        await queryClient.invalidateQueries({ queryKey: ['/api/internal-link-suggestions'] });
-        await queryClient.invalidateQueries({ queryKey: ['/api/internal-link-suggestions', { limit: 3 }] });
-      } catch (dbError) {
-        console.warn("Failed to save suggestion to database:", dbError);
-        // Don't show error to user as the main functionality worked
+      if (!jobId) {
+        throw new Error("No job_id returned from server");
       }
 
-      toast({
-        title: "Thành công!",
-        description: "Gợi ý internal link đã được tạo thành công.",
+      console.log(`[Internal Link] Started job ${jobId}, polling for results...`);
+
+      // Poll job status until complete
+      pollN8NJobStatus(jobId, {
+        onComplete: async (result, duration) => {
+          // Parse the response - try different possible fields
+          const content =
+            result?.output ||
+            result?.content ||
+            result?.result ||
+            JSON.stringify(result, null, 2);
+
+          setResult(content);
+          setIsSubmitting(false);
+
+          // Save form data and result to database
+          try {
+            await apiRequest("POST", "/api/internal-link-suggestions", {
+              postType: data.postType,
+              title: data.title,
+              primaryKeywords: data.primaryKeywords,
+              secondaryKeywords: data.secondaryKeywords || "",
+              draftContent: data.draftContent,
+              result: content,
+            });
+
+            // Invalidate React Query caches to update UI
+            await queryClient.invalidateQueries({ queryKey: ['/api/internal-link-suggestions'] });
+            await queryClient.invalidateQueries({ queryKey: ['/api/internal-link-suggestions', { limit: 3 }] });
+          } catch (dbError) {
+            console.warn("Failed to save suggestion to database:", dbError);
+          }
+
+          toast({
+            title: "Thành công!",
+            description: `Gợi ý internal link đã được tạo thành công trong ${Math.round(duration / 1000)}s.`,
+          });
+        },
+        onError: (error) => {
+          setIsSubmitting(false);
+          toast({
+            title: "Có lỗi xảy ra",
+            description: error || "Không thể tạo gợi ý internal link. Vui lòng thử lại sau.",
+            variant: "destructive",
+          });
+        }
       });
+
     } catch (error) {
       console.error("Webhook error:", error);
+      setIsSubmitting(false);
       toast({
         title: "Có lỗi xảy ra",
         description: "Không thể tạo gợi ý internal link. Vui lòng thử lại sau.",
         variant: "destructive",
       });
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
