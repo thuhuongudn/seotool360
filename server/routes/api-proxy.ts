@@ -520,7 +520,52 @@ export function registerApiProxyRoutes(app: Express) {
   // ============================================
 
   /**
-   * Proxy for Goong Maps Geocoding API
+   * Proxy for Goong Maps Geocoding API (Public - for free tools)
+   * Protects GOONG_API_KEY from client exposure
+   * No authentication required for image-seo tool
+   */
+  app.post("/api/public/goong/geocode", async (req, res: Response) => {
+    try {
+      if (!GOONG_API_KEY) {
+        return res.status(500).json({
+          message: "Server configuration error: GOONG_API_KEY not configured"
+        });
+      }
+
+      const validation = goongGeocodeSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          errors: validation.error.issues,
+        });
+      }
+
+      const { address } = validation.data;
+
+      const response = await fetch(
+        `https://rsapi.goong.io/geocode?address=${encodeURIComponent(address)}&api_key=${GOONG_API_KEY}`
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[Goong Public Proxy] API error:", response.status, errorText);
+        return res.status(response.status).json({
+          message: "Goong API request failed",
+          details: errorText
+        });
+      }
+
+      const data = await response.json();
+      return res.json(data);
+
+    } catch (error) {
+      console.error("[Goong Public Proxy] Unexpected error:", error);
+      return res.status(500).json({ message: "Failed to geocode address" });
+    }
+  });
+
+  /**
+   * Proxy for Goong Maps Geocoding API (Authenticated)
    * Protects GOONG_API_KEY from client exposure
    */
   app.post("/api/proxy/goong/geocode", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {

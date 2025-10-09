@@ -44,7 +44,7 @@ import ExifReader from "exifreader";
 import type { ChangeEvent, DragEvent } from "react";
 import type { LeafletEventHandlerFn, Map as LeafletMap, Marker as LeafletMarker } from "leaflet";
 import { format } from "date-fns";
-import { geminiVision, openaiCompletion, goongGeocode } from "@/lib/secure-api-client";
+import { geminiVision, openaiCompletion } from "@/lib/secure-api-client";
 
 type ExifRational = [number, number];
 
@@ -641,8 +641,20 @@ function ImageSeoContent() {
       let apiErrorType: "network" | "zero-results" | "invalid-response" | null = null;
 
       try {
-        // Use secure API client instead of direct API call
-        const data = await goongGeocode({ address: trimmed });
+        // Use public API endpoint (no auth required for free tool)
+        const response = await fetch('/api/public/goong/geocode', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ address: trimmed }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
         if (Array.isArray(data?.results) && data.results.length > 0) {
           const best = data.results[0];
           const lat = best?.geometry?.location?.lat;
