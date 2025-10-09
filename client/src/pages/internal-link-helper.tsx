@@ -32,6 +32,7 @@ import { Link, Loader2, ChevronDown, ChevronRight, ExternalLink } from "lucide-r
 import { useToast } from "@/hooks/use-toast";
 import { Link as RouterLink } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { n8nInternalLink } from "@/lib/secure-api-client";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import MarkdownRenderer from "@/components/markdown-renderer";
@@ -106,24 +107,8 @@ function AuthorizedInternalLinkContent() {
         "Nội dung chính bài viết": data.draftContent,
       };
 
-      // Send request to n8n webhook
-      const response = await fetch(
-        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-internal-link",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": import.meta.env.VITE_N8N_API_KEY,
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const webhookResponse: WebhookResponse = await response.json();
+      // Send request to n8n webhook via secure proxy
+      const webhookResponse: WebhookResponse = await n8nInternalLink(payload);
 
       // Parse the response - try different possible fields
       const content =

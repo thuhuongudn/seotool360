@@ -32,6 +32,7 @@ import { Share2, Loader2, ChevronDown, ChevronRight, ExternalLink } from "lucide
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { n8nSocialMedia } from "@/lib/secure-api-client";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import CopyMarkdownButton from "@/components/copy-markdown-button";
@@ -113,24 +114,8 @@ export default function SocialMediaWriter() {
         hashtag_bai_viet: data.hashtags || "",
       };
 
-      // Send request to n8n webhook
-      const response = await fetch(
-        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-product-social",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "x-api-key": import.meta.env.VITE_N8N_API_KEY,
-          },
-          body: JSON.stringify(payload),
-        },
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const webhookResponse: WebhookResponse = await response.json();
+      // Send request to n8n webhook via secure proxy
+      const webhookResponse: WebhookResponse = await n8nSocialMedia(payload);
 
       // Parse the response - try different possible fields
       const content =

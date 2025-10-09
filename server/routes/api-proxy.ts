@@ -10,6 +10,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Direct Gemini API key
 const GEMINI_IMAGE_KEY = process.env.GEMINI_2_5_FLASH_IMG; // OpenRouter key for image gen
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
 const GOONG_API_KEY = process.env.GOONG_API_KEY; // Goong Maps API key
+const N8N_API_KEY = process.env.N8N_API_KEY; // N8N webhook API key
 
 // Request validation schemas
 const serperSearchSchema = z.object({
@@ -537,6 +538,154 @@ export function registerApiProxyRoutes(app: Express) {
     } catch (error) {
       console.error("[Goong Proxy] Unexpected error:", error);
       return res.status(500).json({ message: "Failed to geocode address" });
+    }
+  });
+
+  // ============================================
+  // N8N WEBHOOK PROXY
+  // ============================================
+
+  /**
+   * Proxy for N8N Search Intent Webhook
+   * Protects N8N_API_KEY from client exposure
+   */
+  app.post("/api/proxy/n8n/search-intent", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      if (!N8N_API_KEY) {
+        return res.status(500).json({
+          message: "Server configuration error: N8N_API_KEY not configured"
+        });
+      }
+
+      const { keyword, branch_id } = req.body;
+
+      if (!keyword || typeof keyword !== 'string') {
+        return res.status(400).json({ message: "Valid keyword is required" });
+      }
+
+      const response = await fetch(
+        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-search-intent-2025-09-26",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": N8N_API_KEY,
+          },
+          body: JSON.stringify({ keyword, branch_id }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[N8N Search Intent Proxy] API error:", response.status, errorText);
+        return res.status(response.status).json({
+          message: "N8N webhook request failed",
+          details: errorText
+        });
+      }
+
+      const data = await response.json();
+      return res.json(data);
+
+    } catch (error) {
+      console.error("[N8N Search Intent Proxy] Unexpected error:", error);
+      return res.status(500).json({ message: "Failed to call N8N search intent webhook" });
+    }
+  });
+
+  /**
+   * Proxy for N8N Social Media Post Webhook
+   * Protects N8N_API_KEY from client exposure
+   */
+  app.post("/api/proxy/n8n/social-media", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      if (!N8N_API_KEY) {
+        return res.status(500).json({
+          message: "Server configuration error: N8N_API_KEY not configured"
+        });
+      }
+
+      const response = await fetch(
+        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-product-social",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": N8N_API_KEY,
+          },
+          body: JSON.stringify(req.body),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[N8N Social Media Proxy] API error:", response.status, errorText);
+        return res.status(response.status).json({
+          message: "N8N webhook request failed",
+          details: errorText
+        });
+      }
+
+      const data = await response.json();
+      return res.json(data);
+
+    } catch (error) {
+      console.error("[N8N Social Media Proxy] Unexpected error:", error);
+      return res.status(500).json({ message: "Failed to call N8N social media webhook" });
+    }
+  });
+
+  /**
+   * Proxy for N8N Internal Link Helper Webhook
+   * Protects N8N_API_KEY from client exposure
+   */
+  app.post("/api/proxy/n8n/internal-link", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      if (!N8N_API_KEY) {
+        return res.status(500).json({
+          message: "Server configuration error: N8N_API_KEY not configured"
+        });
+      }
+
+      const response = await fetch(
+        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-internal-link",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": N8N_API_KEY,
+          },
+          body: JSON.stringify(req.body),
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[N8N Internal Link Proxy] API error:", response.status, errorText);
+        return res.status(response.status).json({
+          message: "N8N webhook request failed",
+          details: errorText
+        });
+      }
+
+      const data = await response.json();
+      return res.json(data);
+
+    } catch (error) {
+      console.error("[N8N Internal Link Proxy] Unexpected error:", error);
+      return res.status(500).json({ message: "Failed to call N8N internal link webhook" });
     }
   });
 }

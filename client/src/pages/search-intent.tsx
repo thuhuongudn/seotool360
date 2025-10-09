@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { formatCurrency, formatNumber } from "@/lib/search-intent-utils";
+import { n8nSearchIntent } from "@/lib/secure-api-client";
 import {
   DEFAULT_LANG,
   DEFAULT_GEO,
@@ -360,27 +361,11 @@ function SearchIntentContent() {
         // Generate random branch_id (1, 2, or 3) for n8n workflow routing
         const branchId = Math.floor(Math.random() * 3) + 1;
 
-        // Send request to n8n webhook
-        const response = await fetch(
-          "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-search-intent-2025-09-26",
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "x-api-key": import.meta.env.VITE_N8N_API_KEY,
-            },
-            body: JSON.stringify({
-              keyword: trimmedKeyword,
-              branch_id: branchId
-            }),
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const webhookResponse = await response.json();
+        // Send request to n8n webhook via secure proxy
+        const webhookResponse = await n8nSearchIntent({
+          keyword: trimmedKeyword,
+          branch_id: branchId
+        });
 
         // Parse the response - try different possible fields
         const content =

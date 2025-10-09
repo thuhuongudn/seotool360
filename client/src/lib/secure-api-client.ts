@@ -165,3 +165,32 @@ export interface GoongGeocodeParams {
 export async function goongGeocode(params: GoongGeocodeParams) {
   return secureRequest('/api/proxy/goong/geocode', params);
 }
+
+// ============================================
+// N8N WEBHOOK API
+// ============================================
+
+export interface N8NSearchIntentParams {
+  keyword: string;
+  branch_id?: number;
+}
+
+export async function n8nSearchIntent(params: N8NSearchIntentParams) {
+  return secureRequest('/api/proxy/n8n/search-intent', params);
+}
+
+export interface N8NSocialMediaParams {
+  [key: string]: any; // Dynamic payload based on form data
+}
+
+export async function n8nSocialMedia(params: N8NSocialMediaParams) {
+  return secureRequest('/api/proxy/n8n/social-media', params);
+}
+
+export interface N8NInternalLinkParams {
+  [key: string]: any; // Dynamic payload based on form data
+}
+
+export async function n8nInternalLink(params: N8NInternalLinkParams) {
+  return secureRequest('/api/proxy/n8n/internal-link', params);
+}
