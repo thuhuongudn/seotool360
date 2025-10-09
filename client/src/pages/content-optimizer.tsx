@@ -407,6 +407,8 @@ function ContentOptimizerContent() {
   };
 
   // Handle AI Image generation with Gemini 2.5 Flash Image via OpenRouter
+  // Model: google/gemini-2.5-flash-image (stable production version)
+  // Uses GEMINI_2_5_FLASH_IMG via backend proxy at /api/proxy/gemini/generate-image
   const handleGenerateAiImage = async () => {
     if (!aiImagePrompt.trim()) {
       toast({

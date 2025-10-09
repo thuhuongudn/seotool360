@@ -6,7 +6,7 @@ import { z } from "zod";
 const SERPER_API_KEY = process.env.SERPER_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const FIRECRAWL_API_KEY = process.env.FIRECRAWL_API_KEY;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Direct Gemini API key
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY; // Gemini API key for vision/text
 const GEMINI_IMAGE_KEY = process.env.GEMINI_2_5_FLASH_IMG; // OpenRouter key for image gen
 const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
 const GOONG_API_KEY = process.env.GOONG_API_KEY; // Goong Maps API key
@@ -342,8 +342,11 @@ export function registerApiProxyRoutes(app: Express) {
   // ============================================
 
   /**
-   * Proxy for Gemini Image Generation API (via OpenRouter)
+   * Proxy for Gemini Image Generation API via OpenRouter
+   * Uses OpenRouter for stable image generation with Gemini 2.5 Flash Image
    * Protects GEMINI_IMAGE_KEY from client exposure
+   *
+   * Model: google/gemini-2.5-flash-image (stable production version)
    */
   app.post("/api/proxy/gemini/generate-image", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
@@ -370,7 +373,7 @@ export function registerApiProxyRoutes(app: Express) {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          model: 'google/gemini-2.5-flash-image-preview',
+          model: 'google/gemini-2.5-flash-image', // Changed from preview to stable
           messages: [
             {
               role: 'user',
