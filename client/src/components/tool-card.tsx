@@ -91,7 +91,8 @@ export default function ToolCard({ tool, showStatusIndicator = false }: ToolCard
       'google-checker': '/google-checker',
       'schema-markup': '/schema-markup',
       'image-seo': '/image-seo',
-      'qr-code': '/qr-code'
+      'qr-code': '/qr-code',
+      'gsc-insights': '/gsc-insights'
     };
     
     // Check if tool requires authentication and user is not logged in

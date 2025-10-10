@@ -27,6 +27,8 @@ import InternalLinkHelper from "@/pages/internal-link-helper";
 import ArticleRewriter from "@/pages/article-rewriter";
 import SchemaMarkup from "@/pages/schema-markup";
 import ContentOptimizer from "@/pages/content-optimizer";
+// Google Insights Tools
+import GSCInsights from "@/pages/gsc-insights";
 // Index Tools
 import BingIndexing from "@/pages/bing-indexing";
 import GoogleIndexing from "@/pages/google-indexing";
@@ -105,6 +107,12 @@ function Router() {
       <Route path="/content-optimizer">
         <ProtectedRoute>
           <ContentOptimizer />
+        </ProtectedRoute>
+      </Route>
+      {/* Google Insights Routes */}
+      <Route path="/gsc-insights">
+        <ProtectedRoute>
+          <GSCInsights />
         </ProtectedRoute>
       </Route>
       {/* Index Routes */}

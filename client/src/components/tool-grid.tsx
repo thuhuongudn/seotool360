@@ -43,7 +43,7 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
   });
 
   // Define all available tags (static list, always shown regardless of current tools)
-  const availableTags = ['#contentseo', '#index'];
+  const availableTags = ['#contentseo', '#Google_Insights', '#index'];
 
   // Filter tools based on search, status, and tags (only if filters are enabled)
   const filteredTools = useMemo(() => {
@@ -193,6 +193,7 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
                     </Button>
                     {availableTags.map((tag) => {
                       const tagDisplayName = tag === '#contentseo' ? 'Content SEO' :
+                                           tag === '#Google_Insights' ? 'Google Insights' :
                                            tag === '#index' ? 'Index' : tag;
                       return (
                         <Button
@@ -307,6 +308,7 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
                   </Button>
                   {availableTags.map((tag) => {
                     const tagDisplayName = tag === '#contentseo' ? 'Content SEO' :
+                                         tag === '#Google_Insights' ? 'Google Insights' :
                                          tag === '#index' ? 'Index' : tag;
                     return (
                       <Button
@@ -339,7 +341,7 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
             {searchQuery.trim()
               ? `Tìm thấy ${displayTools.length} kết quả cho "${searchQuery}"`
               : selectedTag
-                ? `${displayTools.length} công cụ với tag ${selectedTag === '#contentseo' ? 'Content SEO' : selectedTag === '#index' ? 'Index' : selectedTag}`
+                ? `${displayTools.length} công cụ với tag ${selectedTag === '#contentseo' ? 'Content SEO' : selectedTag === '#Google_Insights' ? 'Google Insights' : selectedTag === '#index' ? 'Index' : selectedTag}`
                 : filterStatus === "active"
                   ? `${displayTools.length} công cụ đang hoạt động`
                   : filterStatus === "pending"
@@ -365,6 +367,7 @@ export default function ToolGrid({ showAllTools = false, showFilters = false }: 
                 {selectedTag && (
                   <Badge variant="secondary" className="h-5 px-2 text-xs">
                     {selectedTag === '#contentseo' ? 'Content SEO' :
+                     selectedTag === '#Google_Insights' ? 'Google Insights' :
                      selectedTag === '#index' ? 'Index' : selectedTag}
                   </Badge>
                 )}

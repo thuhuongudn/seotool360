@@ -16,8 +16,6 @@ import { TokenWidget } from "@/components/token-widget";
 
 const contentSeoItems = [
   { label: "Content Optimizer", href: "/content-optimizer" },
-  { label: "Keyword Planner", href: "/keyword-planner" },
-  { label: "Search Intent", href: "/search-intent" },
   { label: "Topical Map", href: "/topical-map" },
   { label: "Gợi ý internal link", href: "/internal-link-helper" },
   { label: "Viết Lại Bài", href: "/article-rewriter" },
@@ -25,10 +23,22 @@ const contentSeoItems = [
   { label: "Schema Markup", href: "/schema-markup" },
 ];
 
+const googleInsightsItems = [
+  { label: "Search Console Insights", href: "/gsc-insights" },
+  { label: "Keyword Planner", href: "/keyword-planner" },
+  { label: "Search Intent", href: "/search-intent" },
+];
+
 const indexItems = [
-  { label: "Gửi Index Bing", href: "/bing-indexing" },
-  { label: "Gửi Index Google", href: "/google-indexing" },
   { label: "Kiểm tra Google Index", href: "/google-checker" },
+  { label: "Gửi Index Google", href: "/google-indexing" },
+  { label: "Gửi Index Bing", href: "/bing-indexing" },
+];
+
+const freeToolItems = [
+  { label: "SEO Ảnh", href: "/image-seo" },
+  { label: "Markdown to HTML", href: "/markdown-converter" },
+  { label: "QR Code", href: "/qr-code" },
 ];
 
 export default function Header() {
@@ -57,17 +67,41 @@ export default function Header() {
           <nav className="hidden md:flex items-center space-x-8">
             {/* Content SEO Dropdown */}
             <DropdownMenu>
-              <DropdownMenuTrigger 
+              <DropdownMenuTrigger
                 className="flex items-center space-x-1 text-muted-foreground hover:text-foreground transition-colors"
                 data-testid="dropdown-content-seo"
               >
                 <span>Content SEO</span>
                 <ChevronDown className="w-3 h-3" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-48">
+              <DropdownMenuContent className="w-56">
                 {contentSeoItems.map((item) => (
                   <DropdownMenuItem key={item.href} asChild>
-                    <Link 
+                    <Link
+                      href={item.href}
+                      className="block px-4 py-2 text-sm"
+                      data-testid={`menu-item-${item.href.slice(1)}`}
+                    >
+                      {item.label}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Google Insights Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="flex items-center space-x-1 text-muted-foreground hover:text-foreground transition-colors"
+                data-testid="dropdown-google-insights"
+              >
+                <span>Google Insights</span>
+                <ChevronDown className="w-3 h-3" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56">
+                {googleInsightsItems.map((item) => (
+                  <DropdownMenuItem key={item.href} asChild>
+                    <Link
                       href={item.href}
                       className="block px-4 py-2 text-sm"
                       data-testid={`menu-item-${item.href.slice(1)}`}
@@ -81,17 +115,17 @@ export default function Header() {
 
             {/* Index Dropdown */}
             <DropdownMenu>
-              <DropdownMenuTrigger 
+              <DropdownMenuTrigger
                 className="flex items-center space-x-1 text-muted-foreground hover:text-foreground transition-colors"
                 data-testid="dropdown-index"
               >
                 <span>Index</span>
                 <ChevronDown className="w-3 h-3" />
               </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-48">
+              <DropdownMenuContent className="w-56">
                 {indexItems.map((item) => (
                   <DropdownMenuItem key={item.href} asChild>
-                    <Link 
+                    <Link
                       href={item.href}
                       className="block px-4 py-2 text-sm"
                       data-testid={`menu-item-${item.href.slice(1)}`}
@@ -103,27 +137,30 @@ export default function Header() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            <Link 
-              href="/image-seo" 
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              data-testid="nav-seo-image"
-            >
-              SEO Ảnh
-            </Link>
-            <Link 
-              href="/markdown-converter" 
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              data-testid="nav-markdown-html"
-            >
-              Markdown to HTML
-            </Link>
-            <Link 
-              href="/qr-code" 
-              className="text-muted-foreground hover:text-foreground transition-colors"
-              data-testid="nav-qr-code"
-            >
-              QR Code
-            </Link>
+            {/* Free Tools Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                className="flex items-center space-x-1 text-muted-foreground hover:text-foreground transition-colors"
+                data-testid="dropdown-free-tools"
+              >
+                <span>Free Tools</span>
+                <ChevronDown className="w-3 h-3" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56">
+                {freeToolItems.map((item) => (
+                  <DropdownMenuItem key={item.href} asChild>
+                    <Link
+                      href={item.href}
+                      className="block px-4 py-2 text-sm"
+                      data-testid={`menu-item-${item.href.slice(1)}`}
+                    >
+                      {item.label}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+
             <Link href="/blog" className="text-muted-foreground hover:text-foreground transition-colors" data-testid="nav-blog">
               Blog
             </Link>
@@ -262,15 +299,15 @@ export default function Header() {
               </div>
             </div>
 
-            {/* Index Section */}
+            {/* Google Insights Section */}
             <div className="space-y-2">
               <div className="font-semibold text-foreground text-sm uppercase tracking-wide">
-                Index
+                Google Insights
               </div>
               <div className="space-y-1 ml-4">
-                {indexItems.map((item) => (
+                {googleInsightsItems.map((item) => (
                   <Link key={item.href} href={item.href}>
-                    <div 
+                    <div
                       className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
                       onClick={() => setIsMobileMenuOpen(false)}
                       data-testid={`mobile-menu-item-${item.href.slice(1)}`}
@@ -283,44 +320,53 @@ export default function Header() {
               </div>
             </div>
 
-            {/* Other Tools */}
+            {/* Index Section */}
             <div className="space-y-2">
               <div className="font-semibold text-foreground text-sm uppercase tracking-wide">
-                Tools khác
+                Index
               </div>
               <div className="space-y-1 ml-4">
-                <Link href="/image-seo">
-                  <div 
-                    className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    data-testid="mobile-menu-item-image-seo"
-                  >
-                    <span>SEO Ảnh</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </div>
-                </Link>
-                <Link href="/markdown-converter">
-                  <div 
-                    className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    data-testid="mobile-menu-item-markdown-converter"
-                  >
-                    <span>Markdown to HTML</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </div>
-                </Link>
-                <Link href="/qr-code">
-                  <div 
-                    className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    data-testid="mobile-menu-item-qr-code"
-                  >
-                    <span>QR Code</span>
-                    <ChevronRight className="h-4 w-4" />
-                  </div>
-                </Link>
+                {indexItems.map((item) => (
+                  <Link key={item.href} href={item.href}>
+                    <div
+                      className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      data-testid={`mobile-menu-item-${item.href.slice(1)}`}
+                    >
+                      <span>{item.label}</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* Free Tools Section */}
+            <div className="space-y-2">
+              <div className="font-semibold text-foreground text-sm uppercase tracking-wide">
+                Free Tools
+              </div>
+              <div className="space-y-1 ml-4">
+                {freeToolItems.map((item) => (
+                  <Link key={item.href} href={item.href}>
+                    <div
+                      className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      data-testid={`mobile-menu-item-${item.href.slice(1)}`}
+                    >
+                      <span>{item.label}</span>
+                      <ChevronRight className="h-4 w-4" />
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            {/* Blog */}
+            <div className="space-y-2">
+              <div className="space-y-1">
                 <Link href="/blog">
-                  <div 
+                  <div
                     className="flex items-center justify-between py-2 text-muted-foreground hover:text-foreground transition-colors"
                     onClick={() => setIsMobileMenuOpen(false)}
                     data-testid="mobile-menu-item-blog"
