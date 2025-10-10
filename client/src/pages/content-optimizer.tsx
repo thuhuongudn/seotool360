@@ -18,6 +18,7 @@ import { GEO_TARGET_CONSTANTS, LANGUAGE_CONSTANTS, DEFAULT_LANG } from "@/consta
 import { analyzeSEO, analyzeReadability, type SEOAnalysis, type ReadabilityAnalysis } from "@/lib/content-optimizer-utils";
 import { buildToneAnalysisPrompt } from "@/lib/tone-of-voice-prompts";
 import { serperSearch, serperImages, openaiCompletion, firecrawlScrape, geminiGenerateImage, unsplashSearch } from "@/lib/secure-api-client";
+import supabase from "@/lib/supabase";
 
 interface ContentScores {
   seo: number;
@@ -350,32 +351,133 @@ function ContentOptimizerContent() {
     return headings;
   };
 
-  // Handle crawl page structure with Firecrawl
+  // Handle crawl page structure with Firecrawl (async polling pattern to handle Heroku 30s timeout)
   const handleCrawlStructure = async (url: string, title: string) => {
     setIsCrawling(true);
     setCrawlingUrl(url);
 
     try {
-      // Use secure API client instead of direct API call
-      const data = await firecrawlScrape({
+      // Start scraping job
+      const startResponse = await firecrawlScrape({
         url: url,
         formats: ['markdown']
       });
-      const markdown = data.data?.markdown || '';
 
-      // Extract headings from markdown
-      const headings = extractHeadingsFromMarkdown(markdown);
+      // Check if response is 202 (async job) or 200 (direct response for backward compatibility)
+      if (startResponse.job_id) {
+        // Async pattern - poll for results every 3 seconds
+        const jobId = startResponse.job_id;
 
-      setSelectedPageStructure({
-        url,
-        title,
-        headings
-      });
+        toast({
+          title: "Đang crawl...",
+          description: "Đang xử lý trang web. Vui lòng đợi...",
+        });
 
-      toast({
-        title: "Crawl thành công",
-        description: `Tìm thấy ${headings.length} headings trong trang`,
-      });
+        // Poll every 3 seconds
+        const pollInterval = setInterval(async () => {
+          try {
+            // Get fresh token from Supabase session
+            const { data: { session } } = await supabase.auth.getSession();
+            const token = session?.access_token;
+
+            if (!token) {
+              clearInterval(pollInterval);
+              throw new Error('Authentication required');
+            }
+
+            const statusResponse = await fetch(`/api/job-status/${jobId}`, {
+              headers: {
+                'Authorization': `Bearer ${token}`
+              }
+            });
+
+            if (!statusResponse.ok) {
+              clearInterval(pollInterval);
+              throw new Error('Failed to check job status');
+            }
+
+            const job = await statusResponse.json();
+
+            if (job.status === 'completed') {
+              clearInterval(pollInterval);
+
+              const markdown = job.result?.data?.markdown || '';
+              const headings = extractHeadingsFromMarkdown(markdown);
+
+              setSelectedPageStructure({
+                url,
+                title,
+                headings
+              });
+
+              toast({
+                title: "Crawl thành công",
+                description: `Tìm thấy ${headings.length} headings trong trang`,
+              });
+
+              setIsCrawling(false);
+              setCrawlingUrl("");
+            } else if (job.status === 'failed') {
+              clearInterval(pollInterval);
+
+              toast({
+                title: "Lỗi khi crawl",
+                description: job.error || "Vui lòng thử lại sau",
+                variant: "destructive",
+              });
+
+              setIsCrawling(false);
+              setCrawlingUrl("");
+            }
+            // If still processing, continue polling
+          } catch (pollError) {
+            clearInterval(pollInterval);
+            console.error('Polling error:', pollError);
+
+            toast({
+              title: "Lỗi khi kiểm tra trạng thái",
+              description: "Không thể kiểm tra trạng thái crawling",
+              variant: "destructive",
+            });
+
+            setIsCrawling(false);
+            setCrawlingUrl("");
+          }
+        }, 3000); // Poll every 3 seconds
+
+        // Auto-cleanup after 2 minutes to prevent infinite polling
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          if (isCrawling) {
+            toast({
+              title: "Timeout",
+              description: "Crawling quá lâu. Vui lòng thử lại.",
+              variant: "destructive",
+            });
+            setIsCrawling(false);
+            setCrawlingUrl("");
+          }
+        }, 120000); // 2 minutes max
+
+      } else {
+        // Direct response (backward compatibility)
+        const markdown = startResponse.data?.markdown || '';
+        const headings = extractHeadingsFromMarkdown(markdown);
+
+        setSelectedPageStructure({
+          url,
+          title,
+          headings
+        });
+
+        toast({
+          title: "Crawl thành công",
+          description: `Tìm thấy ${headings.length} headings trong trang`,
+        });
+
+        setIsCrawling(false);
+        setCrawlingUrl("");
+      }
     } catch (error) {
       console.error('Firecrawl error:', error);
 
@@ -400,7 +502,7 @@ function ContentOptimizerContent() {
         description: errorMessage,
         variant: "destructive",
       });
-    } finally {
+
       setIsCrawling(false);
       setCrawlingUrl("");
     }

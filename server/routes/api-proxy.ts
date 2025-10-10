@@ -12,10 +12,11 @@ const UNSPLASH_ACCESS_KEY = process.env.UNSPLASH_ACCESS_KEY;
 const GOONG_API_KEY = process.env.GOONG_API_KEY; // Goong Maps API key
 const N8N_API_KEY = process.env.N8N_API_KEY; // N8N webhook API key
 
-// Job queue for async N8N webhooks (to handle Heroku 30s timeout)
+// Job queue for async webhooks (to handle Heroku 30s timeout)
 interface JobStatus {
   status: 'processing' | 'completed' | 'failed';
   keyword?: string;
+  url?: string; // For firecrawl jobs
   result?: any;
   error?: string;
   startedAt: number;
@@ -34,6 +35,11 @@ setInterval(() => {
     }
   });
 }, 10 * 60 * 1000);
+
+// Helper function to generate UUID for job IDs
+function generateJobId(): string {
+  return 'job_' + Date.now() + '_' + Math.random().toString(36).substring(2, 11);
+}
 
 // Request validation schemas
 const serperSearchSchema = z.object({
@@ -266,6 +272,64 @@ export function registerApiProxyRoutes(app: Express) {
    * Proxy for Firecrawl scraping API
    * Protects FIRECRAWL_API_KEY from client exposure
    */
+  // Background processing function for Firecrawl scrape
+  async function processFirecrawlScrape(jobId: string, url: string, formats?: string[]) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+      const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          url,
+          formats: formats || ['markdown'],
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[Firecrawl Proxy] API error:", response.status, errorText);
+        jobStore.set(jobId, {
+          status: 'failed',
+          url,
+          error: `Firecrawl API error (${response.status}): ${errorText}`,
+          startedAt: jobStore.get(jobId)?.startedAt || Date.now(),
+          completedAt: Date.now()
+        });
+        return;
+      }
+
+      const data = await response.json();
+      jobStore.set(jobId, {
+        status: 'completed',
+        url,
+        result: data,
+        startedAt: jobStore.get(jobId)?.startedAt || Date.now(),
+        completedAt: Date.now()
+      });
+
+    } catch (error: any) {
+      console.error("[Firecrawl Proxy] Processing error:", error);
+      jobStore.set(jobId, {
+        status: 'failed',
+        url,
+        error: error.name === 'AbortError'
+          ? 'Scraping request timed out after 60 seconds'
+          : error.message || 'Failed to scrape URL',
+        startedAt: jobStore.get(jobId)?.startedAt || Date.now(),
+        completedAt: Date.now()
+      });
+    }
+  }
+
+  // Firecrawl scrape with async polling pattern
   app.post("/api/proxy/firecrawl/scrape", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
     try {
       if (!req.user) {
@@ -288,52 +352,31 @@ export function registerApiProxyRoutes(app: Express) {
 
       const { url, formats } = validation.data;
 
-      // Set timeout for scraping (60 seconds)
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000);
+      // Generate job ID
+      const jobId = generateJobId();
 
-      try {
-        const response = await fetch('https://api.firecrawl.dev/v1/scrape', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${FIRECRAWL_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            url,
-            formats: formats || ['markdown'],
-          }),
-          signal: controller.signal,
-        });
+      // Store initial job status
+      jobStore.set(jobId, {
+        status: 'processing',
+        url,
+        startedAt: Date.now()
+      });
 
-        clearTimeout(timeoutId);
+      // Process in background (don't await)
+      processFirecrawlScrape(jobId, url, formats).catch(error => {
+        console.error("[Firecrawl Proxy] Background processing error:", error);
+      });
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error("[Firecrawl Proxy] API error:", response.status, errorText);
-          return res.status(response.status).json({
-            message: "Firecrawl API request failed",
-            details: errorText
-          });
-        }
-
-        const data = await response.json();
-        return res.json(data);
-
-      } catch (fetchError: any) {
-        clearTimeout(timeoutId);
-
-        if (fetchError.name === 'AbortError') {
-          return res.status(408).json({
-            message: "Scraping request timed out after 60 seconds"
-          });
-        }
-        throw fetchError;
-      }
+      // Return job ID immediately (202 Accepted)
+      return res.status(202).json({
+        job_id: jobId,
+        status: 'processing',
+        message: 'Scraping job started. Poll /api/job-status/:job_id for results.'
+      });
 
     } catch (error) {
       console.error("[Firecrawl Proxy] Unexpected error:", error);
-      return res.status(500).json({ message: "Failed to scrape URL" });
+      return res.status(500).json({ message: "Failed to start scraping job" });
     }
   });
 
