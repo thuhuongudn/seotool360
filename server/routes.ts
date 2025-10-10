@@ -441,6 +441,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let results;
       let timeSeriesData;
+      let previousTimeSeriesData;
       let comparisonData;
 
       // Get main results based on mode
@@ -476,6 +477,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             previousStartDate,
             previousEndDate,
             pageUrl: value,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+
+          // Get previous period time series data for chart
+          previousTimeSeriesData = await getTimeSeriesData({
+            siteUrl,
+            pageUrl: value,
+            startDate: previousStartDate,
+            endDate: previousEndDate,
             searchType: searchType as SearchType,
             dataState: dataState as DataState,
           });
@@ -516,6 +527,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
             searchType: searchType as SearchType,
             dataState: dataState as DataState,
           });
+
+          // Get previous period time series data for chart
+          previousTimeSeriesData = await getTimeSeriesData({
+            siteUrl,
+            keyword: value,
+            startDate: previousStartDate,
+            endDate: previousEndDate,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
         }
 
       } else if (mode === 'url-and-query') {
@@ -549,6 +570,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             searchType: searchType as SearchType,
             dataState: dataState as DataState,
           });
+
+          // Get previous period time series data for chart
+          previousTimeSeriesData = await getTimeSeriesData({
+            siteUrl,
+            pageUrl,
+            keyword,
+            startDate: previousStartDate,
+            endDate: previousEndDate,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
         }
       } else {
         return res.status(400).json({ message: "Invalid mode" });
@@ -575,6 +607,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalResults: results.length,
         rows: results,
         timeSeriesData,
+        previousTimeSeriesData,
         comparisonData,
       });
 

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, BarChart3, Search, Download, AlertCircle, ExternalLink, TrendingUp, TrendingDown, Minus, Calendar as CalendarIcon } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
-import { format } from "date-fns";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import ToolPermissionGuard from "@/components/tool-permission-guard";
@@ -44,6 +43,7 @@ interface GSCResponse {
   totalResults: number;
   rows: GSCRow[];
   timeSeriesData?: GSCRow[];
+  previousTimeSeriesData?: GSCRow[];
   comparisonData?: {
     current: { clicks: number; impressions: number; ctr: number; position: number };
     previous: { clicks: number; impressions: number; ctr: number; position: number };
@@ -344,22 +344,49 @@ function GSCInsightsContent() {
   const isSubmitting = mutation.isPending || isTokenProcessing;
   const hasResults = !!result && result.rows.length > 0;
 
-  const formatChartData = (timeSeriesData?: GSCRow[]) => {
+  const formatChartData = (timeSeriesData?: GSCRow[], previousTimeSeriesData?: GSCRow[]) => {
     if (!timeSeriesData) return [];
-    return timeSeriesData.map(row => ({
+
+    const currentData = timeSeriesData.map(row => ({
       date: row.keys[0],
       clicks: row.clicks,
       impressions: row.impressions,
       ctr: row.ctr * 100,
       position: row.position,
     }));
+
+    if (!comparisonMode || !previousTimeSeriesData) {
+      return currentData;
+    }
+
+    // Create a map for previous data
+    const previousDataMap = new Map(
+      previousTimeSeriesData.map(row => [row.keys[0], {
+        clicks_prev: row.clicks,
+        impressions_prev: row.impressions,
+        ctr_prev: row.ctr * 100,
+        position_prev: row.position,
+      }])
+    );
+
+    // Merge current and previous data
+    return currentData.map(current => ({
+      ...current,
+      ...previousDataMap.get(current.date),
+    }));
   };
 
-  const MetricCard = ({ label, current, changePercent }: any) => {
+  const MetricCard = ({ label, current, previous, changePercent }: any) => {
     const isPositive = changePercent > 0;
     const isNegative = changePercent < 0;
     const Icon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
     const colorClass = isPositive ? "text-green-600" : isNegative ? "text-red-600" : "text-gray-600";
+
+    const formatValue = (val: number) => {
+      if (label === "CTR") return `${(val * 100).toFixed(2)}%`;
+      if (label === "Vị trí TB") return val.toFixed(1);
+      return val.toLocaleString();
+    };
 
     return (
       <Card>
@@ -367,18 +394,23 @@ function GSCInsightsContent() {
           <CardDescription>{label}</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold">
-              {label === "CTR"
-                ? `${(current * 100).toFixed(2)}%`
-                : label === "Vị trí TB"
-                ? current.toFixed(1)
-                : current.toLocaleString()}
-            </span>
-            {comparisonMode && (
-              <div className={`flex items-center gap-1 text-sm ${colorClass}`}>
-                <Icon className="h-4 w-4" />
-                <span>{changePercent > 0 ? "+" : ""}{changePercent.toFixed(1)}%</span>
+          <div className="space-y-2">
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold">{formatValue(current)}</span>
+              {comparisonMode && (
+                <div className={`flex items-center gap-1 text-sm ${colorClass}`}>
+                  <Icon className="h-4 w-4" />
+                  <span>{changePercent > 0 ? "+" : ""}{changePercent.toFixed(1)}%</span>
+                </div>
+              )}
+            </div>
+            {comparisonMode && previous !== undefined && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">Kỳ hiện tại:</span>
+                <span className="font-medium">{formatValue(current)}</span>
+                <span className="text-muted-foreground mx-1">•</span>
+                <span className="text-muted-foreground">Kỳ trước:</span>
+                <span className="font-medium">{formatValue(previous)}</span>
               </div>
             )}
           </div>
@@ -413,21 +445,25 @@ function GSCInsightsContent() {
             <MetricCard
               label="Tổng số nhấp"
               current={result.comparisonData.current.clicks}
+              previous={result.comparisonData.previous.clicks}
               changePercent={result.comparisonData.changes.clicksPercent}
             />
             <MetricCard
               label="Tổng số hiển thị"
               current={result.comparisonData.current.impressions}
+              previous={result.comparisonData.previous.impressions}
               changePercent={result.comparisonData.changes.impressionsPercent}
             />
             <MetricCard
               label="CTR"
               current={result.comparisonData.current.ctr}
+              previous={result.comparisonData.previous.ctr}
               changePercent={result.comparisonData.changes.ctrPercent}
             />
             <MetricCard
               label="Vị trí TB"
               current={result.comparisonData.current.position}
+              previous={result.comparisonData.previous.position}
               changePercent={result.comparisonData.changes.positionPercent}
             />
           </div>
@@ -477,17 +513,29 @@ function GSCInsightsContent() {
             </CardHeader>
             <CardContent>
               <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={formatChartData(result.timeSeriesData)}>
+                <LineChart data={formatChartData(result.timeSeriesData, result.previousTimeSeriesData)}>
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="date" />
                   <YAxis yAxisId="left" />
                   <YAxis yAxisId="right" orientation="right" />
                   <Tooltip />
                   <Legend />
-                  {showClicks && <Line yAxisId="left" type="monotone" dataKey="clicks" stroke="#3b82f6" name="Clicks" />}
-                  {showImpressions && <Line yAxisId="left" type="monotone" dataKey="impressions" stroke="#8b5cf6" name="Impressions" />}
-                  {showCtr && <Line yAxisId="right" type="monotone" dataKey="ctr" stroke="#10b981" name="CTR (%)" />}
-                  {showPosition && <Line yAxisId="right" type="monotone" dataKey="position" stroke="#f59e0b" name="Position" />}
+                  {showClicks && <Line yAxisId="left" type="monotone" dataKey="clicks" stroke="#3b82f6" name="Clicks (hiện tại)" />}
+                  {showImpressions && <Line yAxisId="left" type="monotone" dataKey="impressions" stroke="#8b5cf6" name="Impressions (hiện tại)" />}
+                  {showCtr && <Line yAxisId="right" type="monotone" dataKey="ctr" stroke="#10b981" name="CTR (hiện tại)" />}
+                  {showPosition && <Line yAxisId="right" type="monotone" dataKey="position" stroke="#f59e0b" name="Position (hiện tại)" />}
+                  {comparisonMode && result.previousTimeSeriesData && showClicks && (
+                    <Line yAxisId="left" type="monotone" dataKey="clicks_prev" stroke="#3b82f6" strokeDasharray="5 5" name="Clicks (kỳ trước)" />
+                  )}
+                  {comparisonMode && result.previousTimeSeriesData && showImpressions && (
+                    <Line yAxisId="left" type="monotone" dataKey="impressions_prev" stroke="#8b5cf6" strokeDasharray="5 5" name="Impressions (kỳ trước)" />
+                  )}
+                  {comparisonMode && result.previousTimeSeriesData && showCtr && (
+                    <Line yAxisId="right" type="monotone" dataKey="ctr_prev" stroke="#10b981" strokeDasharray="5 5" name="CTR (kỳ trước)" />
+                  )}
+                  {comparisonMode && result.previousTimeSeriesData && showPosition && (
+                    <Line yAxisId="right" type="monotone" dataKey="position_prev" stroke="#f59e0b" strokeDasharray="5 5" name="Position (kỳ trước)" />
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             </CardContent>
