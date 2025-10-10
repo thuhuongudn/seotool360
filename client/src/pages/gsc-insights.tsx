@@ -60,14 +60,21 @@ interface GSCResponse {
   };
 }
 
+// Predefined GSC properties
+const GSC_SITES = [
+  "https://nhathuocvietnhat.vn",
+];
+
 function GSCInsightsContent() {
   const toolId = useToolId("gsc-insights");
   const [mode, setMode] = useState<AnalysisMode>("queries-for-page");
-  const [siteUrl, setSiteUrl] = useState("");
+  const [siteUrl, setSiteUrl] = useState(GSC_SITES[0]);
   const [value, setValue] = useState("");
   const [timePreset, setTimePreset] = useState<TimePreset>("last28d");
   const [searchType, setSearchType] = useState<SearchType>("web");
   const [result, setResult] = useState<GSCResponse | null>(null);
+  const [sortField, setSortField] = useState<"clicks" | "impressions" | "ctr" | "position" | null>("impressions");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   // Cải tiến 1: Custom date range
   const [customStartDate, setCustomStartDate] = useState("");
@@ -203,13 +210,65 @@ function GSCInsightsContent() {
     });
   };
 
-  const handleQueryClick = (query: string) => {
+  const handleQueryClick = async (query: string) => {
     if (mode === "queries-for-page") {
       setMode("url-and-query");
       setSelectedPageUrl(value);
       setSelectedKeyword(query);
       setValue("");
+
+      // Auto-execute analysis with combined filter
+      const dateRange = calculateDateRange();
+      const payload: any = {
+        siteUrl: siteUrl.trim(),
+        mode: "url-and-query",
+        pageUrl: value.trim(),
+        keyword: query,
+        timePreset,
+        searchType,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        comparisonMode,
+      };
+
+      if (comparisonMode) {
+        const prevPeriod = calculatePreviousPeriod(dateRange.startDate, dateRange.endDate);
+        payload.previousStartDate = prevPeriod.previousStartDate;
+        payload.previousEndDate = prevPeriod.previousEndDate;
+      }
+
+      if (!toolId) return;
+      await executeWithToken(toolId, 1, async () => {
+        mutation.mutate(payload);
+        return true;
+      });
     }
+  };
+
+  const handleSort = (field: "clicks" | "impressions" | "ctr" | "position") => {
+    if (sortField === field) {
+      setSortDirection(sortDirection === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortDirection("desc");
+    }
+  };
+
+  const getSortedRows = () => {
+    if (!result || !sortField) return result?.rows || [];
+
+    const sorted = [...result.rows].sort((a, b) => {
+      const aValue = a[sortField];
+      const bValue = b[sortField];
+
+      if (sortDirection === "asc") {
+        return aValue - bValue;
+      } else {
+        return bValue - aValue;
+      }
+    });
+
+    return sorted;
   };
 
   const toggleRowSelection = (index: number) => {
@@ -296,9 +355,9 @@ function GSCInsightsContent() {
     }));
   };
 
-  const MetricCard = ({ label, current, previous, change, changePercent }: any) => {
-    const isPositive = change > 0;
-    const isNegative = change < 0;
+  const MetricCard = ({ label, current, changePercent }: any) => {
+    const isPositive = changePercent > 0;
+    const isNegative = changePercent < 0;
     const Icon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
     const colorClass = isPositive ? "text-green-600" : isNegative ? "text-red-600" : "text-gray-600";
 
@@ -323,11 +382,6 @@ function GSCInsightsContent() {
               </div>
             )}
           </div>
-          {comparisonMode && (
-            <p className="text-xs text-muted-foreground mt-1">
-              So với kỳ trước: {label === "CTR" ? `${(previous * 100).toFixed(2)}%` : label === "Vị trí TB" ? previous.toFixed(1) : previous.toLocaleString()}
-            </p>
-          )}
         </CardContent>
       </Card>
     );
@@ -359,29 +413,21 @@ function GSCInsightsContent() {
             <MetricCard
               label="Tổng số nhấp"
               current={result.comparisonData.current.clicks}
-              previous={result.comparisonData.previous.clicks}
-              change={result.comparisonData.changes.clicks}
               changePercent={result.comparisonData.changes.clicksPercent}
             />
             <MetricCard
               label="Tổng số hiển thị"
               current={result.comparisonData.current.impressions}
-              previous={result.comparisonData.previous.impressions}
-              change={result.comparisonData.changes.impressions}
               changePercent={result.comparisonData.changes.impressionsPercent}
             />
             <MetricCard
               label="CTR"
               current={result.comparisonData.current.ctr}
-              previous={result.comparisonData.previous.ctr}
-              change={result.comparisonData.changes.ctr}
               changePercent={result.comparisonData.changes.ctrPercent}
             />
             <MetricCard
               label="Vị trí TB"
               current={result.comparisonData.current.position}
-              previous={result.comparisonData.previous.position}
-              change={result.comparisonData.changes.position}
               changePercent={result.comparisonData.changes.positionPercent}
             />
           </div>
@@ -460,12 +506,18 @@ function GSCInsightsContent() {
                 <form className="space-y-4" onSubmit={handleSubmit}>
                   <div className="space-y-2">
                     <Label htmlFor="siteUrl">Site URL (GSC Property)</Label>
-                    <Input
-                      id="siteUrl"
-                      placeholder="https://example.com"
-                      value={siteUrl}
-                      onChange={(e) => setSiteUrl(e.target.value)}
-                    />
+                    <Select value={siteUrl} onValueChange={setSiteUrl}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn site..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {GSC_SITES.map((site) => (
+                          <SelectItem key={site} value={site}>
+                            {site}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   <div className="space-y-2">
@@ -681,14 +733,22 @@ function GSCInsightsContent() {
                             <TableHead className="min-w-[300px]">
                               {mode === "queries-for-page" ? "Query" : mode === "pages-for-keyword" ? "Page" : "Date"}
                             </TableHead>
-                            <TableHead className="text-right">Clicks</TableHead>
-                            <TableHead className="text-right">Impressions</TableHead>
-                            <TableHead className="text-right">CTR</TableHead>
-                            <TableHead className="text-right">Position</TableHead>
+                            <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort("clicks")}>
+                              Clicks {sortField === "clicks" && (sortDirection === "desc" ? "↓" : "↑")}
+                            </TableHead>
+                            <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort("impressions")}>
+                              Impressions {sortField === "impressions" && (sortDirection === "desc" ? "↓" : "↑")}
+                            </TableHead>
+                            <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort("ctr")}>
+                              CTR {sortField === "ctr" && (sortDirection === "desc" ? "↓" : "↑")}
+                            </TableHead>
+                            <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort("position")}>
+                              Position {sortField === "position" && (sortDirection === "desc" ? "↓" : "↑")}
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {result.rows.map((row, idx) => (
+                          {getSortedRows().map((row, idx) => (
                             <TableRow key={idx}>
                               <TableCell>
                                 <Checkbox
