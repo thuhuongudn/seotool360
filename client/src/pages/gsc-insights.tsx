@@ -355,24 +355,25 @@ function GSCInsightsContent() {
       position: row.position,
     }));
 
-    if (!comparisonMode || !previousTimeSeriesData) {
+    if (!comparisonMode || !previousTimeSeriesData || previousTimeSeriesData.length === 0) {
       return currentData;
     }
 
-    // Create a map for previous data
-    const previousDataMap = new Map(
-      previousTimeSeriesData.map(row => [row.keys[0], {
+    // Sort both arrays by date
+    const sortedCurrent = [...currentData].sort((a, b) => a.date.localeCompare(b.date));
+    const sortedPrevious = [...previousTimeSeriesData]
+      .map(row => ({
         clicks_prev: row.clicks,
         impressions_prev: row.impressions,
         ctr_prev: row.ctr * 100,
         position_prev: row.position,
-      }])
-    );
+      }))
+      .sort((a, b) => 0); // Keep original order from API (already sorted)
 
-    // Merge current and previous data
-    return currentData.map(current => ({
+    // Merge by index (align periods by relative position, not absolute date)
+    return sortedCurrent.map((current, index) => ({
       ...current,
-      ...previousDataMap.get(current.date),
+      ...(sortedPrevious[index] || {}),
     }));
   };
 
