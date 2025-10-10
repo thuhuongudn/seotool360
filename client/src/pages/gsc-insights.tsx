@@ -580,9 +580,9 @@ function GSCInsightsContent() {
           </Card>
         )}
 
-        <div className="grid gap-6 lg:grid-cols-[2fr,3fr]">
-          {/* Input Form */}
-          <div className="space-y-6">
+        <div className="space-y-6">
+          {/* Input Form - Always on top */}
+          <div>
             <Card>
               <CardHeader>
                 <CardTitle>Cấu hình phân tích</CardTitle>
@@ -745,7 +745,7 @@ function GSCInsightsContent() {
           </div>
 
           {/* Results */}
-          <div className="space-y-6">
+          <div>
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
