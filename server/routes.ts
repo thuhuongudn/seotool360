@@ -45,11 +45,16 @@ const searchIntentHistoricalRequestSchema = z.object({
 // Zod schema for GSC Insights
 const gscInsightsRequestSchema = z.object({
   siteUrl: z.string().trim().min(1, "Site URL is required"),
-  mode: z.enum(["queries-for-page", "pages-for-keyword"]),
-  value: z.string().trim().min(1, "URL or keyword is required"),
+  mode: z.enum(["queries-for-page", "pages-for-keyword", "url-and-query"]),
+  value: z.string().trim().optional(), // Optional for url-and-query mode
+  pageUrl: z.string().trim().optional(), // For url-and-query mode
+  keyword: z.string().trim().optional(), // For url-and-query mode
   timePreset: z.enum(["last7d", "last28d", "last90d", "custom"]).optional(),
   startDate: z.string().optional(), // For custom range: YYYY-MM-DD
   endDate: z.string().optional(), // For custom range: YYYY-MM-DD
+  comparisonMode: z.boolean().optional(),
+  previousStartDate: z.string().optional(), // For comparison
+  previousEndDate: z.string().optional(), // For comparison
   searchType: z.enum(["web", "image", "video", "news"]).optional(),
   dataState: z.enum(["final", "all"]).optional(),
 });
@@ -394,7 +399,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      const { siteUrl, mode, value, timePreset, startDate, endDate, searchType, dataState } = validation.data;
+      const {
+        siteUrl,
+        mode,
+        value,
+        pageUrl,
+        keyword,
+        timePreset,
+        startDate,
+        endDate,
+        comparisonMode,
+        previousStartDate,
+        previousEndDate,
+        searchType,
+        dataState
+      } = validation.data;
 
       // RBAC: Check tool access for "gsc-insights"
       const { hasAccess } = await assertToolAccessOrAdmin(req.user.id, "gsc-insights");
@@ -418,10 +437,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[GSC Insights] Mode: ${mode}`);
       console.log(`[GSC Insights] Site: ${siteUrl.slice(0, 20)}...`);
       console.log(`[GSC Insights] Date range: ${dateRange.startDate} to ${dateRange.endDate}`);
+      console.log(`[GSC Insights] Comparison mode: ${comparisonMode || false}`);
 
       let results;
+      let timeSeriesData;
+      let comparisonData;
 
+      // Get main results based on mode
       if (mode === 'queries-for-page') {
+        if (!value) {
+          return res.status(400).json({ message: "Page URL is required for queries-for-page mode" });
+        }
         results = await getQueriesForPage({
           siteUrl,
           pageUrl: value,
@@ -430,7 +456,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
           searchType: searchType as SearchType,
           dataState: dataState as DataState,
         });
-      } else {
+
+        // Get time series data for chart
+        timeSeriesData = await getTimeSeriesData({
+          siteUrl,
+          pageUrl: value,
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          searchType: searchType as SearchType,
+          dataState: dataState as DataState,
+        });
+
+        // Get comparison data if enabled
+        if (comparisonMode && previousStartDate && previousEndDate) {
+          comparisonData = await getComparisonData({
+            siteUrl,
+            currentStartDate: dateRange.startDate,
+            currentEndDate: dateRange.endDate,
+            previousStartDate,
+            previousEndDate,
+            pageUrl: value,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+        }
+
+      } else if (mode === 'pages-for-keyword') {
+        if (!value) {
+          return res.status(400).json({ message: "Keyword is required for pages-for-keyword mode" });
+        }
         results = await getPagesForKeyword({
           siteUrl,
           keyword: value,
@@ -439,13 +493,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
           searchType: searchType as SearchType,
           dataState: dataState as DataState,
         });
+
+        // Get time series data for chart
+        timeSeriesData = await getTimeSeriesData({
+          siteUrl,
+          keyword: value,
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          searchType: searchType as SearchType,
+          dataState: dataState as DataState,
+        });
+
+        // Get comparison data if enabled
+        if (comparisonMode && previousStartDate && previousEndDate) {
+          comparisonData = await getComparisonData({
+            siteUrl,
+            currentStartDate: dateRange.startDate,
+            currentEndDate: dateRange.endDate,
+            previousStartDate,
+            previousEndDate,
+            keyword: value,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+        }
+
+      } else if (mode === 'url-and-query') {
+        if (!pageUrl || !keyword) {
+          return res.status(400).json({ message: "Both pageUrl and keyword are required for url-and-query mode" });
+        }
+
+        // For url-and-query mode, we return time series data as the main results
+        results = await getTimeSeriesData({
+          siteUrl,
+          pageUrl,
+          keyword,
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          searchType: searchType as SearchType,
+          dataState: dataState as DataState,
+        });
+
+        timeSeriesData = results; // Same data for both
+
+        // Get comparison data if enabled
+        if (comparisonMode && previousStartDate && previousEndDate) {
+          comparisonData = await getComparisonData({
+            siteUrl,
+            currentStartDate: dateRange.startDate,
+            currentEndDate: dateRange.endDate,
+            previousStartDate,
+            previousEndDate,
+            pageUrl,
+            keyword,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+        }
+      } else {
+        return res.status(400).json({ message: "Invalid mode" });
       }
 
-      console.log(`[GSC Insights] Returning ${results.length} top results`);
+      console.log(`[GSC Insights] Returning ${results.length} results`);
+      if (timeSeriesData) {
+        console.log(`[GSC Insights] Time series data: ${timeSeriesData.length} data points`);
+      }
+      if (comparisonData) {
+        console.log(`[GSC Insights] Comparison data included`);
+      }
 
       return res.json({
         mode,
-        value,
+        value: mode === 'url-and-query' ? undefined : value,
+        pageUrl: mode === 'url-and-query' ? pageUrl : undefined,
+        keyword: mode === 'url-and-query' ? keyword : undefined,
         siteUrl,
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
@@ -453,6 +574,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dataState: dataState || 'final',
         totalResults: results.length,
         rows: results,
+        timeSeriesData,
+        comparisonData,
       });
 
     } catch (error) {
