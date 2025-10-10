@@ -650,21 +650,39 @@ function GSCInsightsContent() {
                       </div>
                     </div>
 
-                    <div className="space-y-2">
+                    <div className="space-y-2 md:col-span-2">
                       <Label>Khoảng thời gian</Label>
-                      <div className="flex gap-1">
-                        {(["last7d", "last28d", "last90d"] as TimePreset[]).map((preset) => (
-                          <Button
-                            key={preset}
-                            type="button"
-                            variant={timePreset === preset ? "default" : "outline"}
-                            size="sm"
-                            onClick={() => setTimePreset(preset)}
-                            className="flex-1 px-2"
-                          >
-                            {preset === "last7d" ? "7d" : preset === "last28d" ? "28d" : "90d"}
-                          </Button>
-                        ))}
+                      <div className="space-y-2">
+                        <div className="flex gap-1">
+                          {(["last7d", "last28d", "last90d", "custom"] as TimePreset[]).map((preset) => (
+                            <Button
+                              key={preset}
+                              type="button"
+                              variant={timePreset === preset ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setTimePreset(preset)}
+                              className="flex-1 px-2"
+                            >
+                              {preset === "last7d" ? "7d" : preset === "last28d" ? "28d" : preset === "last90d" ? "90d" : <CalendarIcon className="h-4 w-4" />}
+                            </Button>
+                          ))}
+                        </div>
+                        {timePreset === "custom" && (
+                          <div className="grid grid-cols-2 gap-2">
+                            <Input
+                              type="date"
+                              value={customStartDate}
+                              onChange={(e) => setCustomStartDate(e.target.value)}
+                              placeholder="Từ ngày"
+                            />
+                            <Input
+                              type="date"
+                              value={customEndDate}
+                              onChange={(e) => setCustomEndDate(e.target.value)}
+                              placeholder="Đến ngày"
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
 
