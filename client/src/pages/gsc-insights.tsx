@@ -95,6 +95,7 @@ function GSCInsightsContent() {
 
   // Cải tiến 5: Selected rows for export
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [exportFormat, setExportFormat] = useState<"csv" | "json">("csv");
 
   const { toast } = useToast();
   const { executeWithToken, canUseToken, isProcessing: isTokenProcessing } = useTokenManagement();
@@ -290,7 +291,7 @@ function GSCInsightsContent() {
     }
   };
 
-  const handleExportCSV = (exportAll: boolean) => {
+  const handleExport = (exportAll: boolean) => {
     if (!result || !result.rows.length) return;
 
     const rowsToExport = exportAll
@@ -306,39 +307,76 @@ function GSCInsightsContent() {
       return;
     }
 
-    const headers = [
-      mode === "queries-for-page" ? "Query" : mode === "pages-for-keyword" ? "Page" : "Date",
-      "Clicks",
-      "Impressions",
-      "CTR (%)",
-      "Position"
-    ];
+    if (exportFormat === "csv") {
+      const headers = [
+        mode === "queries-for-page" ? "Query" : mode === "pages-for-keyword" ? "Page" : "Date",
+        "Clicks",
+        "Impressions",
+        "CTR (%)",
+        "Position"
+      ];
 
-    const csvContent = [
-      headers.join(","),
-      ...rowsToExport.map((row) => [
-        `"${row.keys[0]}"`,
-        row.clicks,
-        row.impressions,
-        (row.ctr * 100).toFixed(2),
-        row.position.toFixed(1),
-      ].join(","))
-    ].join("\n");
+      const csvContent = [
+        headers.join(","),
+        ...rowsToExport.map((row) => [
+          `"${row.keys[0]}"`,
+          row.clicks,
+          row.impressions,
+          (row.ctr * 100).toFixed(2),
+          row.position.toFixed(1),
+        ].join(","))
+      ].join("\n");
 
-    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    const url = URL.createObjectURL(blob);
-    link.setAttribute("href", url);
-    link.setAttribute("download", `gsc-insights-${mode}-${Date.now()}.csv`);
-    link.style.visibility = "hidden";
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.setAttribute("href", url);
+      link.setAttribute("download", `gsc-insights-${mode}-${Date.now()}.csv`);
+      link.style.visibility = "hidden";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
 
-    toast({
-      title: "Xuất CSV thành công",
-      description: `Đã xuất ${rowsToExport.length} dòng dữ liệu.`,
-    });
+      toast({
+        title: "Xuất CSV thành công",
+        description: `Đã xuất ${rowsToExport.length} dòng dữ liệu.`,
+      });
+    } else {
+      // Export as JSON
+      const jsonData = rowsToExport.map(row => ({
+        [mode === "queries-for-page" ? "query" : mode === "pages-for-keyword" ? "page" : "date"]: row.keys[0],
+        clicks: row.clicks,
+        impressions: row.impressions,
+        ctr: parseFloat((row.ctr * 100).toFixed(2)),
+        position: parseFloat(row.position.toFixed(1)),
+      }));
+
+      const jsonString = JSON.stringify(jsonData, null, 2);
+
+      // Copy to clipboard
+      navigator.clipboard.writeText(jsonString).then(() => {
+        toast({
+          title: "Đã copy JSON",
+          description: `Đã copy ${rowsToExport.length} dòng dữ liệu vào clipboard.`,
+        });
+      }).catch(() => {
+        // Fallback: download as file
+        const blob = new Blob([jsonString], { type: "application/json;charset=utf-8;" });
+        const link = document.createElement("a");
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", `gsc-insights-${mode}-${Date.now()}.json`);
+        link.style.visibility = "hidden";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        toast({
+          title: "Tải JSON thành công",
+          description: `Đã tải ${rowsToExport.length} dòng dữ liệu.`,
+        });
+      });
+    }
   };
 
   const isSubmitting = mutation.isPending || isTokenProcessing;
@@ -367,8 +405,7 @@ function GSCInsightsContent() {
         impressions_prev: row.impressions,
         ctr_prev: row.ctr * 100,
         position_prev: row.position,
-      }))
-      .sort((a, b) => 0); // Keep original order from API (already sorted)
+      })); // Already sorted from API
 
     // Merge by index (align periods by relative position, not absolute date)
     return sortedCurrent.map((current, index) => ({
@@ -721,17 +758,26 @@ function GSCInsightsContent() {
                     )}
                   </div>
                   {hasResults && (
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-2">
+                      <Select value={exportFormat} onValueChange={(v: "csv" | "json") => setExportFormat(v)}>
+                        <SelectTrigger className="w-[120px]">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="csv">CSV</SelectItem>
+                          <SelectItem value="json">JSON (Copy)</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleExportCSV(false)}
+                        onClick={() => handleExport(false)}
                         disabled={selectedRows.size === 0}
                       >
                         <Download className="h-4 w-4" />
                         Xuất đã chọn ({selectedRows.size})
                       </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleExportCSV(true)}>
+                      <Button variant="outline" size="sm" onClick={() => handleExport(true)}>
                         <Download className="h-4 w-4" />
                         Xuất toàn bộ
                       </Button>
@@ -769,7 +815,7 @@ function GSCInsightsContent() {
                       <Badge variant="outline">{result.searchType}</Badge>
                     </div>
 
-                    <div className="max-h-[600px] overflow-y-auto border rounded-lg">
+                    <div className="max-h-[600px] overflow-auto border rounded-lg">
                       <Table>
                         <TableHeader className="sticky top-0 bg-background">
                           <TableRow>
