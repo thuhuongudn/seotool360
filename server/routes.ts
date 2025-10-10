@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { authMiddleware, requireAdmin, type AuthenticatedRequest } from "./auth-middleware";
 import { z } from "zod";
 import { generateKeywordIdeas, generateKeywordHistoricalMetrics, GoogleAdsApiError } from "./services/google-ads";
+import { getQueriesForPage, getPagesForKeyword, getDateRangeFromPreset, GSCApiError, type TimePreset, type AnalysisMode, type SearchType, type DataState } from "./services/google-search-console";
 import { registerApiProxyRoutes } from "./routes/api-proxy";
 import { registerTestRoutes } from "./routes/test-api";
 
@@ -39,6 +40,18 @@ const searchIntentHistoricalRequestSchema = z.object({
   geoTargets: z.array(z.string().trim().min(1)).optional(),
   network: z.enum(["GOOGLE_SEARCH", "GOOGLE_SEARCH_AND_PARTNERS"]).optional(),
   pageSize: z.number().int().min(1).max(1000).optional(),
+});
+
+// Zod schema for GSC Insights
+const gscInsightsRequestSchema = z.object({
+  siteUrl: z.string().trim().min(1, "Site URL is required"),
+  mode: z.enum(["queries-for-page", "pages-for-keyword"]),
+  value: z.string().trim().min(1, "URL or keyword is required"),
+  timePreset: z.enum(["last7d", "last28d", "last90d", "custom"]).optional(),
+  startDate: z.string().optional(), // For custom range: YYYY-MM-DD
+  endDate: z.string().optional(), // For custom range: YYYY-MM-DD
+  searchType: z.enum(["web", "image", "video", "news"]).optional(),
+  dataState: z.enum(["final", "all"]).optional(),
 });
 
 
@@ -363,6 +376,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.error("[KeywordPlanner] Unexpected error", error);
       return res.status(500).json({ message: "Failed to generate keyword ideas" });
+    }
+  });
+
+  // NEW: GSC Insights endpoint
+  app.post("/api/gsc-insights", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const validation = gscInsightsRequestSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          errors: validation.error.issues,
+        });
+      }
+
+      const { siteUrl, mode, value, timePreset, startDate, endDate, searchType, dataState } = validation.data;
+
+      // RBAC: Check tool access for "gsc-insights"
+      const { hasAccess } = await assertToolAccessOrAdmin(req.user.id, "gsc-insights");
+      if (!hasAccess) {
+        return res.status(403).json({
+          message: "Access denied. You don't have permission to use this tool.",
+        });
+      }
+
+      // Calculate date range
+      let dateRange: { startDate: string; endDate: string };
+      if (timePreset && timePreset !== 'custom') {
+        dateRange = getDateRangeFromPreset(timePreset as TimePreset);
+      } else if (startDate && endDate) {
+        dateRange = { startDate, endDate };
+      } else {
+        // Default to last 7 days
+        dateRange = getDateRangeFromPreset('last7d');
+      }
+
+      console.log(`[GSC Insights] Mode: ${mode}`);
+      console.log(`[GSC Insights] Site: ${siteUrl.slice(0, 20)}...`);
+      console.log(`[GSC Insights] Date range: ${dateRange.startDate} to ${dateRange.endDate}`);
+
+      let results;
+
+      if (mode === 'queries-for-page') {
+        results = await getQueriesForPage({
+          siteUrl,
+          pageUrl: value,
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          searchType: searchType as SearchType,
+          dataState: dataState as DataState,
+        });
+      } else {
+        results = await getPagesForKeyword({
+          siteUrl,
+          keyword: value,
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          searchType: searchType as SearchType,
+          dataState: dataState as DataState,
+        });
+      }
+
+      console.log(`[GSC Insights] Returning ${results.length} top results`);
+
+      return res.json({
+        mode,
+        value,
+        siteUrl,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        searchType: searchType || 'web',
+        dataState: dataState || 'final',
+        totalResults: results.length,
+        rows: results,
+      });
+
+    } catch (error) {
+      if (error instanceof GSCApiError) {
+        return res.status(error.status ?? 500).json({
+          message: error.message,
+          details: error.details,
+        });
+      }
+
+      console.error("[GSC Insights] Unexpected error", error);
+      return res.status(500).json({ message: "Failed to fetch Search Console data" });
     }
   });
 
