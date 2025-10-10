@@ -372,3 +372,215 @@ export async function getPagesForKeyword(params: {
 
   return getTop100Results(allRows);
 }
+
+/**
+ * Get data for specific URL and Query combination (clicked from table)
+ */
+export async function getDataForUrlAndQuery(params: {
+  siteUrl: string;
+  pageUrl: string;
+  keyword: string;
+  startDate: string;
+  endDate: string;
+  searchType?: SearchType;
+  dataState?: DataState;
+}): Promise<SearchAnalyticsRow[]> {
+  console.log(`[GSC Insights] Mode: url-and-query`);
+  console.log(`[GSC Insights] Page URL: ${params.pageUrl}`);
+  console.log(`[GSC Insights] Keyword: ${params.keyword}`);
+
+  const allRows = await fetchAllSearchAnalytics({
+    siteUrl: params.siteUrl,
+    startDate: params.startDate,
+    endDate: params.endDate,
+    dimensions: ['date'],
+    dimensionFilterGroups: [
+      {
+        filters: [
+          {
+            dimension: 'page',
+            operator: 'equals',
+            expression: params.pageUrl,
+          },
+          {
+            dimension: 'query',
+            operator: 'equals',
+            expression: params.keyword,
+          },
+        ],
+      },
+    ],
+    searchType: params.searchType || 'web',
+    dataState: params.dataState,
+  });
+
+  return allRows;
+}
+
+/**
+ * Get time series data grouped by date
+ */
+export async function getTimeSeriesData(params: {
+  siteUrl: string;
+  startDate: string;
+  endDate: string;
+  pageUrl?: string;
+  keyword?: string;
+  searchType?: SearchType;
+  dataState?: DataState;
+}): Promise<SearchAnalyticsRow[]> {
+  console.log(`[GSC Insights] Getting time series data`);
+
+  const filters: DimensionFilter[] = [];
+
+  if (params.pageUrl) {
+    filters.push({
+      dimension: 'page',
+      operator: 'equals',
+      expression: params.pageUrl,
+    });
+  }
+
+  if (params.keyword) {
+    filters.push({
+      dimension: 'query',
+      operator: 'equals',
+      expression: params.keyword,
+    });
+  }
+
+  const allRows = await fetchAllSearchAnalytics({
+    siteUrl: params.siteUrl,
+    startDate: params.startDate,
+    endDate: params.endDate,
+    dimensions: ['date'],
+    dimensionFilterGroups: filters.length > 0 ? [{ filters }] : undefined,
+    searchType: params.searchType || 'web',
+    dataState: params.dataState,
+  });
+
+  return allRows.sort((a, b) => a.keys[0].localeCompare(b.keys[0]));
+}
+
+/**
+ * Comparison metrics interface
+ */
+export interface ComparisonMetrics {
+  current: {
+    clicks: number;
+    impressions: number;
+    ctr: number;
+    position: number;
+  };
+  previous: {
+    clicks: number;
+    impressions: number;
+    ctr: number;
+    position: number;
+  };
+  changes: {
+    clicks: number;
+    clicksPercent: number;
+    impressions: number;
+    impressionsPercent: number;
+    ctr: number;
+    ctrPercent: number;
+    position: number;
+    positionPercent: number;
+  };
+}
+
+/**
+ * Get comparison data between two periods
+ */
+export async function getComparisonData(params: {
+  siteUrl: string;
+  currentStartDate: string;
+  currentEndDate: string;
+  previousStartDate: string;
+  previousEndDate: string;
+  pageUrl?: string;
+  keyword?: string;
+  searchType?: SearchType;
+  dataState?: DataState;
+}): Promise<ComparisonMetrics> {
+  console.log(`[GSC Insights] Getting comparison data`);
+  console.log(`[GSC Insights] Current: ${params.currentStartDate} to ${params.currentEndDate}`);
+  console.log(`[GSC Insights] Previous: ${params.previousStartDate} to ${params.previousEndDate}`);
+
+  const [currentData, previousData] = await Promise.all([
+    getTimeSeriesData({
+      siteUrl: params.siteUrl,
+      startDate: params.currentStartDate,
+      endDate: params.currentEndDate,
+      pageUrl: params.pageUrl,
+      keyword: params.keyword,
+      searchType: params.searchType,
+      dataState: params.dataState,
+    }),
+    getTimeSeriesData({
+      siteUrl: params.siteUrl,
+      startDate: params.previousStartDate,
+      endDate: params.previousEndDate,
+      pageUrl: params.pageUrl,
+      keyword: params.keyword,
+      searchType: params.searchType,
+      dataState: params.dataState,
+    }),
+  ]);
+
+  const current = currentData.reduce(
+    (acc, row) => ({
+      clicks: acc.clicks + row.clicks,
+      impressions: acc.impressions + row.impressions,
+      ctr: 0,
+      position: 0,
+      count: acc.count + 1,
+    }),
+    { clicks: 0, impressions: 0, ctr: 0, position: 0, count: 0 }
+  );
+
+  const previous = previousData.reduce(
+    (acc, row) => ({
+      clicks: acc.clicks + row.clicks,
+      impressions: acc.impressions + row.impressions,
+      ctr: 0,
+      position: 0,
+      count: acc.count + 1,
+    }),
+    { clicks: 0, impressions: 0, ctr: 0, position: 0, count: 0 }
+  );
+
+  current.ctr = current.impressions > 0 ? current.clicks / current.impressions : 0;
+  current.position = currentData.reduce((sum, row) => sum + row.position, 0) / (currentData.length || 1);
+
+  previous.ctr = previous.impressions > 0 ? previous.clicks / previous.impressions : 0;
+  previous.position = previousData.reduce((sum, row) => sum + row.position, 0) / (previousData.length || 1);
+
+  const changes = {
+    clicks: current.clicks - previous.clicks,
+    clicksPercent: previous.clicks > 0 ? ((current.clicks - previous.clicks) / previous.clicks) * 100 : 0,
+    impressions: current.impressions - previous.impressions,
+    impressionsPercent: previous.impressions > 0 ? ((current.impressions - previous.impressions) / previous.impressions) * 100 : 0,
+    ctr: current.ctr - previous.ctr,
+    ctrPercent: previous.ctr > 0 ? ((current.ctr - previous.ctr) / previous.ctr) * 100 : 0,
+    position: current.position - previous.position,
+    positionPercent: previous.position > 0 ? ((current.position - previous.position) / previous.position) * 100 : 0,
+  };
+
+  return {
+    current: {
+      clicks: current.clicks,
+      impressions: current.impressions,
+      ctr: current.ctr,
+      position: current.position,
+    },
+    previous: {
+      clicks: previous.clicks,
+      impressions: previous.impressions,
+      ctr: previous.ctr,
+      position: previous.position,
+    },
+    changes,
+  };
+}

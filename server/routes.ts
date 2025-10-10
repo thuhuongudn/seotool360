@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { authMiddleware, requireAdmin, type AuthenticatedRequest } from "./auth-middleware";
 import { z } from "zod";
 import { generateKeywordIdeas, generateKeywordHistoricalMetrics, GoogleAdsApiError } from "./services/google-ads";
-import { getQueriesForPage, getPagesForKeyword, getDateRangeFromPreset, GSCApiError, type TimePreset, type AnalysisMode, type SearchType, type DataState } from "./services/google-search-console";
+import { getQueriesForPage, getPagesForKeyword, getDateRangeFromPreset, getTimeSeriesData, getComparisonData, GSCApiError, type TimePreset, type AnalysisMode, type SearchType, type DataState } from "./services/google-search-console";
 import { registerApiProxyRoutes } from "./routes/api-proxy";
 import { registerTestRoutes } from "./routes/test-api";
 
