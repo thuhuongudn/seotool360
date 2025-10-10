@@ -106,6 +106,9 @@ function GSCInsightsContent() {
       return await response.json() as GSCResponse;
     },
     onSuccess: (data) => {
+      console.log('[GSC Insights] Response data:', data);
+      console.log('[GSC Insights] Has previousTimeSeriesData:', !!data.previousTimeSeriesData);
+      console.log('[GSC Insights] previousTimeSeriesData length:', data.previousTimeSeriesData?.length);
       setResult(data);
       setSelectedRows(new Set());
       toast({
@@ -477,161 +480,58 @@ function GSCInsightsContent() {
           </p>
         </section>
 
-        {/* Comparison Metrics Cards */}
-        {hasResults && comparisonMode && result.comparisonData && (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-            <MetricCard
-              label="Tổng số nhấp"
-              current={result.comparisonData.current.clicks}
-              previous={result.comparisonData.previous.clicks}
-              changePercent={result.comparisonData.changes.clicksPercent}
-            />
-            <MetricCard
-              label="Tổng số hiển thị"
-              current={result.comparisonData.current.impressions}
-              previous={result.comparisonData.previous.impressions}
-              changePercent={result.comparisonData.changes.impressionsPercent}
-            />
-            <MetricCard
-              label="CTR"
-              current={result.comparisonData.current.ctr}
-              previous={result.comparisonData.previous.ctr}
-              changePercent={result.comparisonData.changes.ctrPercent}
-            />
-            <MetricCard
-              label="Vị trí TB"
-              current={result.comparisonData.current.position}
-              previous={result.comparisonData.previous.position}
-              changePercent={result.comparisonData.changes.positionPercent}
-            />
-          </div>
-        )}
-
-        {/* Time Series Chart */}
-        {hasResults && result.timeSeriesData && result.timeSeriesData.length > 0 && (
-          <Card className="mb-6">
+        <div className="space-y-6">
+          {/* Input Form - Compact horizontal layout */}
+          <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Biểu đồ theo thời gian</CardTitle>
-                <div className="flex items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="show-clicks"
-                      checked={showClicks}
-                      onCheckedChange={(checked) => setShowClicks(checked as boolean)}
-                    />
-                    <Label htmlFor="show-clicks" className="text-sm cursor-pointer">Clicks</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="show-impressions"
-                      checked={showImpressions}
-                      onCheckedChange={(checked) => setShowImpressions(checked as boolean)}
-                    />
-                    <Label htmlFor="show-impressions" className="text-sm cursor-pointer">Impressions</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="show-ctr"
-                      checked={showCtr}
-                      onCheckedChange={(checked) => setShowCtr(checked as boolean)}
-                    />
-                    <Label htmlFor="show-ctr" className="text-sm cursor-pointer">CTR</Label>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id="show-position"
-                      checked={showPosition}
-                      onCheckedChange={(checked) => setShowPosition(checked as boolean)}
-                    />
-                    <Label htmlFor="show-position" className="text-sm cursor-pointer">Position</Label>
-                  </div>
-                </div>
-              </div>
+              <CardTitle>Cấu hình phân tích</CardTitle>
+              <CardDescription>Chọn chế độ phân tích và nhập thông tin</CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <LineChart data={formatChartData(result.timeSeriesData, result.previousTimeSeriesData)}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis yAxisId="left" />
-                  <YAxis yAxisId="right" orientation="right" />
-                  <Tooltip />
-                  <Legend />
-                  {showClicks && <Line yAxisId="left" type="monotone" dataKey="clicks" stroke="#3b82f6" name="Clicks (hiện tại)" />}
-                  {showImpressions && <Line yAxisId="left" type="monotone" dataKey="impressions" stroke="#8b5cf6" name="Impressions (hiện tại)" />}
-                  {showCtr && <Line yAxisId="right" type="monotone" dataKey="ctr" stroke="#10b981" name="CTR (hiện tại)" />}
-                  {showPosition && <Line yAxisId="right" type="monotone" dataKey="position" stroke="#f59e0b" name="Position (hiện tại)" />}
-                  {comparisonMode && result.previousTimeSeriesData && showClicks && (
-                    <Line yAxisId="left" type="monotone" dataKey="clicks_prev" stroke="#3b82f6" strokeDasharray="5 5" name="Clicks (kỳ trước)" />
-                  )}
-                  {comparisonMode && result.previousTimeSeriesData && showImpressions && (
-                    <Line yAxisId="left" type="monotone" dataKey="impressions_prev" stroke="#8b5cf6" strokeDasharray="5 5" name="Impressions (kỳ trước)" />
-                  )}
-                  {comparisonMode && result.previousTimeSeriesData && showCtr && (
-                    <Line yAxisId="right" type="monotone" dataKey="ctr_prev" stroke="#10b981" strokeDasharray="5 5" name="CTR (kỳ trước)" />
-                  )}
-                  {comparisonMode && result.previousTimeSeriesData && showPosition && (
-                    <Line yAxisId="right" type="monotone" dataKey="position_prev" stroke="#f59e0b" strokeDasharray="5 5" name="Position (kỳ trước)" />
-                  )}
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        )}
-
-        <div className="space-y-6">
-          {/* Input Form - Always on top */}
-          <div>
-            <Card>
-              <CardHeader>
-                <CardTitle>Cấu hình phân tích</CardTitle>
-                <CardDescription>Chọn chế độ phân tích và nhập thông tin</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form className="space-y-4" onSubmit={handleSubmit}>
-                  <div className="space-y-2">
-                    <Label htmlFor="siteUrl">Site URL (GSC Property)</Label>
-                    <Select value={siteUrl} onValueChange={setSiteUrl}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Chọn site..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {GSC_SITES.map((site) => (
-                          <SelectItem key={site} value={site}>
-                            {site}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Chế độ phân tích</Label>
-                    <RadioGroup value={mode} onValueChange={(v) => setMode(v as AnalysisMode)}>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="queries-for-page" id="mode-queries" />
-                        <Label htmlFor="mode-queries" className="font-normal cursor-pointer">
-                          Queries cho URL
-                        </Label>
+              <form onSubmit={handleSubmit}>
+                {mode === "url-and-query" ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="siteUrl">Site URL (GSC Property)</Label>
+                        <Select value={siteUrl} onValueChange={setSiteUrl}>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Chọn site..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {GSC_SITES.map((site) => (
+                              <SelectItem key={site} value={site}>
+                                {site}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="pages-for-keyword" id="mode-pages" />
-                        <Label htmlFor="mode-pages" className="font-normal cursor-pointer">
-                          Pages cho Keyword
-                        </Label>
+                      <div className="space-y-2">
+                        <Label>Chế độ phân tích</Label>
+                        <RadioGroup value={mode} onValueChange={(v) => setMode(v as AnalysisMode)} className="flex flex-wrap gap-4">
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="queries-for-page" id="mode-queries" />
+                            <Label htmlFor="mode-queries" className="font-normal cursor-pointer">
+                              Queries cho URL
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="pages-for-keyword" id="mode-pages" />
+                            <Label htmlFor="mode-pages" className="font-normal cursor-pointer">
+                              Pages cho Keyword
+                            </Label>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <RadioGroupItem value="url-and-query" id="mode-combined" />
+                            <Label htmlFor="mode-combined" className="font-normal cursor-pointer">
+                              URL + Query
+                            </Label>
+                          </div>
+                        </RadioGroup>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="url-and-query" id="mode-combined" />
-                        <Label htmlFor="mode-combined" className="font-normal cursor-pointer">
-                          URL + Query (Combined)
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                  </div>
-
-                  {mode === "url-and-query" ? (
-                    <>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="pageUrl">Page URL</Label>
                         <Input
@@ -650,99 +550,252 @@ function GSCInsightsContent() {
                           onChange={(e) => setSelectedKeyword(e.target.value)}
                         />
                       </div>
-                    </>
-                  ) : (
-                    <div className="space-y-2">
-                      <Label htmlFor="value">
-                        {mode === "queries-for-page" ? "Page URL" : "Keyword"}
-                      </Label>
-                      <Input
-                        id="value"
-                        placeholder={
-                          mode === "queries-for-page"
-                            ? "https://example.com/blog/seo-tips"
-                            : "seo tools"
-                        }
-                        value={value}
-                        onChange={(e) => setValue(e.target.value)}
-                      />
                     </div>
-                  )}
-
-                  <div className="space-y-2">
-                    <Label>Khoảng thời gian</Label>
-                    <div className="grid grid-cols-4 gap-2">
-                      {(["last7d", "last28d", "last90d", "custom"] as TimePreset[]).map((preset) => (
-                        <Button
-                          key={preset}
-                          type="button"
-                          variant={timePreset === preset ? "default" : "outline"}
-                          size="sm"
-                          onClick={() => setTimePreset(preset)}
-                        >
-                          {preset === "last7d" ? "7d" : preset === "last28d" ? "28d" : preset === "last90d" ? "90d" : <CalendarIcon className="h-4 w-4" />}
-                        </Button>
-                      ))}
-                    </div>
-                    {timePreset === "custom" && (
-                      <div className="grid grid-cols-2 gap-2 mt-2">
-                        <div>
-                          <Label htmlFor="customStart" className="text-xs">Từ ngày</Label>
-                          <Input
-                            id="customStart"
-                            type="date"
-                            value={customStartDate}
-                            onChange={(e) => setCustomStartDate(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="customEnd" className="text-xs">Đến ngày</Label>
-                          <Input
-                            id="customEnd"
-                            type="date"
-                            value={customEndDate}
-                            onChange={(e) => setCustomEndDate(e.target.value)}
-                          />
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                      <div className="space-y-2">
+                        <Label>Khoảng thời gian</Label>
+                        <div className="flex gap-2">
+                          {(["last7d", "last28d", "last90d"] as TimePreset[]).map((preset) => (
+                            <Button
+                              key={preset}
+                              type="button"
+                              variant={timePreset === preset ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => setTimePreset(preset)}
+                              className="flex-1"
+                            >
+                              {preset === "last7d" ? "7d" : preset === "last28d" ? "28d" : "90d"}
+                            </Button>
+                          ))}
                         </div>
                       </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="searchType">Loại tìm kiếm</Label>
+                        <Select value={searchType} onValueChange={(v) => setSearchType(v as SearchType)}>
+                          <SelectTrigger id="searchType">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="web">Web</SelectItem>
+                            <SelectItem value="image">Image</SelectItem>
+                            <SelectItem value="video">Video</SelectItem>
+                            <SelectItem value="news">News</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="invisible">Actions</Label>
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="comparison-mode"
+                            checked={comparisonMode}
+                            onCheckedChange={setComparisonMode}
+                          />
+                          <Label htmlFor="comparison-mode" className="cursor-pointer text-sm">
+                            So sánh kỳ trước
+                          </Label>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="invisible">Submit</Label>
+                        <Button type="submit" className="w-full" disabled={isSubmitting || !canUseToken}>
+                          {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                          <Search className="h-4 w-4" />
+                          Phân tích
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="siteUrl">Site URL (GSC Property)</Label>
+                      <Select value={siteUrl} onValueChange={setSiteUrl}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn site..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {GSC_SITES.map((site) => (
+                            <SelectItem key={site} value={site}>
+                              {site}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="md:col-span-2 space-y-2">
+                      <Label>Chế độ & Giá trị</Label>
+                      <div className="flex gap-2">
+                        <Select value={mode} onValueChange={(v) => setMode(v as AnalysisMode)}>
+                          <SelectTrigger className="w-[180px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="queries-for-page">Queries cho URL</SelectItem>
+                            <SelectItem value="pages-for-keyword">Pages cho Keyword</SelectItem>
+                            <SelectItem value="url-and-query">URL + Query</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <Input
+                          placeholder={
+                            mode === "queries-for-page"
+                              ? "https://example.com/blog/seo-tips"
+                              : "seo tools"
+                          }
+                          value={value}
+                          onChange={(e) => setValue(e.target.value)}
+                          className="flex-1"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Khoảng thời gian</Label>
+                      <div className="flex gap-1">
+                        {(["last7d", "last28d", "last90d"] as TimePreset[]).map((preset) => (
+                          <Button
+                            key={preset}
+                            type="button"
+                            variant={timePreset === preset ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setTimePreset(preset)}
+                            className="flex-1 px-2"
+                          >
+                            {preset === "last7d" ? "7d" : preset === "last28d" ? "28d" : "90d"}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label className="invisible">Actions</Label>
+                      <div className="flex flex-col gap-2">
+                        <div className="flex items-center space-x-2">
+                          <Switch
+                            id="comparison-mode"
+                            checked={comparisonMode}
+                            onCheckedChange={setComparisonMode}
+                          />
+                          <Label htmlFor="comparison-mode" className="cursor-pointer text-sm">
+                            So sánh
+                          </Label>
+                        </div>
+                        <Button type="submit" className="w-full" disabled={isSubmitting || !canUseToken}>
+                          {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                          <Search className="h-4 w-4" />
+                          Phân tích
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </form>
+            </CardContent>
+          </Card>
+
+          {/* Comparison Metrics Cards */}
+          {hasResults && comparisonMode && result.comparisonData && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <MetricCard
+                label="Tổng số nhấp"
+                current={result.comparisonData.current.clicks}
+                previous={result.comparisonData.previous.clicks}
+                changePercent={result.comparisonData.changes.clicksPercent}
+              />
+              <MetricCard
+                label="Tổng số hiển thị"
+                current={result.comparisonData.current.impressions}
+                previous={result.comparisonData.previous.impressions}
+                changePercent={result.comparisonData.changes.impressionsPercent}
+              />
+              <MetricCard
+                label="CTR"
+                current={result.comparisonData.current.ctr}
+                previous={result.comparisonData.previous.ctr}
+                changePercent={result.comparisonData.changes.ctrPercent}
+              />
+              <MetricCard
+                label="Vị trí TB"
+                current={result.comparisonData.current.position}
+                previous={result.comparisonData.previous.position}
+                changePercent={result.comparisonData.changes.positionPercent}
+              />
+            </div>
+          )}
+
+          {/* Time Series Chart */}
+          {hasResults && result.timeSeriesData && result.timeSeriesData.length > 0 && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Biểu đồ theo thời gian</CardTitle>
+                  <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="show-clicks"
+                        checked={showClicks}
+                        onCheckedChange={(checked) => setShowClicks(checked as boolean)}
+                      />
+                      <Label htmlFor="show-clicks" className="text-sm cursor-pointer">Clicks</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="show-impressions"
+                        checked={showImpressions}
+                        onCheckedChange={(checked) => setShowImpressions(checked as boolean)}
+                      />
+                      <Label htmlFor="show-impressions" className="text-sm cursor-pointer">Impressions</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="show-ctr"
+                        checked={showCtr}
+                        onCheckedChange={(checked) => setShowCtr(checked as boolean)}
+                      />
+                      <Label htmlFor="show-ctr" className="text-sm cursor-pointer">CTR</Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        id="show-position"
+                        checked={showPosition}
+                        onCheckedChange={(checked) => setShowPosition(checked as boolean)}
+                      />
+                      <Label htmlFor="show-position" className="text-sm cursor-pointer">Position</Label>
+                    </div>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={formatChartData(result.timeSeriesData, result.previousTimeSeriesData)}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis yAxisId="left" />
+                    <YAxis yAxisId="right" orientation="right" />
+                    <Tooltip />
+                    <Legend />
+                    {showClicks && <Line yAxisId="left" type="monotone" dataKey="clicks" stroke="#3b82f6" name="Clicks (hiện tại)" />}
+                    {showImpressions && <Line yAxisId="left" type="monotone" dataKey="impressions" stroke="#8b5cf6" name="Impressions (hiện tại)" />}
+                    {showCtr && <Line yAxisId="right" type="monotone" dataKey="ctr" stroke="#10b981" name="CTR (hiện tại)" />}
+                    {showPosition && <Line yAxisId="right" type="monotone" dataKey="position" stroke="#f59e0b" name="Position (hiện tại)" />}
+                    {comparisonMode && result.previousTimeSeriesData && showClicks && (
+                      <Line yAxisId="left" type="monotone" dataKey="clicks_prev" stroke="#3b82f6" strokeDasharray="5 5" name="Clicks (kỳ trước)" />
                     )}
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="searchType">Loại tìm kiếm</Label>
-                    <Select value={searchType} onValueChange={(v) => setSearchType(v as SearchType)}>
-                      <SelectTrigger id="searchType">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="web">Web</SelectItem>
-                        <SelectItem value="image">Image</SelectItem>
-                        <SelectItem value="video">Video</SelectItem>
-                        <SelectItem value="news">News</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="comparison-mode"
-                      checked={comparisonMode}
-                      onCheckedChange={setComparisonMode}
-                    />
-                    <Label htmlFor="comparison-mode" className="cursor-pointer">
-                      So sánh với kỳ trước
-                    </Label>
-                  </div>
-
-                  <Button type="submit" className="w-full" disabled={isSubmitting || !canUseToken}>
-                    {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                    <Search className="h-4 w-4" />
-                    Phân tích
-                  </Button>
-                </form>
+                    {comparisonMode && result.previousTimeSeriesData && showImpressions && (
+                      <Line yAxisId="left" type="monotone" dataKey="impressions_prev" stroke="#8b5cf6" strokeDasharray="5 5" name="Impressions (kỳ trước)" />
+                    )}
+                    {comparisonMode && result.previousTimeSeriesData && showCtr && (
+                      <Line yAxisId="right" type="monotone" dataKey="ctr_prev" stroke="#10b981" strokeDasharray="5 5" name="CTR (kỳ trước)" />
+                    )}
+                    {comparisonMode && result.previousTimeSeriesData && showPosition && (
+                      <Line yAxisId="right" type="monotone" dataKey="position_prev" stroke="#f59e0b" strokeDasharray="5 5" name="Position (kỳ trước)" />
+                    )}
+                  </LineChart>
+                </ResponsiveContainer>
               </CardContent>
             </Card>
-          </div>
+          )}
 
           {/* Results */}
           <div>
