@@ -29,6 +29,7 @@ import SchemaMarkup from "@/pages/schema-markup";
 import ContentOptimizer from "@/pages/content-optimizer";
 // Google Insights Tools
 import GSCInsights from "@/pages/gsc-insights";
+import KeywordOverview from "@/pages/keyword-overview";
 // Index Tools
 import BingIndexing from "@/pages/bing-indexing";
 import GoogleIndexing from "@/pages/google-indexing";
@@ -113,6 +114,11 @@ function Router() {
       <Route path="/gsc-insights">
         <ProtectedRoute>
           <GSCInsights />
+        </ProtectedRoute>
+      </Route>
+      <Route path="/keyword-overview">
+        <ProtectedRoute>
+          <KeywordOverview />
         </ProtectedRoute>
       </Route>
       {/* Index Routes */}

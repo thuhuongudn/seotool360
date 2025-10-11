@@ -25,6 +25,7 @@ const contentSeoItems = [
 
 const googleInsightsItems = [
   { label: "Search Console Insights", href: "/gsc-insights" },
+  { label: "Keyword Overview", href: "/keyword-overview" },
   { label: "Keyword Planner", href: "/keyword-planner" },
   { label: "Search Intent", href: "/search-intent" },
 ];
