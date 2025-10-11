@@ -502,10 +502,24 @@ function GSCInsightsContent() {
   };
 
   const MetricCard = ({ label, current, previous, changePercent }: any) => {
-    const isPositive = changePercent > 0;
-    const isNegative = changePercent < 0;
-    const Icon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
-    const colorClass = isPositive ? "text-green-600" : isNegative ? "text-red-600" : "text-gray-600";
+    // For position: negative change is good (rank improved), positive is bad (rank dropped)
+    const isPositionMetric = label === "Vị trí TB";
+
+    let isPositive, isNegative, Icon, colorClass;
+
+    if (isPositionMetric) {
+      // Position: lower number is better
+      isPositive = changePercent < 0; // Negative change = rank improved = green
+      isNegative = changePercent > 0; // Positive change = rank dropped = red
+      Icon = changePercent < 0 ? TrendingUp : changePercent > 0 ? TrendingDown : Minus;
+      colorClass = changePercent < 0 ? "text-green-600" : changePercent > 0 ? "text-red-600" : "text-gray-600";
+    } else {
+      // Clicks, Impressions, CTR: higher is better
+      isPositive = changePercent > 0;
+      isNegative = changePercent < 0;
+      Icon = isPositive ? TrendingUp : isNegative ? TrendingDown : Minus;
+      colorClass = isPositive ? "text-green-600" : isNegative ? "text-red-600" : "text-gray-600";
+    }
 
     const formatValue = (val: number) => {
       if (label === "CTR") return `${(val * 100).toFixed(2)}%`;
@@ -573,125 +587,9 @@ function GSCInsightsContent() {
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSubmit}>
-                {mode === "url-and-query" ? (
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="siteUrl">Site URL (GSC Property)</Label>
-                        <Select value={siteUrl} onValueChange={setSiteUrl}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Chọn site..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {GSC_SITES.map((site) => (
-                              <SelectItem key={site} value={site}>
-                                {site}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Chế độ phân tích</Label>
-                        <RadioGroup value={mode} onValueChange={(v) => setMode(v as AnalysisMode)} className="flex flex-wrap gap-4">
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="queries-for-page" id="mode-queries" />
-                            <Label htmlFor="mode-queries" className="font-normal cursor-pointer">
-                              Queries cho URL
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="pages-for-keyword" id="mode-pages" />
-                            <Label htmlFor="mode-pages" className="font-normal cursor-pointer">
-                              Pages cho Keyword
-                            </Label>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            <RadioGroupItem value="url-and-query" id="mode-combined" />
-                            <Label htmlFor="mode-combined" className="font-normal cursor-pointer">
-                              URL + Query
-                            </Label>
-                          </div>
-                        </RadioGroup>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="pageUrl">Page URL</Label>
-                        <Input
-                          id="pageUrl"
-                          placeholder="https://example.com/page"
-                          value={selectedPageUrl}
-                          onChange={(e) => setSelectedPageUrl(e.target.value)}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="keyword">Keyword</Label>
-                        <Input
-                          id="keyword"
-                          placeholder="seo tools"
-                          value={selectedKeyword}
-                          onChange={(e) => setSelectedKeyword(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                      <div className="space-y-2">
-                        <Label>Khoảng thời gian</Label>
-                        <div className="flex gap-2">
-                          {(["last7d", "last28d", "last90d"] as TimePreset[]).map((preset) => (
-                            <Button
-                              key={preset}
-                              type="button"
-                              variant={timePreset === preset ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setTimePreset(preset)}
-                              className="flex-1"
-                            >
-                              {preset === "last7d" ? "7d" : preset === "last28d" ? "28d" : "90d"}
-                            </Button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="searchType">Loại tìm kiếm</Label>
-                        <Select value={searchType} onValueChange={(v) => setSearchType(v as SearchType)}>
-                          <SelectTrigger id="searchType">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="web">Web</SelectItem>
-                            <SelectItem value="image">Image</SelectItem>
-                            <SelectItem value="video">Video</SelectItem>
-                            <SelectItem value="news">News</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="invisible">Actions</Label>
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            id="comparison-mode"
-                            checked={comparisonMode}
-                            onCheckedChange={setComparisonMode}
-                          />
-                          <Label htmlFor="comparison-mode" className="cursor-pointer text-sm">
-                            So sánh kỳ trước
-                          </Label>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="invisible">Submit</Label>
-                        <Button type="submit" className="w-full" disabled={isSubmitting || !canUseToken}>
-                          {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                          <Search className="h-4 w-4" />
-                          Phân tích
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                <div className="space-y-4">
+                  {/* Row 1: Site URL + Mode radio buttons */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="siteUrl">Site URL (GSC Property)</Label>
                       <Select value={siteUrl} onValueChange={setSiteUrl}>
@@ -707,91 +605,157 @@ function GSCInsightsContent() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div className="space-y-2">
+                      <Label>Chế độ phân tích</Label>
+                      <RadioGroup value={mode} onValueChange={(v) => setMode(v as AnalysisMode)} className="flex flex-wrap gap-4">
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="queries-for-page" id="mode-queries" />
+                          <Label htmlFor="mode-queries" className="font-normal cursor-pointer">
+                            Queries cho URL
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="pages-for-keyword" id="mode-pages" />
+                          <Label htmlFor="mode-pages" className="font-normal cursor-pointer">
+                            Pages cho Keyword
+                          </Label>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <RadioGroupItem value="url-and-query" id="mode-combined" />
+                          <Label htmlFor="mode-combined" className="font-normal cursor-pointer">
+                            URL + Query
+                          </Label>
+                        </div>
+                      </RadioGroup>
+                    </div>
+                  </div>
 
-                    <div className="md:col-span-2 space-y-2">
-                      <Label>Chế độ & Giá trị</Label>
-                      <div className="flex gap-2">
-                        <Select value={mode} onValueChange={(v) => setMode(v as AnalysisMode)}>
-                          <SelectTrigger className="w-[180px]">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="queries-for-page">Queries cho URL</SelectItem>
-                            <SelectItem value="pages-for-keyword">Pages cho Keyword</SelectItem>
-                            <SelectItem value="url-and-query">URL + Query</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          placeholder={
-                            mode === "queries-for-page"
-                              ? "https://example.com/blog/seo-tips"
-                              : "seo tools"
+                  {/* Row 2: Page URL + Keyword inputs */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="pageUrl">Page URL</Label>
+                      <Input
+                        id="pageUrl"
+                        placeholder="https://example.com/page"
+                        value={mode === "url-and-query" ? selectedPageUrl : mode === "queries-for-page" ? value : ""}
+                        onChange={(e) => {
+                          if (mode === "url-and-query") {
+                            setSelectedPageUrl(e.target.value);
+                          } else if (mode === "queries-for-page") {
+                            setValue(e.target.value);
                           }
-                          value={value}
-                          onChange={(e) => setValue(e.target.value)}
-                          className="flex-1"
+                        }}
+                        disabled={mode === "pages-for-keyword"}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="keyword">Keyword</Label>
+                      <Input
+                        id="keyword"
+                        placeholder="seo tools"
+                        value={mode === "url-and-query" ? selectedKeyword : mode === "pages-for-keyword" ? value : ""}
+                        onChange={(e) => {
+                          if (mode === "url-and-query") {
+                            setSelectedKeyword(e.target.value);
+                          } else if (mode === "pages-for-keyword") {
+                            setValue(e.target.value);
+                          }
+                        }}
+                        disabled={mode === "queries-for-page"}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Row 3: Time Period buttons + Search Type + Comparison + Submit */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="space-y-2">
+                      <Label>Khoảng thời gian</Label>
+                      <div className="flex gap-2">
+                        {(["last7d", "last28d", "last90d"] as TimePreset[]).map((preset) => (
+                          <Button
+                            key={preset}
+                            type="button"
+                            variant={timePreset === preset ? "default" : "outline"}
+                            size="sm"
+                            onClick={() => setTimePreset(preset)}
+                            className="flex-1"
+                          >
+                            {preset === "last7d" ? "7d" : preset === "last28d" ? "28d" : "90d"}
+                          </Button>
+                        ))}
+                      </div>
+                      <Button
+                        type="button"
+                        variant={timePreset === "custom" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setTimePreset("custom")}
+                        className="w-full"
+                      >
+                        <CalendarIcon className="h-4 w-4 mr-1" />
+                        Custom
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="searchType">Loại tìm kiếm</Label>
+                      <Select value={searchType} onValueChange={(v) => setSearchType(v as SearchType)}>
+                        <SelectTrigger id="searchType">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="web">Web</SelectItem>
+                          <SelectItem value="image">Image</SelectItem>
+                          <SelectItem value="video">Video</SelectItem>
+                          <SelectItem value="news">News</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="invisible">Actions</Label>
+                      <div className="flex items-center space-x-2">
+                        <Switch
+                          id="comparison-mode"
+                          checked={comparisonMode}
+                          onCheckedChange={setComparisonMode}
+                        />
+                        <Label htmlFor="comparison-mode" className="cursor-pointer text-sm">
+                          So sánh kỳ trước
+                        </Label>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label className="invisible">Submit</Label>
+                      <Button type="submit" className="w-full" disabled={isSubmitting || !canUseToken}>
+                        {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
+                        <Search className="h-4 w-4" />
+                        Phân tích
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Row 4: Custom date inputs (conditional) */}
+                  {timePreset === "custom" && (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="customStartDate">Từ ngày</Label>
+                        <Input
+                          id="customStartDate"
+                          type="date"
+                          value={customStartDate}
+                          onChange={(e) => setCustomStartDate(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="customEndDate">Đến ngày</Label>
+                        <Input
+                          id="customEndDate"
+                          type="date"
+                          value={customEndDate}
+                          onChange={(e) => setCustomEndDate(e.target.value)}
                         />
                       </div>
                     </div>
-
-                    <div className="space-y-2 md:col-span-2">
-                      <Label>Khoảng thời gian</Label>
-                      <div className="space-y-2">
-                        <div className="flex gap-1">
-                          {(["last7d", "last28d", "last90d", "custom"] as TimePreset[]).map((preset) => (
-                            <Button
-                              key={preset}
-                              type="button"
-                              variant={timePreset === preset ? "default" : "outline"}
-                              size="sm"
-                              onClick={() => setTimePreset(preset)}
-                              className="flex-1 px-2"
-                            >
-                              {preset === "last7d" ? "7d" : preset === "last28d" ? "28d" : preset === "last90d" ? "90d" : <CalendarIcon className="h-4 w-4" />}
-                            </Button>
-                          ))}
-                        </div>
-                        {timePreset === "custom" && (
-                          <div className="grid grid-cols-2 gap-2">
-                            <Input
-                              type="date"
-                              value={customStartDate}
-                              onChange={(e) => setCustomStartDate(e.target.value)}
-                              placeholder="Từ ngày"
-                            />
-                            <Input
-                              type="date"
-                              value={customEndDate}
-                              onChange={(e) => setCustomEndDate(e.target.value)}
-                              placeholder="Đến ngày"
-                            />
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="invisible">Actions</Label>
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center space-x-2">
-                          <Switch
-                            id="comparison-mode"
-                            checked={comparisonMode}
-                            onCheckedChange={setComparisonMode}
-                          />
-                          <Label htmlFor="comparison-mode" className="cursor-pointer text-sm">
-                            So sánh
-                          </Label>
-                        </div>
-                        <Button type="submit" className="w-full" disabled={isSubmitting || !canUseToken}>
-                          {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                          <Search className="h-4 w-4" />
-                          Phân tích
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </form>
             </CardContent>
           </Card>
@@ -1023,18 +987,20 @@ function GSCInsightsContent() {
                         </TableHeader>
                         <TableBody>
                           {getSortedRows().map((row, idx) => {
-                            const renderDiffCell = (diff?: number, changePercent?: number, isPositive?: boolean) => {
+                            const renderDiffCell = (diff?: number, changePercent?: number, isGoodWhenPositive: boolean = true) => {
                               if (diff === undefined || changePercent === undefined) {
                                 return <TableCell className="text-right text-muted-foreground">-</TableCell>;
                               }
 
-                              const isPositiveChange = isPositive !== undefined ? isPositive : diff > 0;
-                              const colorClass = isPositiveChange
+                              // For most metrics: positive = good (green), negative = bad (red)
+                              // For position: positive = bad (red), negative = good (green)
+                              const isGoodChange = isGoodWhenPositive ? (diff > 0) : (diff < 0);
+                              const colorClass = isGoodChange
                                 ? "text-green-600"
-                                : diff < 0
-                                  ? "text-red-600"
-                                  : "text-gray-600";
-                              const Icon = isPositiveChange ? TrendingUp : diff < 0 ? TrendingDown : Minus;
+                                : diff === 0
+                                  ? "text-gray-600"
+                                  : "text-red-600";
+                              const Icon = isGoodChange ? TrendingUp : diff === 0 ? Minus : TrendingDown;
 
                               return (
                                 <TableCell className={`text-right ${colorClass}`}>
@@ -1085,7 +1051,7 @@ function GSCInsightsContent() {
                                     <TableCell className="text-right text-muted-foreground">
                                       {row.previousClicks !== undefined ? row.previousClicks.toLocaleString() : "-"}
                                     </TableCell>
-                                    {renderDiffCell(row.clicksDiff, row.clicksChangePercent, true)}
+                                    {renderDiffCell(row.clicksDiff, row.clicksChangePercent, true /* positive = good */)}
                                   </>
                                 )}
 
@@ -1096,7 +1062,7 @@ function GSCInsightsContent() {
                                     <TableCell className="text-right text-muted-foreground">
                                       {row.previousImpressions !== undefined ? row.previousImpressions.toLocaleString() : "-"}
                                     </TableCell>
-                                    {renderDiffCell(row.impressionsDiff, row.impressionsChangePercent, true)}
+                                    {renderDiffCell(row.impressionsDiff, row.impressionsChangePercent, true /* positive = good */)}
                                   </>
                                 )}
 
@@ -1110,7 +1076,7 @@ function GSCInsightsContent() {
                                     {renderDiffCell(
                                       row.ctrDiff !== undefined ? parseFloat((row.ctrDiff * 100).toFixed(2)) : undefined,
                                       row.ctrChangePercent,
-                                      true
+                                      true /* positive = good */
                                     )}
                                   </>
                                 )}
@@ -1122,16 +1088,10 @@ function GSCInsightsContent() {
                                     <TableCell className="text-right text-muted-foreground">
                                       {row.previousPosition !== undefined ? row.previousPosition.toFixed(1) : "-"}
                                     </TableCell>
-                                    {row.positionDiff !== undefined && row.positionChangePercent !== undefined ? (
-                                      <TableCell className={`text-right ${row.positionDiff < 0 ? "text-green-600" : row.positionDiff > 0 ? "text-red-600" : "text-gray-600"}`}>
-                                        <div className="flex items-center justify-end gap-1">
-                                          {row.positionDiff < 0 ? <TrendingUp className="h-3 w-3" /> : row.positionDiff > 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-                                          <span>{row.positionDiff > 0 ? "+" : ""}{row.positionDiff.toFixed(1)}</span>
-                                          <span className="text-xs">({row.positionChangePercent > 0 ? "+" : ""}{row.positionChangePercent.toFixed(1)}%)</span>
-                                        </div>
-                                      </TableCell>
-                                    ) : (
-                                      <TableCell className="text-right text-muted-foreground">-</TableCell>
+                                    {renderDiffCell(
+                                      row.positionDiff !== undefined ? parseFloat(row.positionDiff.toFixed(1)) : undefined,
+                                      row.positionChangePercent,
+                                      false /* negative = good for position (rank improved) */
                                     )}
                                   </>
                                 )}
