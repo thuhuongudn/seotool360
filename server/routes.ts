@@ -6,6 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { authMiddleware, requireAdmin, type AuthenticatedRequest } from "./auth-middleware";
 import { z } from "zod";
 import { generateKeywordIdeas, generateKeywordHistoricalMetrics, GoogleAdsApiError } from "./services/google-ads";
+import { getQueriesForPage, getPagesForKeyword, getDateRangeFromPreset, getTimeSeriesData, getComparisonData, inspectUrl, requestIndexing, GSCApiError, type TimePreset, type AnalysisMode, type SearchType, type DataState } from "./services/google-search-console";
 import { registerApiProxyRoutes } from "./routes/api-proxy";
 import { registerTestRoutes } from "./routes/test-api";
 
@@ -39,6 +40,34 @@ const searchIntentHistoricalRequestSchema = z.object({
   geoTargets: z.array(z.string().trim().min(1)).optional(),
   network: z.enum(["GOOGLE_SEARCH", "GOOGLE_SEARCH_AND_PARTNERS"]).optional(),
   pageSize: z.number().int().min(1).max(1000).optional(),
+});
+
+// Zod schema for GSC Insights
+const gscInsightsRequestSchema = z.object({
+  siteUrl: z.string().trim().min(1, "Site URL is required"),
+  mode: z.enum(["queries-for-page", "pages-for-keyword", "url-and-query"]),
+  value: z.string().trim().optional(), // Optional for url-and-query mode
+  pageUrl: z.string().trim().optional(), // For url-and-query mode
+  keyword: z.string().trim().optional(), // For url-and-query mode
+  timePreset: z.enum(["last7d", "last28d", "last90d", "custom"]).optional(),
+  startDate: z.string().optional(), // For custom range: YYYY-MM-DD
+  endDate: z.string().optional(), // For custom range: YYYY-MM-DD
+  comparisonMode: z.boolean().optional(),
+  previousStartDate: z.string().optional(), // For comparison
+  previousEndDate: z.string().optional(), // For comparison
+  searchType: z.enum(["web", "image", "video", "news"]).optional(),
+  dataState: z.enum(["final", "all"]).optional(),
+});
+
+const urlInspectionRequestSchema = z.object({
+  inspectionUrl: z.string().url('inspectionUrl must be a valid URL').trim(),
+  siteUrl: z.string().url('siteUrl must be a valid URL').trim(),
+  languageCode: z.string().trim().min(2).max(10).optional(),
+});
+
+const requestIndexingSchema = z.object({
+  url: z.string().url('url must be a valid URL').trim(),
+  type: z.enum(['URL_UPDATED', 'URL_DELETED']).default('URL_UPDATED'),
 });
 
 
@@ -363,6 +392,399 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.error("[KeywordPlanner] Unexpected error", error);
       return res.status(500).json({ message: "Failed to generate keyword ideas" });
+    }
+  });
+
+  // NEW: GSC Insights endpoint
+  app.post("/api/gsc-insights", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      const validation = gscInsightsRequestSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          message: "Invalid request data",
+          errors: validation.error.issues,
+        });
+      }
+
+      const {
+        siteUrl,
+        mode,
+        value,
+        pageUrl,
+        keyword,
+        timePreset,
+        startDate,
+        endDate,
+        comparisonMode,
+        previousStartDate,
+        previousEndDate,
+        searchType,
+        dataState
+      } = validation.data;
+
+      // RBAC: Check tool access for "gsc-insights"
+      const { hasAccess } = await assertToolAccessOrAdmin(req.user.id, "gsc-insights");
+      if (!hasAccess) {
+        return res.status(403).json({
+          message: "Access denied. You don't have permission to use this tool.",
+        });
+      }
+
+      // Calculate date range
+      let dateRange: { startDate: string; endDate: string };
+      if (timePreset && timePreset !== 'custom') {
+        dateRange = getDateRangeFromPreset(timePreset as TimePreset);
+      } else if (startDate && endDate) {
+        dateRange = { startDate, endDate };
+      } else {
+        // Default to last 7 days
+        dateRange = getDateRangeFromPreset('last7d');
+      }
+
+      console.log(`[GSC Insights] Mode: ${mode}`);
+      console.log(`[GSC Insights] Site: ${siteUrl.slice(0, 20)}...`);
+      console.log(`[GSC Insights] Date range: ${dateRange.startDate} to ${dateRange.endDate}`);
+      console.log(`[GSC Insights] Comparison mode: ${comparisonMode || false}`);
+
+      let results;
+      let previousResults;
+      let timeSeriesData;
+      let previousTimeSeriesData;
+      let comparisonData;
+
+      // Get main results based on mode
+      if (mode === 'queries-for-page') {
+        // Allow empty value for domain-wide query
+        results = await getQueriesForPage({
+          siteUrl,
+          pageUrl: value || '', // Empty string for domain-wide
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          searchType: searchType as SearchType,
+          dataState: dataState as DataState,
+        });
+
+        // Get time series data for chart
+        timeSeriesData = await getTimeSeriesData({
+          siteUrl,
+          pageUrl: value || '', // Empty string for domain-wide
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          searchType: searchType as SearchType,
+          dataState: dataState as DataState,
+        });
+
+        // Get comparison data if enabled
+        if (comparisonMode && previousStartDate && previousEndDate) {
+          // Get previous period queries for per-keyword comparison
+          previousResults = await getQueriesForPage({
+            siteUrl,
+            pageUrl: value || '', // Empty string for domain-wide
+            startDate: previousStartDate,
+            endDate: previousEndDate,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+
+          comparisonData = await getComparisonData({
+            siteUrl,
+            currentStartDate: dateRange.startDate,
+            currentEndDate: dateRange.endDate,
+            previousStartDate,
+            previousEndDate,
+            pageUrl: value || '', // Empty string for domain-wide
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+
+          // Get previous period time series data for chart
+          previousTimeSeriesData = await getTimeSeriesData({
+            siteUrl,
+            pageUrl: value || '', // Empty string for domain-wide
+            startDate: previousStartDate,
+            endDate: previousEndDate,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+        }
+
+      } else if (mode === 'pages-for-keyword') {
+        if (!value) {
+          return res.status(400).json({ message: "Keyword is required for pages-for-keyword mode" });
+        }
+        results = await getPagesForKeyword({
+          siteUrl,
+          keyword: value,
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          searchType: searchType as SearchType,
+          dataState: dataState as DataState,
+        });
+
+        // Get time series data for chart
+        timeSeriesData = await getTimeSeriesData({
+          siteUrl,
+          keyword: value,
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          searchType: searchType as SearchType,
+          dataState: dataState as DataState,
+        });
+
+        // Get comparison data if enabled
+        if (comparisonMode && previousStartDate && previousEndDate) {
+          // Get previous period pages for per-page comparison
+          previousResults = await getPagesForKeyword({
+            siteUrl,
+            keyword: value,
+            startDate: previousStartDate,
+            endDate: previousEndDate,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+
+          comparisonData = await getComparisonData({
+            siteUrl,
+            currentStartDate: dateRange.startDate,
+            currentEndDate: dateRange.endDate,
+            previousStartDate,
+            previousEndDate,
+            keyword: value,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+
+          // Get previous period time series data for chart
+          previousTimeSeriesData = await getTimeSeriesData({
+            siteUrl,
+            keyword: value,
+            startDate: previousStartDate,
+            endDate: previousEndDate,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+        }
+
+      } else if (mode === 'url-and-query') {
+        if (!pageUrl || !keyword) {
+          return res.status(400).json({ message: "Both pageUrl and keyword are required for url-and-query mode" });
+        }
+
+        // For url-and-query mode, we return time series data as the main results
+        results = await getTimeSeriesData({
+          siteUrl,
+          pageUrl,
+          keyword,
+          startDate: dateRange.startDate,
+          endDate: dateRange.endDate,
+          searchType: searchType as SearchType,
+          dataState: dataState as DataState,
+        });
+
+        timeSeriesData = results; // Same data for both
+
+        // Get comparison data if enabled
+        if (comparisonMode && previousStartDate && previousEndDate) {
+          comparisonData = await getComparisonData({
+            siteUrl,
+            currentStartDate: dateRange.startDate,
+            currentEndDate: dateRange.endDate,
+            previousStartDate,
+            previousEndDate,
+            pageUrl,
+            keyword,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+
+          // Get previous period time series data for chart
+          previousTimeSeriesData = await getTimeSeriesData({
+            siteUrl,
+            pageUrl,
+            keyword,
+            startDate: previousStartDate,
+            endDate: previousEndDate,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+        }
+      } else {
+        return res.status(400).json({ message: "Invalid mode" });
+      }
+
+      console.log(`[GSC Insights] Returning ${results.length} results`);
+      if (timeSeriesData) {
+        console.log(`[GSC Insights] Time series data: ${timeSeriesData.length} data points`);
+      }
+      if (comparisonData) {
+        console.log(`[GSC Insights] Comparison data included`);
+      }
+
+      return res.json({
+        mode,
+        value: mode === 'url-and-query' ? undefined : value,
+        pageUrl: mode === 'url-and-query' ? pageUrl : undefined,
+        keyword: mode === 'url-and-query' ? keyword : undefined,
+        siteUrl,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        searchType: searchType || 'web',
+        dataState: dataState || 'final',
+        totalResults: results.length,
+        rows: results,
+        previousRows: previousResults,
+        timeSeriesData,
+        previousTimeSeriesData,
+        comparisonData,
+      });
+
+    } catch (error) {
+      if (error instanceof GSCApiError) {
+        return res.status(error.status ?? 500).json({
+          message: error.message,
+          details: error.details,
+        });
+      }
+
+      console.error("[GSC Insights] Unexpected error", error);
+      return res.status(500).json({ message: "Failed to fetch Search Console data" });
+    }
+  });
+
+  app.post("/api/gsc/url-inspection", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ success: false, error: "Authentication required" });
+      }
+
+      const validation = urlInspectionRequestSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid request data",
+          details: validation.error.issues,
+        });
+      }
+
+      const { hasAccess } = await assertToolAccessOrAdmin(req.user.id, "gsc-insights");
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied. You don't have permission to use this tool.",
+        });
+      }
+
+      const payload = validation.data;
+      console.log('[GSC][URL Inspection] Request', {
+        siteUrl: payload.siteUrl,
+        inspectionUrl: payload.inspectionUrl,
+        languageCode: payload.languageCode,
+      });
+
+      const inspectionResponse = await inspectUrl(payload);
+
+      return res.json({
+        success: true,
+        data: inspectionResponse,
+      });
+    } catch (error: any) {
+      if (error instanceof GSCApiError) {
+        console.error('[GSC][URL Inspection] Error', {
+          message: error.message,
+          status: error.status,
+          details: error.details?.error?.status || error.details?.error?.code,
+        });
+        return res.status(error.status ?? 500).json({
+          success: false,
+          error: error.message,
+          details: error.details?.error?.status || error.details?.error?.code,
+        });
+      }
+
+      console.error('[GSC][URL Inspection] Unexpected error', error);
+      return res.status(500).json({ success: false, error: 'Failed to inspect URL' });
+    }
+  });
+
+  app.post("/api/gsc/request-indexing", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ success: false, error: "Authentication required" });
+      }
+
+      const validation = requestIndexingSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid request data",
+          details: validation.error.issues,
+        });
+      }
+
+      const { hasAccess, isAdmin } = await assertToolAccessOrAdmin(req.user.id, "gsc-insights");
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied. You don't have permission to use this tool.",
+        });
+      }
+
+      if (!isAdmin) {
+        console.log('[GSC][Request Indexing] Non-admin request by user', req.user.id);
+      }
+
+      const payload = validation.data;
+      console.log('[GSC][Request Indexing] Request', {
+        url: payload.url,
+        type: payload.type,
+      });
+
+      const indexingResponse = await requestIndexing(payload);
+
+      return res.json({
+        success: true,
+        message: 'Đã gửi yêu cầu lập chỉ mục tới Google.',
+        data: indexingResponse,
+      });
+    } catch (error: any) {
+      if (error instanceof GSCApiError) {
+        const apiStatus = error.details?.error?.status || error.details?.error?.code;
+        const rawMessage = error.message;
+        let friendlyMessage = rawMessage;
+
+        if (error.status === 403 && apiStatus === 'PERMISSION_DENIED') {
+          if (rawMessage?.includes('indexing.googleapis.com')) {
+            friendlyMessage = 'Indexing API chưa được bật cho dự án Google Cloud. Hãy truy cập Google Cloud Console, bật "Indexing API" cho project và thử lại sau vài phút.';
+          } else {
+            friendlyMessage = 'Service Account chưa có quyền gửi Request Indexing. Hãy thêm Service Account vào Search Console với quyền "Owner".';
+          }
+        } else if (error.status === 429) {
+          friendlyMessage = 'Bạn đã vượt quá giới hạn Request Indexing (200 yêu cầu/ngày). Vui lòng thử lại sau 24 giờ.';
+        } else if (error.status === 400) {
+          friendlyMessage = rawMessage || 'Yêu cầu không hợp lệ. Vui lòng kiểm tra lại URL.';
+        }
+
+        console.error('[GSC][Request Indexing] Error', {
+          message: rawMessage,
+          friendlyMessage,
+          status: error.status,
+          details: apiStatus,
+        });
+
+        return res.status(error.status ?? 500).json({
+          success: false,
+          error: friendlyMessage,
+          details: apiStatus,
+          rawError: rawMessage,
+        });
+      }
+
+      console.error('[GSC][Request Indexing] Unexpected error', error);
+      return res.status(500).json({ success: false, error: 'Failed to submit indexing request' });
     }
   });
 
