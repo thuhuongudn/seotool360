@@ -311,24 +311,29 @@ export async function getQueriesForPage(params: {
   dataState?: DataState;
 }): Promise<SearchAnalyticsRow[]> {
   console.log(`[GSC Insights] Mode: queries-for-page`);
-  console.log(`[GSC Insights] Page URL: ${params.pageUrl}`);
+  console.log(`[GSC Insights] Page URL: ${params.pageUrl || '(domain-wide)'}`);
+
+  // Build dimension filter only if pageUrl is provided
+  const dimensionFilterGroups = params.pageUrl
+    ? [
+        {
+          filters: [
+            {
+              dimension: 'page' as const,
+              operator: 'equals' as const,
+              expression: params.pageUrl,
+            },
+          ],
+        },
+      ]
+    : undefined; // No filter = domain-wide query
 
   const allRows = await fetchAllSearchAnalytics({
     siteUrl: params.siteUrl,
     startDate: params.startDate,
     endDate: params.endDate,
     dimensions: ['query'],
-    dimensionFilterGroups: [
-      {
-        filters: [
-          {
-            dimension: 'page',
-            operator: 'equals',
-            expression: params.pageUrl,
-          },
-        ],
-      },
-    ],
+    dimensionFilterGroups,
     searchType: params.searchType || 'web',
     dataState: params.dataState,
   });
