@@ -33,6 +33,21 @@ interface GSCRow {
   position: number;
 }
 
+interface MergedRow extends GSCRow {
+  previousClicks?: number;
+  previousImpressions?: number;
+  previousCtr?: number;
+  previousPosition?: number;
+  clicksDiff?: number;
+  impressionsDiff?: number;
+  ctrDiff?: number;
+  positionDiff?: number;
+  clicksChangePercent?: number;
+  impressionsChangePercent?: number;
+  ctrChangePercent?: number;
+  positionChangePercent?: number;
+}
+
 interface GSCResponse {
   mode: AnalysisMode;
   value: string;
@@ -42,6 +57,7 @@ interface GSCResponse {
   searchType: string;
   totalResults: number;
   rows: GSCRow[];
+  previousRows?: GSCRow[];
   timeSeriesData?: GSCRow[];
   previousTimeSeriesData?: GSCRow[];
   comparisonData?: {
@@ -154,6 +170,69 @@ function GSCInsightsContent() {
     };
   };
 
+  // Merge current and previous period data by keyword/page
+  const mergeRowsWithPrevious = (currentRows: GSCRow[], previousRows?: GSCRow[]): MergedRow[] => {
+    if (!comparisonMode || !previousRows || previousRows.length === 0) {
+      return currentRows;
+    }
+
+    // Create a map of previous data by key (query or page)
+    const previousMap = new Map<string, GSCRow>();
+    previousRows.forEach(row => {
+      const key = row.keys[0]; // query or page URL
+      previousMap.set(key, row);
+    });
+
+    // Merge current rows with previous data
+    return currentRows.map(currentRow => {
+      const key = currentRow.keys[0];
+      const previousRow = previousMap.get(key);
+
+      if (!previousRow) {
+        // No previous data for this keyword/page
+        return currentRow;
+      }
+
+      // Calculate differences and percentage changes
+      const clicksDiff = currentRow.clicks - previousRow.clicks;
+      const impressionsDiff = currentRow.impressions - previousRow.impressions;
+      const ctrDiff = currentRow.ctr - previousRow.ctr;
+      const positionDiff = currentRow.position - previousRow.position;
+
+      const clicksChangePercent = previousRow.clicks > 0
+        ? ((clicksDiff / previousRow.clicks) * 100)
+        : (currentRow.clicks > 0 ? 100 : 0);
+
+      const impressionsChangePercent = previousRow.impressions > 0
+        ? ((impressionsDiff / previousRow.impressions) * 100)
+        : (currentRow.impressions > 0 ? 100 : 0);
+
+      const ctrChangePercent = previousRow.ctr > 0
+        ? ((ctrDiff / previousRow.ctr) * 100)
+        : (currentRow.ctr > 0 ? 100 : 0);
+
+      const positionChangePercent = previousRow.position > 0
+        ? ((positionDiff / previousRow.position) * 100)
+        : (currentRow.position > 0 ? 100 : 0);
+
+      return {
+        ...currentRow,
+        previousClicks: previousRow.clicks,
+        previousImpressions: previousRow.impressions,
+        previousCtr: previousRow.ctr,
+        previousPosition: previousRow.position,
+        clicksDiff,
+        impressionsDiff,
+        ctrDiff,
+        positionDiff,
+        clicksChangePercent,
+        impressionsChangePercent,
+        ctrChangePercent,
+        positionChangePercent,
+      };
+    });
+  };
+
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
@@ -258,10 +337,15 @@ function GSCInsightsContent() {
     }
   };
 
-  const getSortedRows = () => {
-    if (!result || !sortField) return result?.rows || [];
+  const getSortedRows = (): MergedRow[] => {
+    if (!result) return [];
 
-    const sorted = [...result.rows].sort((a, b) => {
+    // Merge current and previous data
+    const mergedRows = mergeRowsWithPrevious(result.rows, result.previousRows);
+
+    if (!sortField) return mergedRows;
+
+    const sorted = [...mergedRows].sort((a, b) => {
       const aValue = a[sortField];
       const bValue = b[sortField];
 
@@ -900,56 +984,160 @@ function GSCInsightsContent() {
                               {mode === "queries-for-page" ? "Query" : mode === "pages-for-keyword" ? "Page" : "Date"}
                             </TableHead>
                             <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort("clicks")}>
-                              Clicks {sortField === "clicks" && (sortDirection === "desc" ? "↓" : "↑")}
+                              Clicks{comparisonMode && " (hiện tại)"} {sortField === "clicks" && (sortDirection === "desc" ? "↓" : "↑")}
                             </TableHead>
+                            {comparisonMode && (
+                              <>
+                                <TableHead className="text-right">Clicks (kỳ trước)</TableHead>
+                                <TableHead className="text-right">Chênh lệch</TableHead>
+                              </>
+                            )}
                             <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort("impressions")}>
-                              Impressions {sortField === "impressions" && (sortDirection === "desc" ? "↓" : "↑")}
+                              Impressions{comparisonMode && " (hiện tại)"} {sortField === "impressions" && (sortDirection === "desc" ? "↓" : "↑")}
                             </TableHead>
+                            {comparisonMode && (
+                              <>
+                                <TableHead className="text-right">Impressions (kỳ trước)</TableHead>
+                                <TableHead className="text-right">Chênh lệch</TableHead>
+                              </>
+                            )}
                             <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort("ctr")}>
-                              CTR {sortField === "ctr" && (sortDirection === "desc" ? "↓" : "↑")}
+                              CTR{comparisonMode && " (hiện tại)"} {sortField === "ctr" && (sortDirection === "desc" ? "↓" : "↑")}
                             </TableHead>
+                            {comparisonMode && (
+                              <>
+                                <TableHead className="text-right">CTR (kỳ trước)</TableHead>
+                                <TableHead className="text-right">Chênh lệch</TableHead>
+                              </>
+                            )}
                             <TableHead className="text-right cursor-pointer hover:bg-muted/50" onClick={() => handleSort("position")}>
-                              Position {sortField === "position" && (sortDirection === "desc" ? "↓" : "↑")}
+                              Position{comparisonMode && " (hiện tại)"} {sortField === "position" && (sortDirection === "desc" ? "↓" : "↑")}
                             </TableHead>
+                            {comparisonMode && (
+                              <>
+                                <TableHead className="text-right">Position (kỳ trước)</TableHead>
+                                <TableHead className="text-right">Chênh lệch</TableHead>
+                              </>
+                            )}
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {getSortedRows().map((row, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell>
-                                <Checkbox
-                                  checked={selectedRows.has(idx)}
-                                  onCheckedChange={() => toggleRowSelection(idx)}
-                                />
-                              </TableCell>
-                              <TableCell className="font-medium">
-                                {mode === "queries-for-page" ? (
-                                  <button
-                                    onClick={() => handleQueryClick(row.keys[0])}
-                                    className="text-blue-600 hover:underline text-left"
-                                  >
-                                    {row.keys[0]}
-                                  </button>
-                                ) : mode === "pages-for-keyword" && row.keys[0].startsWith("http") ? (
-                                  <a
-                                    href={row.keys[0]}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="text-blue-600 hover:underline flex items-center gap-1"
-                                  >
-                                    {row.keys[0]}
-                                    <ExternalLink className="h-3 w-3" />
-                                  </a>
-                                ) : (
-                                  row.keys[0]
+                          {getSortedRows().map((row, idx) => {
+                            const renderDiffCell = (diff?: number, changePercent?: number, isPositive?: boolean) => {
+                              if (diff === undefined || changePercent === undefined) {
+                                return <TableCell className="text-right text-muted-foreground">-</TableCell>;
+                              }
+
+                              const isPositiveChange = isPositive !== undefined ? isPositive : diff > 0;
+                              const colorClass = isPositiveChange
+                                ? "text-green-600"
+                                : diff < 0
+                                  ? "text-red-600"
+                                  : "text-gray-600";
+                              const Icon = isPositiveChange ? TrendingUp : diff < 0 ? TrendingDown : Minus;
+
+                              return (
+                                <TableCell className={`text-right ${colorClass}`}>
+                                  <div className="flex items-center justify-end gap-1">
+                                    <Icon className="h-3 w-3" />
+                                    <span>{diff > 0 ? "+" : ""}{diff.toLocaleString()}</span>
+                                    <span className="text-xs">({changePercent > 0 ? "+" : ""}{changePercent.toFixed(1)}%)</span>
+                                  </div>
+                                </TableCell>
+                              );
+                            };
+
+                            return (
+                              <TableRow key={idx}>
+                                <TableCell>
+                                  <Checkbox
+                                    checked={selectedRows.has(idx)}
+                                    onCheckedChange={() => toggleRowSelection(idx)}
+                                  />
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                  {mode === "queries-for-page" ? (
+                                    <button
+                                      onClick={() => handleQueryClick(row.keys[0])}
+                                      className="text-blue-600 hover:underline text-left"
+                                    >
+                                      {row.keys[0]}
+                                    </button>
+                                  ) : mode === "pages-for-keyword" && row.keys[0].startsWith("http") ? (
+                                    <a
+                                      href={row.keys[0]}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-600 hover:underline flex items-center gap-1"
+                                    >
+                                      {row.keys[0]}
+                                      <ExternalLink className="h-3 w-3" />
+                                    </a>
+                                  ) : (
+                                    row.keys[0]
+                                  )}
+                                </TableCell>
+
+                                {/* Clicks */}
+                                <TableCell className="text-right">{row.clicks.toLocaleString()}</TableCell>
+                                {comparisonMode && (
+                                  <>
+                                    <TableCell className="text-right text-muted-foreground">
+                                      {row.previousClicks !== undefined ? row.previousClicks.toLocaleString() : "-"}
+                                    </TableCell>
+                                    {renderDiffCell(row.clicksDiff, row.clicksChangePercent, true)}
+                                  </>
                                 )}
-                              </TableCell>
-                              <TableCell className="text-right">{row.clicks.toLocaleString()}</TableCell>
-                              <TableCell className="text-right">{row.impressions.toLocaleString()}</TableCell>
-                              <TableCell className="text-right">{(row.ctr * 100).toFixed(2)}%</TableCell>
-                              <TableCell className="text-right">{row.position.toFixed(1)}</TableCell>
-                            </TableRow>
-                          ))}
+
+                                {/* Impressions */}
+                                <TableCell className="text-right">{row.impressions.toLocaleString()}</TableCell>
+                                {comparisonMode && (
+                                  <>
+                                    <TableCell className="text-right text-muted-foreground">
+                                      {row.previousImpressions !== undefined ? row.previousImpressions.toLocaleString() : "-"}
+                                    </TableCell>
+                                    {renderDiffCell(row.impressionsDiff, row.impressionsChangePercent, true)}
+                                  </>
+                                )}
+
+                                {/* CTR */}
+                                <TableCell className="text-right">{(row.ctr * 100).toFixed(2)}%</TableCell>
+                                {comparisonMode && (
+                                  <>
+                                    <TableCell className="text-right text-muted-foreground">
+                                      {row.previousCtr !== undefined ? `${(row.previousCtr * 100).toFixed(2)}%` : "-"}
+                                    </TableCell>
+                                    {renderDiffCell(
+                                      row.ctrDiff !== undefined ? parseFloat((row.ctrDiff * 100).toFixed(2)) : undefined,
+                                      row.ctrChangePercent,
+                                      true
+                                    )}
+                                  </>
+                                )}
+
+                                {/* Position */}
+                                <TableCell className="text-right">{row.position.toFixed(1)}</TableCell>
+                                {comparisonMode && (
+                                  <>
+                                    <TableCell className="text-right text-muted-foreground">
+                                      {row.previousPosition !== undefined ? row.previousPosition.toFixed(1) : "-"}
+                                    </TableCell>
+                                    {row.positionDiff !== undefined && row.positionChangePercent !== undefined ? (
+                                      <TableCell className={`text-right ${row.positionDiff < 0 ? "text-green-600" : row.positionDiff > 0 ? "text-red-600" : "text-gray-600"}`}>
+                                        <div className="flex items-center justify-end gap-1">
+                                          {row.positionDiff < 0 ? <TrendingUp className="h-3 w-3" /> : row.positionDiff > 0 ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
+                                          <span>{row.positionDiff > 0 ? "+" : ""}{row.positionDiff.toFixed(1)}</span>
+                                          <span className="text-xs">({row.positionChangePercent > 0 ? "+" : ""}{row.positionChangePercent.toFixed(1)}%)</span>
+                                        </div>
+                                      </TableCell>
+                                    ) : (
+                                      <TableCell className="text-right text-muted-foreground">-</TableCell>
+                                    )}
+                                  </>
+                                )}
+                              </TableRow>
+                            );
+                          })}
                         </TableBody>
                       </Table>
                     </div>

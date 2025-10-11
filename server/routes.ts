@@ -440,6 +440,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`[GSC Insights] Comparison mode: ${comparisonMode || false}`);
 
       let results;
+      let previousResults;
       let timeSeriesData;
       let previousTimeSeriesData;
       let comparisonData;
@@ -470,6 +471,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Get comparison data if enabled
         if (comparisonMode && previousStartDate && previousEndDate) {
+          // Get previous period queries for per-keyword comparison
+          previousResults = await getQueriesForPage({
+            siteUrl,
+            pageUrl: value,
+            startDate: previousStartDate,
+            endDate: previousEndDate,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+
           comparisonData = await getComparisonData({
             siteUrl,
             currentStartDate: dateRange.startDate,
@@ -517,6 +528,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
         // Get comparison data if enabled
         if (comparisonMode && previousStartDate && previousEndDate) {
+          // Get previous period pages for per-page comparison
+          previousResults = await getPagesForKeyword({
+            siteUrl,
+            keyword: value,
+            startDate: previousStartDate,
+            endDate: previousEndDate,
+            searchType: searchType as SearchType,
+            dataState: dataState as DataState,
+          });
+
           comparisonData = await getComparisonData({
             siteUrl,
             currentStartDate: dateRange.startDate,
@@ -606,6 +627,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         dataState: dataState || 'final',
         totalResults: results.length,
         rows: results,
+        previousRows: previousResults,
         timeSeriesData,
         previousTimeSeriesData,
         comparisonData,
