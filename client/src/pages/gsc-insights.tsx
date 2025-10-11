@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, BarChart3, Search, Download, AlertCircle, ExternalLink, TrendingUp, TrendingDown, Minus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Globe } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
@@ -17,7 +17,6 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useTokenManagement } from "@/hooks/use-token-management";
@@ -95,7 +94,7 @@ function GSCInsightsContent() {
 
   // UI State
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [activeTab, setActiveTab] = useState<"performance" | "url-inspection">("performance");
+  const [activeView, setActiveView] = useState<"performance" | "url-inspection">("performance");
 
   // Cải tiến 1: Custom date range
   const [customStartDate, setCustomStartDate] = useState("");
@@ -145,6 +144,29 @@ function GSCInsightsContent() {
       });
     },
   });
+
+  // Auto-fetch domain overview when entering performance view
+  useEffect(() => {
+    if (activeView === "performance" && !result && toolId && canUseToken) {
+      // Trigger initial fetch with default settings (domain-wide, last 28d, web, no comparison)
+      const dateRange = calculateDateRange();
+      const payload = {
+        siteUrl: siteUrl.trim(),
+        mode: "queries-for-page", // Use queries-for-page mode with empty value for domain-wide
+        value: "", // Empty = domain-wide query
+        timePreset,
+        searchType,
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        comparisonMode: false,
+      };
+
+      executeWithToken(toolId, 1, async () => {
+        mutation.mutate(payload);
+        return true;
+      });
+    }
+  }, [activeView, toolId, canUseToken]); // Only run when view changes or toolId/auth changes
 
   const calculateDateRange = () => {
     if (timePreset === "custom") {
@@ -569,33 +591,56 @@ function GSCInsightsContent() {
 
       <div className="flex">
         {/* LEFT SIDEBAR - Toggleable */}
-        <aside className={`transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-0'}`}>
+        <aside className={`transition-all duration-300 ${isSidebarOpen ? 'w-64' : 'w-0'} border-r`}>
           {isSidebarOpen && (
-            <div className="h-screen border-r bg-muted/10 p-4">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between mb-6">
-                  <div className="flex items-center gap-2">
-                    <Globe className="h-5 w-5" />
-                    <h3 className="font-semibold">GSC Property</h3>
-                  </div>
-                  <Button variant="ghost" size="sm" onClick={() => setIsSidebarOpen(false)}>
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
+            <div className="h-screen bg-muted/10 p-4 space-y-6">
+              {/* Header with toggle */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-5 w-5" />
+                  <h3 className="font-semibold">GSC Property</h3>
                 </div>
+                <Button variant="ghost" size="sm" onClick={() => setIsSidebarOpen(false)}>
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+              </div>
 
-                <div className="space-y-2">
-                  <Label>Site URL</Label>
-                  <Select value={siteUrl} onValueChange={setSiteUrl}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {GSC_SITES.map((site) => (
-                        <SelectItem key={site} value={site}>{site}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              {/* Site URL Selector */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Site URL</Label>
+                <Select value={siteUrl} onValueChange={setSiteUrl}>
+                  <SelectTrigger className="h-9">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {GSC_SITES.map((site) => (
+                      <SelectItem key={site} value={site}>{site}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Navigation Menu */}
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-muted-foreground px-2 mb-2">CÔNG CỤ</p>
+
+                <Button
+                  variant={activeView === "performance" ? "secondary" : "ghost"}
+                  className="w-full justify-start"
+                  onClick={() => setActiveView("performance")}
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Hiệu suất
+                </Button>
+
+                <Button
+                  variant={activeView === "url-inspection" ? "secondary" : "ghost"}
+                  className="w-full justify-start"
+                  onClick={() => setActiveView("url-inspection")}
+                >
+                  <Search className="h-4 w-4 mr-2" />
+                  Kiểm tra URL
+                </Button>
               </div>
             </div>
           )}
@@ -631,15 +676,9 @@ function GSCInsightsContent() {
               </p>
             </section>
 
-            {/* TABS */}
-            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "performance" | "url-inspection")} className="space-y-6">
-              <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
-                <TabsTrigger value="performance">Hiệu suất</TabsTrigger>
-                <TabsTrigger value="url-inspection">Kiểm tra URL</TabsTrigger>
-              </TabsList>
-
-              {/* TAB 1: Performance (existing content) */}
-              <TabsContent value="performance" className="space-y-6">
+            {/* Content based on activeView */}
+            {activeView === "performance" && (
+              <div className="space-y-6">
                 {/* Input Form - Compact horizontal layout */}
                 <Card>
                   <CardHeader>
@@ -1150,10 +1189,12 @@ function GSCInsightsContent() {
                     </CardContent>
                   </Card>
                 </div>
-              </TabsContent>
+              </div>
+            )}
 
-              {/* TAB 2: URL Inspection (placeholder) */}
-              <TabsContent value="url-inspection">
+            {/* URL Inspection View */}
+            {activeView === "url-inspection" && (
+              <div className="space-y-6">
                 <Card>
                   <CardHeader>
                     <CardTitle>Kiểm tra URL</CardTitle>
@@ -1163,8 +1204,8 @@ function GSCInsightsContent() {
                     <p className="text-muted-foreground">Coming soon...</p>
                   </CardContent>
                 </Card>
-              </TabsContent>
-            </Tabs>
+              </div>
+            )}
           </div>
         </main>
       </div>

@@ -447,12 +447,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Get main results based on mode
       if (mode === 'queries-for-page') {
-        if (!value) {
-          return res.status(400).json({ message: "Page URL is required for queries-for-page mode" });
-        }
+        // Allow empty value for domain-wide query
         results = await getQueriesForPage({
           siteUrl,
-          pageUrl: value,
+          pageUrl: value || '', // Empty string for domain-wide
           startDate: dateRange.startDate,
           endDate: dateRange.endDate,
           searchType: searchType as SearchType,
@@ -462,7 +460,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Get time series data for chart
         timeSeriesData = await getTimeSeriesData({
           siteUrl,
-          pageUrl: value,
+          pageUrl: value || '', // Empty string for domain-wide
           startDate: dateRange.startDate,
           endDate: dateRange.endDate,
           searchType: searchType as SearchType,
@@ -474,7 +472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Get previous period queries for per-keyword comparison
           previousResults = await getQueriesForPage({
             siteUrl,
-            pageUrl: value,
+            pageUrl: value || '', // Empty string for domain-wide
             startDate: previousStartDate,
             endDate: previousEndDate,
             searchType: searchType as SearchType,
@@ -487,7 +485,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             currentEndDate: dateRange.endDate,
             previousStartDate,
             previousEndDate,
-            pageUrl: value,
+            pageUrl: value || '', // Empty string for domain-wide
             searchType: searchType as SearchType,
             dataState: dataState as DataState,
           });
@@ -495,7 +493,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Get previous period time series data for chart
           previousTimeSeriesData = await getTimeSeriesData({
             siteUrl,
-            pageUrl: value,
+            pageUrl: value || '', // Empty string for domain-wide
             startDate: previousStartDate,
             endDate: previousEndDate,
             searchType: searchType as SearchType,
