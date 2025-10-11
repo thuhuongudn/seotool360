@@ -272,10 +272,12 @@ function GSCInsightsContent() {
       return;
     }
 
-    if (mode !== "url-and-query" && !value.trim()) {
+    // For url-and-query mode, require both pageUrl and keyword
+    // For other modes, empty value is allowed (domain-wide query)
+    if (mode === "url-and-query" && (!selectedPageUrl.trim() || !selectedKeyword.trim())) {
       toast({
         title: "Thiếu thông tin",
-        description: mode === "queries-for-page" ? "Vui lòng nhập URL." : "Vui lòng nhập keyword.",
+        description: "Vui lòng nhập cả Page URL và Keyword cho mode URL + Query.",
         variant: "destructive",
       });
       return;
