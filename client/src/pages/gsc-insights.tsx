@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Loader2, BarChart3, Search, Download, AlertCircle, ExternalLink, TrendingUp, TrendingDown, Minus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Globe } from "lucide-react";
+import { Loader2, BarChart3, Search, Download, AlertCircle, ExternalLink, TrendingUp, TrendingDown, Minus, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Globe, Copy, CheckCircle2, XCircle, AlertTriangle, Clock, Rocket } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
@@ -14,12 +14,24 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useTokenManagement } from "@/hooks/use-token-management";
+import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 type AnalysisMode = "queries-for-page" | "pages-for-keyword" | "url-and-query";
 type TimePreset = "last7d" | "last28d" | "last90d" | "custom";
@@ -76,10 +88,178 @@ interface GSCResponse {
   };
 }
 
+interface URLInspectionIndexStatusResult {
+  verdict?: string;
+  coverageState?: string;
+  indexingState?: string;
+  lastCrawlTime?: string;
+  pageFetchState?: string;
+  robotsTxtState?: string;
+  googleCanonical?: string;
+  userCanonical?: string;
+  crawledAs?: string;
+}
+
+interface URLInspectionMobileUsabilityIssue {
+  issueType?: string;
+  message?: string;
+}
+
+interface URLInspectionMobileUsabilityResult {
+  verdict?: string;
+  issues?: URLInspectionMobileUsabilityIssue[];
+}
+
+interface URLInspectionRichResultItem {
+  richResultType?: string;
+  items?: Array<{
+    name?: string;
+    issues?: Array<{ message?: string }>;
+  }>;
+}
+
+interface URLInspectionRichResultsResult {
+  verdict?: string;
+  detectedItems?: URLInspectionRichResultItem[];
+}
+
+interface URLInspectionResult {
+  indexStatusResult?: URLInspectionIndexStatusResult | null;
+  mobileUsabilityResult?: URLInspectionMobileUsabilityResult | null;
+  richResultsResult?: URLInspectionRichResultsResult | null;
+}
+
+interface UrlInspectionApiResponse {
+  success: boolean;
+  data?: {
+    inspectionResult?: URLInspectionResult;
+  };
+  error?: string;
+  message?: string;
+}
+
+interface RequestIndexingResponse {
+  success: boolean;
+  message?: string;
+  error?: string;
+}
+
+type UrlInspectionPayload = {
+  inspectionUrl: string;
+  siteUrl: string;
+  languageCode?: string;
+};
+
+type RequestIndexingPayload = {
+  url: string;
+  type: "URL_UPDATED" | "URL_DELETED";
+};
+
 // Predefined GSC properties
 const GSC_SITES = [
   "https://nhathuocvietnhat.vn",
 ];
+
+const LANGUAGE_OPTIONS = [
+  { value: "vi", label: "Tiếng Việt (vi)" },
+  { value: "en", label: "English (en)" },
+  { value: "en-US", label: "English - US (en-US)" },
+];
+
+const VERDICT_META: Record<
+  string,
+  {
+    label: string;
+    className: string;
+    tone: "positive" | "negative" | "neutral";
+  }
+> = {
+  PASS: {
+    label: "Đã indexed",
+    className:
+      "bg-emerald-500/10 text-emerald-600 border border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-200",
+    tone: "positive",
+  },
+  FAIL: {
+    label: "Chưa indexed",
+    className:
+      "bg-red-500/10 text-red-600 border border-red-500/30 dark:bg-red-500/20 dark:text-red-200",
+    tone: "negative",
+  },
+  NEUTRAL: {
+    label: "Trung tính",
+    className:
+      "bg-amber-500/10 text-amber-600 border border-amber-500/30 dark:bg-amber-500/20 dark:text-amber-200",
+    tone: "neutral",
+  },
+};
+
+const DEFAULT_VERDICT_META = {
+  label: "Không xác định",
+  className:
+    "bg-muted text-muted-foreground border border-border dark:border-slate-700",
+  tone: "neutral" as const,
+};
+
+function getVerdictMeta(verdict?: string | null) {
+  if (!verdict) {
+    return DEFAULT_VERDICT_META;
+  }
+  return VERDICT_META[verdict] || DEFAULT_VERDICT_META;
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) {
+    return "Không có dữ liệu";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString("vi-VN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function parseApiErrorMessage(error: Error): { message: string; details?: string } {
+  const fallback = {
+    message: error.message || "Không thể kết nối tới máy chủ.",
+  };
+
+  if (!error.message) {
+    return fallback;
+  }
+
+  const separatorIndex = error.message.indexOf(":");
+  if (separatorIndex === -1) {
+    return fallback;
+  }
+
+  const rawBody = error.message.slice(separatorIndex + 1).trim();
+  if (!rawBody) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(rawBody);
+    if (parsed && typeof parsed === "object") {
+      const parsedMessage = parsed.error || parsed.message || fallback.message;
+      return {
+        message: parsedMessage,
+        details: parsed.details || parsed.rawError,
+      };
+    }
+  } catch (_err) {
+    return {
+      message: rawBody,
+    };
+  }
+
+  return fallback;
+}
 
 function GSCInsightsContent() {
   const toolId = useToolId("gsc-insights");
@@ -117,6 +297,16 @@ function GSCInsightsContent() {
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
   const [exportFormat, setExportFormat] = useState<"csv" | "json">("csv");
 
+  // URL Inspection state
+  const [inspectionUrl, setInspectionUrl] = useState("");
+  const [inspectionLanguage, setInspectionLanguage] = useState(LANGUAGE_OPTIONS[0].value);
+  const [inspectionResult, setInspectionResult] = useState<URLInspectionResult | null>(null);
+  const [lastInspectedUrl, setLastInspectedUrl] = useState("");
+  const [lastInspectedSiteUrl, setLastInspectedSiteUrl] = useState("");
+  const [inspectionError, setInspectionError] = useState<string | null>(null);
+  const [indexingStatus, setIndexingStatus] = useState<string | null>(null);
+  const [indexingError, setIndexingError] = useState<string | null>(null);
+
   const { toast } = useToast();
   const { executeWithToken, canUseToken, isProcessing: isTokenProcessing } = useTokenManagement();
 
@@ -145,6 +335,88 @@ function GSCInsightsContent() {
     },
   });
 
+  const urlInspectionMutation = useMutation<UrlInspectionApiResponse, Error, UrlInspectionPayload>({
+    mutationFn: async (payload) => {
+      const response = await apiRequest("POST", "/api/gsc/url-inspection", payload);
+      return await response.json() as UrlInspectionApiResponse;
+    },
+    onMutate: () => {
+      setInspectionError(null);
+      setIndexingError(null);
+      setIndexingStatus(null);
+      setInspectionResult(null);
+      setLastInspectedUrl("");
+      setLastInspectedSiteUrl("");
+    },
+    onSuccess: (data, variables) => {
+      if (data.success && data.data?.inspectionResult) {
+        setInspectionResult(data.data.inspectionResult);
+        setLastInspectedUrl(variables.inspectionUrl);
+        setLastInspectedSiteUrl(variables.siteUrl);
+        toast({
+          title: "Đã kiểm tra URL",
+          description: "Dữ liệu URL Inspection đã sẵn sàng.",
+        });
+      } else {
+        const errorMessage = data.error || data.message || "Không thể kiểm tra URL. Vui lòng thử lại.";
+        setInspectionError(errorMessage);
+        toast({
+          title: "Kiểm tra URL thất bại",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error) => {
+      const parsed = parseApiErrorMessage(error);
+      const message = parsed.message || "Không thể kết nối tới dịch vụ kiểm tra URL.";
+      setInspectionError(message);
+      toast({
+        title: "Kiểm tra URL thất bại",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const requestIndexingMutation = useMutation<RequestIndexingResponse, Error, RequestIndexingPayload>({
+    mutationFn: async (payload) => {
+      const response = await apiRequest("POST", "/api/gsc/request-indexing", payload);
+      return await response.json() as RequestIndexingResponse;
+    },
+    onMutate: () => {
+      setIndexingError(null);
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        const successMessage = data.message || "Đã gửi yêu cầu lập chỉ mục thành công.";
+        setIndexingStatus(successMessage);
+        toast({
+          title: "Đã gửi yêu cầu",
+          description: successMessage,
+        });
+      } else {
+        const errorMessage = data.error || "Không thể gửi yêu cầu lập chỉ mục.";
+        setIndexingError(errorMessage);
+        toast({
+          title: "Yêu cầu lập chỉ mục thất bại",
+          description: errorMessage,
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error) => {
+      const parsed = parseApiErrorMessage(error);
+      const message = parsed.message || "Không thể gửi yêu cầu lập chỉ mục.";
+      setIndexingError(message);
+      toast({
+        title: "Yêu cầu lập chỉ mục thất bại",
+        description: message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Auto-fetch domain overview when entering performance view
   useEffect(() => {
     if (activeView === "performance" && !result && toolId && canUseToken) {
@@ -167,6 +439,20 @@ function GSCInsightsContent() {
       });
     }
   }, [activeView, toolId, canUseToken]); // Only run when view changes or toolId/auth changes
+
+  useEffect(() => {
+    if (!indexingStatus) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setIndexingStatus(null);
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [indexingStatus]);
 
   const calculateDateRange = () => {
     if (timePreset === "custom") {
@@ -195,6 +481,125 @@ function GSCInsightsContent() {
       previousStartDate: prevStart.toISOString().split('T')[0],
       previousEndDate: prevEnd.toISOString().split('T')[0],
     };
+  };
+
+  const handleUrlInspection = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!toolId) {
+      toast({
+        title: "Không xác định được công cụ",
+        description: "Vui lòng tải lại trang và thử lại.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (urlInspectionMutation.isPending || isTokenProcessing) {
+      return;
+    }
+
+    setInspectionError(null);
+    setIndexingError(null);
+
+    const trimmedInspectionUrl = inspectionUrl.trim();
+    const trimmedSiteUrl = siteUrl.trim();
+
+    if (!trimmedInspectionUrl) {
+      setInspectionError("Vui lòng nhập URL cần kiểm tra.");
+      return;
+    }
+
+    if (!trimmedSiteUrl) {
+      setInspectionError("Vui lòng chọn Site URL hợp lệ.");
+      return;
+    }
+
+    let normalizedInspectionUrl: string;
+    try {
+      const parsedInspectionUrl = new URL(trimmedInspectionUrl);
+      normalizedInspectionUrl = parsedInspectionUrl.toString();
+    } catch (_error) {
+      setInspectionError("URL không hợp lệ. Vui lòng sử dụng định dạng https://domain.com/path");
+      return;
+    }
+
+    let normalizedSiteUrl: string;
+    try {
+      const parsedSiteUrl = new URL(trimmedSiteUrl);
+      normalizedSiteUrl = parsedSiteUrl.toString();
+    } catch (_error) {
+      setInspectionError("Site URL không hợp lệ. Vui lòng kiểm tra cấu hình GSC property.");
+      return;
+    }
+
+    if (!normalizedSiteUrl.endsWith("/")) {
+      normalizedSiteUrl = `${normalizedSiteUrl}/`;
+    }
+
+    setInspectionUrl(normalizedInspectionUrl);
+
+    await executeWithToken(toolId, 1, async () => {
+      urlInspectionMutation.mutate({
+        inspectionUrl: normalizedInspectionUrl,
+        siteUrl: normalizedSiteUrl,
+        languageCode: inspectionLanguage?.trim() || undefined,
+      });
+      return true;
+    });
+  };
+
+  const handleRequestIndexing = async () => {
+    if (!toolId) {
+      toast({
+        title: "Không xác định được công cụ",
+        description: "Vui lòng tải lại trang và thử lại.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!inspectionResult || !lastInspectedUrl) {
+      setIndexingError("Vui lòng kiểm tra URL trước khi gửi yêu cầu lập chỉ mục.");
+      return;
+    }
+
+    if (requestIndexingMutation.isPending || isTokenProcessing) {
+      return;
+    }
+
+    await executeWithToken(toolId, 1, async () => {
+      requestIndexingMutation.mutate({
+        url: lastInspectedUrl,
+        type: "URL_UPDATED",
+      });
+      return true;
+    });
+  };
+
+  const handleCopyToClipboard = async (value?: string | null) => {
+    if (!value) {
+      toast({
+        title: "Không có dữ liệu",
+        description: "Không tìm thấy giá trị để sao chép.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(value);
+      toast({
+        title: "Đã sao chép",
+        description: "Giá trị đã được lưu vào clipboard.",
+      });
+    } catch (_error) {
+      toast({
+        title: "Không thể sao chép",
+        description: "Trình duyệt từ chối thao tác sao chép. Vui lòng thử lại.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Merge current and previous period data by keyword/page
@@ -260,7 +665,7 @@ function GSCInsightsContent() {
     });
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     if (!siteUrl.trim()) {
@@ -586,6 +991,53 @@ function GSCInsightsContent() {
       </Card>
     );
   };
+
+  const indexStatus = inspectionResult?.indexStatusResult ?? null;
+  const verdictMeta = getVerdictMeta(indexStatus?.verdict);
+  const mobileVerdictMeta = getVerdictMeta(inspectionResult?.mobileUsabilityResult?.verdict);
+  const richVerdictMeta = getVerdictMeta(inspectionResult?.richResultsResult?.verdict);
+  const canonicalMismatch = Boolean(
+    indexStatus?.googleCanonical &&
+    indexStatus?.userCanonical &&
+    indexStatus.googleCanonical !== indexStatus.userCanonical
+  );
+  const mobileIssues = inspectionResult?.mobileUsabilityResult?.issues ?? [];
+  const richResultItems = inspectionResult?.richResultsResult?.detectedItems ?? [];
+  const hasMobileIssues = mobileIssues.length > 0;
+  const hasRichResults = richResultItems.length > 0;
+  const searchConsoleInspectLink =
+    lastInspectedUrl && lastInspectedSiteUrl
+      ? `https://search.google.com/search-console/inspect?resource_id=${encodeURIComponent(lastInspectedSiteUrl)}&url=${encodeURIComponent(lastInspectedUrl)}`
+      : null;
+  const requestIndexingDisabled =
+    !canUseToken || requestIndexingMutation.isPending || isTokenProcessing;
+  const indexStatusMetrics = [
+    {
+      label: "Coverage",
+      value: indexStatus?.coverageState,
+    },
+    {
+      label: "Trạng thái lập chỉ mục",
+      value: indexStatus?.indexingState,
+    },
+    {
+      label: "Lần crawl gần nhất",
+      value: formatDateTime(indexStatus?.lastCrawlTime),
+      icon: "clock" as const,
+    },
+    {
+      label: "Robots.txt",
+      value: indexStatus?.robotsTxtState,
+    },
+    {
+      label: "Trạng thái fetch",
+      value: indexStatus?.pageFetchState,
+    },
+    {
+      label: "Thu thập dưới dạng",
+      value: indexStatus?.crawledAs,
+    },
+  ];
 
   return (
     <div className="min-h-screen bg-background">
@@ -1200,12 +1652,358 @@ function GSCInsightsContent() {
                 <Card>
                   <CardHeader>
                     <CardTitle>Kiểm tra URL</CardTitle>
-                    <CardDescription>Tính năng sẽ được phát triển sau</CardDescription>
+                    <CardDescription>
+                      Kiểm tra trạng thái index hiện tại và gửi yêu cầu lập chỉ mục trực tiếp từ giao diện này.
+                    </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <p className="text-muted-foreground">Coming soon...</p>
+                    <form onSubmit={handleUrlInspection} className="space-y-6">
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="inspection-site">Site URL (Property)</Label>
+                          <Select
+                            value={siteUrl}
+                            onValueChange={setSiteUrl}
+                            disabled={urlInspectionMutation.isPending || isTokenProcessing}
+                          >
+                            <SelectTrigger id="inspection-site" className="h-10">
+                              <SelectValue placeholder="Chọn property" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {GSC_SITES.map((site) => (
+                                <SelectItem key={site} value={site}>
+                                  {site}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Property này dùng chung cho cả tab Hiệu suất và Kiểm tra URL.
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="inspection-language">Ngôn ngữ phản hồi</Label>
+                          <Select
+                            value={inspectionLanguage}
+                            onValueChange={setInspectionLanguage}
+                            disabled={urlInspectionMutation.isPending || isTokenProcessing}
+                          >
+                            <SelectTrigger id="inspection-language" className="h-10">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {LANGUAGE_OPTIONS.map((option) => (
+                                <SelectItem key={option.value} value={option.value}>
+                                  {option.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <p className="text-xs text-muted-foreground">
+                            Mã ngôn ngữ ISO, mặc định là <code>vi</code>.
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="inspection-url">URL cần kiểm tra</Label>
+                        <Input
+                          id="inspection-url"
+                          type="url"
+                          placeholder="https://nhathuocvietnhat.vn/bai-viet/..."
+                          value={inspectionUrl}
+                          onChange={(event) => setInspectionUrl(event.target.value)}
+                          disabled={urlInspectionMutation.isPending || isTokenProcessing}
+                          required
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          URL phải thuộc property đã chọn và bao gồm giao thức (https://).
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-3">
+                        <Button
+                          type="submit"
+                          disabled={!canUseToken || urlInspectionMutation.isPending || isTokenProcessing}
+                        >
+                          {urlInspectionMutation.isPending || isTokenProcessing ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Đang kiểm tra...
+                            </>
+                          ) : (
+                            <>
+                              <Search className="mr-2 h-4 w-4" />
+                              Kiểm tra URL
+                            </>
+                          )}
+                        </Button>
+                        {!canUseToken && (
+                          <p className="text-xs text-red-500">
+                            Tài khoản của bạn chưa được kích hoạt cho công cụ này.
+                          </p>
+                        )}
+                      </div>
+                    </form>
+
+                    {inspectionError && (
+                      <Alert variant="destructive" className="mt-6">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertTitle>Lỗi kiểm tra URL</AlertTitle>
+                        <AlertDescription>{inspectionError}</AlertDescription>
+                      </Alert>
+                    )}
                   </CardContent>
                 </Card>
+
+                {inspectionResult && (
+                  <Card>
+                    <CardHeader className="space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <CardTitle className="flex items-center gap-2">
+                          <Search className="h-5 w-5" />
+                          Kết quả kiểm tra
+                        </CardTitle>
+                        <Badge className={cn("flex items-center gap-1 text-xs font-medium px-2.5 py-1", verdictMeta.className)}>
+                          {verdictMeta.tone === "positive" ? (
+                            <CheckCircle2 className="h-3.5 w-3.5" />
+                          ) : verdictMeta.tone === "negative" ? (
+                            <XCircle className="h-3.5 w-3.5" />
+                          ) : (
+                            <AlertCircle className="h-3.5 w-3.5" />
+                          )}
+                          <span>{indexStatus?.verdict ?? "Không xác định"}</span>
+                        </Badge>
+                      </div>
+                      <CardDescription>
+                        Phân tích cho URL {" "}
+                        <span className="font-medium text-foreground break-all">{lastInspectedUrl}</span>
+                      </CardDescription>
+                      {indexingStatus && (
+                        <Alert className="border-emerald-500/40 bg-emerald-500/10">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                          <AlertTitle>Đã gửi yêu cầu</AlertTitle>
+                          <AlertDescription>{indexingStatus}</AlertDescription>
+                        </Alert>
+                      )}
+                      <div className="flex flex-wrap items-center gap-3 pt-2">
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={requestIndexingDisabled}
+                            >
+                              {requestIndexingMutation.isPending ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  Đang gửi yêu cầu...
+                                </>
+                              ) : (
+                                <>
+                                  <Rocket className="mr-2 h-4 w-4" />
+                                  Yêu cầu lập chỉ mục
+                                </>
+                              )}
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Xác nhận gửi yêu cầu lập chỉ mục</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Google sẽ ưu tiên crawl lại URL:
+                                <br />
+                                <span className="font-medium text-foreground">{lastInspectedUrl}</span>
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Huỷ</AlertDialogCancel>
+                              <AlertDialogAction onClick={handleRequestIndexing}>Gửi yêu cầu</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+
+                        {searchConsoleInspectLink && (
+                          <Button variant="outline" type="button" size="sm" asChild>
+                            <a
+                              href={searchConsoleInspectLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center"
+                            >
+                              <ExternalLink className="mr-2 h-4 w-4" />
+                              Mở trong Search Console
+                            </a>
+                          </Button>
+                        )}
+
+                        {!canUseToken && (
+                          <p className="text-xs text-red-500">
+                            Bạn cần quyền sử dụng công cụ để gửi yêu cầu lập chỉ mục.
+                          </p>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                      {(verdictMeta.tone !== "positive" || canonicalMismatch) && (
+                        <Alert className="border-amber-500/40 bg-amber-500/10">
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertTitle>URL cần chú ý</AlertTitle>
+                          <AlertDescription>
+                            {verdictMeta.tone !== "positive"
+                              ? "URL chưa được index hoàn toàn. Bạn có thể gửi yêu cầu lập chỉ mục."
+                              : "Google canonical không trùng khớp với canonical do bạn khai báo. Hãy kiểm tra lại thẻ canonical hoặc sitemap."}
+                          </AlertDescription>
+                        </Alert>
+                      )}
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        {indexStatusMetrics.map((item) => (
+                          <div key={item.label} className="rounded-lg border bg-muted/10 p-4">
+                            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                              {item.label}
+                            </p>
+                            <div className="mt-2 flex items-center gap-2">
+                              {item.icon === "clock" && <Clock className="h-4 w-4 text-muted-foreground" />}
+                              <span className="text-sm font-medium text-foreground">
+                                {item.value || "Không có dữ liệu"}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-3 rounded-lg border bg-muted/10 p-4">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            Google canonical
+                          </p>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm text-foreground break-all">
+                              {indexStatus?.googleCanonical || "Không có dữ liệu"}
+                            </span>
+                            {indexStatus?.googleCanonical && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2"
+                                onClick={() => handleCopyToClipboard(indexStatus.googleCanonical)}
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="space-y-3 rounded-lg border bg-muted/10 p-4">
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                            User canonical
+                          </p>
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm text-foreground break-all">
+                              {indexStatus?.userCanonical || "Không có dữ liệu"}
+                            </span>
+                            {indexStatus?.userCanonical && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-8 px-2"
+                                onClick={() => handleCopyToClipboard(indexStatus.userCanonical)}
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 md:grid-cols-2">
+                        <div className="space-y-3 rounded-lg border bg-muted/10 p-4">
+                          <div className="flex items-center gap-2">
+                            {mobileVerdictMeta.tone === "positive" ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                            ) : mobileVerdictMeta.tone === "negative" ? (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-amber-500" />
+                            )}
+                            <p className="text-sm font-semibold">Mobile usability</p>
+                            <Badge className={cn("text-xs", mobileVerdictMeta.className)}>
+                              {inspectionResult?.mobileUsabilityResult?.verdict ?? "Không xác định"}
+                            </Badge>
+                          </div>
+                          {hasMobileIssues ? (
+                            <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                              {mobileIssues.map((issue, idx) => (
+                                <li key={idx}>{issue.message || issue.issueType || "Vấn đề không xác định"}</li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              Không phát hiện vấn đề trên thiết bị di động.
+                            </p>
+                          )}
+                        </div>
+
+                        <div className="space-y-3 rounded-lg border bg-muted/10 p-4">
+                          <div className="flex items-center gap-2">
+                            {richVerdictMeta.tone === "positive" ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                            ) : richVerdictMeta.tone === "negative" ? (
+                              <XCircle className="h-4 w-4 text-red-500" />
+                            ) : (
+                              <AlertCircle className="h-4 w-4 text-amber-500" />
+                            )}
+                            <p className="text-sm font-semibold">Rich results</p>
+                            <Badge className={cn("text-xs", richVerdictMeta.className)}>
+                              {inspectionResult?.richResultsResult?.verdict ?? "Không xác định"}
+                            </Badge>
+                          </div>
+                          {hasRichResults ? (
+                            <div className="space-y-2 text-sm text-muted-foreground">
+                              {richResultItems.map((item, idx) => (
+                                <div key={idx} className="rounded bg-background/60 p-3">
+                                  <p className="font-medium text-foreground">
+                                    {item.richResultType || `Rich result #${idx + 1}`}
+                                  </p>
+                                  {item.items?.map((richItem, innerIdx) => (
+                                    <div key={innerIdx} className="mt-2 space-y-1">
+                                      {richItem.name && (
+                                        <p className="text-xs text-muted-foreground">{richItem.name}</p>
+                                      )}
+                                      {richItem.issues && richItem.issues.length > 0 ? (
+                                        <ul className="list-disc pl-4 space-y-1 text-xs">
+                                          {richItem.issues.map((issue, issueIdx) => (
+                                            <li key={issueIdx}>{issue.message || "Vấn đề không xác định"}</li>
+                                          ))}
+                                        </ul>
+                                      ) : (
+                                        <p className="text-xs text-muted-foreground">Không có lỗi.</p>
+                                      )}
+                                    </div>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground">
+                              Không phát hiện structured data đủ điều kiện Rich result.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {indexingError && (
+                        <Alert variant="destructive">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Không thể gửi yêu cầu lập chỉ mục</AlertTitle>
+                          <AlertDescription>{indexingError}</AlertDescription>
+                        </Alert>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             )}
           </div>

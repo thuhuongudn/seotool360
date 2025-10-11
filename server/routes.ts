@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { authMiddleware, requireAdmin, type AuthenticatedRequest } from "./auth-middleware";
 import { z } from "zod";
 import { generateKeywordIdeas, generateKeywordHistoricalMetrics, GoogleAdsApiError } from "./services/google-ads";
-import { getQueriesForPage, getPagesForKeyword, getDateRangeFromPreset, getTimeSeriesData, getComparisonData, GSCApiError, type TimePreset, type AnalysisMode, type SearchType, type DataState } from "./services/google-search-console";
+import { getQueriesForPage, getPagesForKeyword, getDateRangeFromPreset, getTimeSeriesData, getComparisonData, inspectUrl, requestIndexing, GSCApiError, type TimePreset, type AnalysisMode, type SearchType, type DataState } from "./services/google-search-console";
 import { registerApiProxyRoutes } from "./routes/api-proxy";
 import { registerTestRoutes } from "./routes/test-api";
 
@@ -57,6 +57,17 @@ const gscInsightsRequestSchema = z.object({
   previousEndDate: z.string().optional(), // For comparison
   searchType: z.enum(["web", "image", "video", "news"]).optional(),
   dataState: z.enum(["final", "all"]).optional(),
+});
+
+const urlInspectionRequestSchema = z.object({
+  inspectionUrl: z.string().url('inspectionUrl must be a valid URL').trim(),
+  siteUrl: z.string().url('siteUrl must be a valid URL').trim(),
+  languageCode: z.string().trim().min(2).max(10).optional(),
+});
+
+const requestIndexingSchema = z.object({
+  url: z.string().url('url must be a valid URL').trim(),
+  type: z.enum(['URL_UPDATED', 'URL_DELETED']).default('URL_UPDATED'),
 });
 
 
@@ -641,6 +652,139 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.error("[GSC Insights] Unexpected error", error);
       return res.status(500).json({ message: "Failed to fetch Search Console data" });
+    }
+  });
+
+  app.post("/api/gsc/url-inspection", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ success: false, error: "Authentication required" });
+      }
+
+      const validation = urlInspectionRequestSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid request data",
+          details: validation.error.issues,
+        });
+      }
+
+      const { hasAccess } = await assertToolAccessOrAdmin(req.user.id, "gsc-insights");
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied. You don't have permission to use this tool.",
+        });
+      }
+
+      const payload = validation.data;
+      console.log('[GSC][URL Inspection] Request', {
+        siteUrl: payload.siteUrl,
+        inspectionUrl: payload.inspectionUrl,
+        languageCode: payload.languageCode,
+      });
+
+      const inspectionResponse = await inspectUrl(payload);
+
+      return res.json({
+        success: true,
+        data: inspectionResponse,
+      });
+    } catch (error: any) {
+      if (error instanceof GSCApiError) {
+        console.error('[GSC][URL Inspection] Error', {
+          message: error.message,
+          status: error.status,
+          details: error.details?.error?.status || error.details?.error?.code,
+        });
+        return res.status(error.status ?? 500).json({
+          success: false,
+          error: error.message,
+          details: error.details?.error?.status || error.details?.error?.code,
+        });
+      }
+
+      console.error('[GSC][URL Inspection] Unexpected error', error);
+      return res.status(500).json({ success: false, error: 'Failed to inspect URL' });
+    }
+  });
+
+  app.post("/api/gsc/request-indexing", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ success: false, error: "Authentication required" });
+      }
+
+      const validation = requestIndexingSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid request data",
+          details: validation.error.issues,
+        });
+      }
+
+      const { hasAccess, isAdmin } = await assertToolAccessOrAdmin(req.user.id, "gsc-insights");
+      if (!hasAccess) {
+        return res.status(403).json({
+          success: false,
+          error: "Access denied. You don't have permission to use this tool.",
+        });
+      }
+
+      if (!isAdmin) {
+        console.log('[GSC][Request Indexing] Non-admin request by user', req.user.id);
+      }
+
+      const payload = validation.data;
+      console.log('[GSC][Request Indexing] Request', {
+        url: payload.url,
+        type: payload.type,
+      });
+
+      const indexingResponse = await requestIndexing(payload);
+
+      return res.json({
+        success: true,
+        message: 'Đã gửi yêu cầu lập chỉ mục tới Google.',
+        data: indexingResponse,
+      });
+    } catch (error: any) {
+      if (error instanceof GSCApiError) {
+        const apiStatus = error.details?.error?.status || error.details?.error?.code;
+        const rawMessage = error.message;
+        let friendlyMessage = rawMessage;
+
+        if (error.status === 403 && apiStatus === 'PERMISSION_DENIED') {
+          if (rawMessage?.includes('indexing.googleapis.com')) {
+            friendlyMessage = 'Indexing API chưa được bật cho dự án Google Cloud. Hãy truy cập Google Cloud Console, bật "Indexing API" cho project và thử lại sau vài phút.';
+          } else {
+            friendlyMessage = 'Service Account chưa có quyền gửi Request Indexing. Hãy thêm Service Account vào Search Console với quyền "Owner".';
+          }
+        } else if (error.status === 429) {
+          friendlyMessage = 'Bạn đã vượt quá giới hạn Request Indexing (200 yêu cầu/ngày). Vui lòng thử lại sau 24 giờ.';
+        } else if (error.status === 400) {
+          friendlyMessage = rawMessage || 'Yêu cầu không hợp lệ. Vui lòng kiểm tra lại URL.';
+        }
+
+        console.error('[GSC][Request Indexing] Error', {
+          message: rawMessage,
+          friendlyMessage,
+          status: error.status,
+          details: apiStatus,
+        });
+
+        return res.status(error.status ?? 500).json({
+          success: false,
+          error: friendlyMessage,
+          details: apiStatus,
+          rawError: rawMessage,
+        });
+      }
+
+      console.error('[GSC][Request Indexing] Unexpected error', error);
+      return res.status(500).json({ success: false, error: 'Failed to submit indexing request' });
     }
   });
 

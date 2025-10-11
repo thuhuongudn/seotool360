@@ -4,6 +4,15 @@ import { GoogleAuth } from 'google-auth-library';
 const SA_EMAIL = process.env.SA_EMAIL;
 const SA_PRIVATE_KEY = process.env.SA_PRIVATE_KEY;
 
+const DEFAULT_SCOPES = [
+  'https://www.googleapis.com/auth/webmasters',
+  'https://www.googleapis.com/auth/webmasters.readonly',
+];
+
+const INDEXING_SCOPES = [
+  'https://www.googleapis.com/auth/indexing',
+];
+
 // Validate environment variables
 if (!SA_EMAIL || !SA_PRIVATE_KEY) {
   console.error('❌ Missing Service Account credentials');
@@ -129,7 +138,7 @@ export function getDateRangeFromPreset(preset: TimePreset): { startDate: string;
 /**
  * Create authenticated Google Auth client
  */
-async function getAuthClient() {
+async function getAuthClient(scopes: string[] = DEFAULT_SCOPES) {
   if (!SA_EMAIL || !SA_PRIVATE_KEY) {
     throw new GSCApiError('Service Account credentials not configured', 500);
   }
@@ -139,7 +148,7 @@ async function getAuthClient() {
       client_email: SA_EMAIL,
       private_key: SA_PRIVATE_KEY.replace(/\\n/g, '\n'),
     },
-    scopes: ['https://www.googleapis.com/auth/webmasters.readonly'],
+    scopes,
   });
 
   return auth.getClient();
@@ -243,6 +252,113 @@ export async function querySearchAnalytics(
       error instanceof Error ? error.message : 'Unknown error occurred',
       500
     );
+  }
+}
+
+export interface URLInspectionRequest {
+  inspectionUrl: string;
+  siteUrl: string;
+  languageCode?: string;
+}
+
+export interface URLInspectionResponse {
+  inspectionResult?: {
+    indexStatusResult?: Record<string, any> | null;
+    mobileUsabilityResult?: Record<string, any> | null;
+    richResultsResult?: Record<string, any> | null;
+  } | null;
+}
+
+export interface RequestIndexingPayload {
+  url: string;
+  type: 'URL_UPDATED' | 'URL_DELETED';
+}
+
+export interface RequestIndexingResponse {
+  urlNotificationMetadata?: Record<string, any>;
+}
+
+export async function inspectUrl({
+  inspectionUrl,
+  siteUrl,
+  languageCode = 'vi',
+}: URLInspectionRequest): Promise<URLInspectionResponse> {
+  try {
+    const client = await getAuthClient();
+    const accessToken = await client.getAccessToken();
+
+    if (!accessToken.token) {
+      throw new GSCApiError('Failed to obtain access token for URL inspection', 500);
+    }
+
+    const response = await fetch('https://searchconsole.googleapis.com/v1/urlInspection/index:inspect', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        inspectionUrl,
+        siteUrl,
+        languageCode,
+      }),
+    });
+
+    const responseBody = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errorMessage = responseBody?.error?.message || 'URL inspection failed';
+      throw new GSCApiError(errorMessage, response.status, responseBody);
+    }
+
+    return responseBody;
+  } catch (error: any) {
+    if (error instanceof GSCApiError) {
+      throw error;
+    }
+
+    throw new GSCApiError(error?.message || 'Unexpected error during URL inspection', error?.status, error);
+  }
+}
+
+export async function requestIndexing({
+  url,
+  type,
+}: RequestIndexingPayload): Promise<RequestIndexingResponse> {
+  try {
+    const client = await getAuthClient([...DEFAULT_SCOPES, ...INDEXING_SCOPES]);
+    const accessToken = await client.getAccessToken();
+
+    if (!accessToken.token) {
+      throw new GSCApiError('Failed to obtain access token for indexing request', 500);
+    }
+
+    const response = await fetch('https://indexing.googleapis.com/v3/urlNotifications:publish', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        url,
+        type,
+      }),
+    });
+
+    const responseBody = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      const errorMessage = responseBody?.error?.message || 'Indexing request failed';
+      throw new GSCApiError(errorMessage, response.status, responseBody);
+    }
+
+    return responseBody;
+  } catch (error: any) {
+    if (error instanceof GSCApiError) {
+      throw error;
+    }
+
+    throw new GSCApiError(error?.message || 'Unexpected error during indexing request', error?.status, error);
   }
 }
 
