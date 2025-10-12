@@ -55,7 +55,7 @@ function KeywordOverviewContent() {
   const { executeWithToken } = useTokenManagement();
 
   // Form state
-  const [keyword, setKeyword] = useState("optibac tím");
+  const [keyword, setKeyword] = useState("");
 
   // Results state
   const [googleAdsResults, setGoogleAdsResults] = useState<KeywordIdeaRow[] | null>(null);
