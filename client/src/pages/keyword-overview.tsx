@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Loader2, Target, Search, TrendingUp, Globe } from "lucide-react";
+import { Loader2, Target, Search, ExternalLink, Star } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
@@ -42,13 +42,14 @@ interface KeywordVariation {
 
 interface SerpResult {
   position: number;
+  title: string;
   url: string;
   domain: string;
-  pageAS: number;
-  refDomains: number;
-  backlinks: number;
-  searchTraffic: number;
-  urlKeywords: number;
+  snippet: string;
+  price?: string;
+  rating?: number;
+  ratingCount?: number;
+  sitelinks?: any[];
 }
 
 interface CombinedData {
@@ -138,13 +139,14 @@ function KeywordOverviewContent() {
           })),
           serpResults: (serpData.organic || []).slice(0, 10).map((item: any, index: number) => ({
             position: index + 1,
+            title: item.title || "No title",
             url: item.link,
             domain: new URL(item.link).hostname,
-            pageAS: 0, // TODO: Get from additional API
-            refDomains: 0,
-            backlinks: 0,
-            searchTraffic: 0,
-            urlKeywords: 0,
+            snippet: item.snippet || "",
+            price: item.price || undefined,
+            rating: item.rating || undefined,
+            ratingCount: item.ratingCount || undefined,
+            sitelinks: item.sitelinks || [],
           })),
         };
 
@@ -340,42 +342,91 @@ function KeywordOverviewContent() {
             <Card>
               <CardHeader>
                 <CardTitle>SERP Analysis</CardTitle>
-                <CardDescription>Top 10 ranking URLs</CardDescription>
+                <CardDescription>Top 10 ranking URLs with detailed information</CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-12">#</TableHead>
-                      <TableHead>URL</TableHead>
-                      <TableHead className="text-right">Page AS</TableHead>
-                      <TableHead className="text-right">Ref. Domains</TableHead>
-                      <TableHead className="text-right">Backlinks</TableHead>
-                      <TableHead className="text-right">Search Traffic</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.serpResults.map((item) => (
-                      <TableRow key={item.position}>
-                        <TableCell>{item.position}</TableCell>
-                        <TableCell>
-                          <a
-                            href={item.url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-blue-600 hover:underline text-sm truncate block max-w-md"
-                          >
+                <div className="space-y-4">
+                  {data.serpResults.map((item) => (
+                    <div
+                      key={item.position}
+                      className="border rounded-lg p-4 hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-start gap-4">
+                        {/* Position Badge */}
+                        <div className="flex-shrink-0">
+                          <Badge variant="outline" className="text-lg font-bold w-10 h-10 flex items-center justify-center">
+                            {item.position}
+                          </Badge>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 min-w-0">
+                          {/* Title */}
+                          <h4 className="font-semibold text-lg mb-1 text-blue-600 hover:underline">
+                            <a
+                              href={item.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2"
+                            >
+                              {item.title}
+                              <ExternalLink className="h-4 w-4" />
+                            </a>
+                          </h4>
+
+                          {/* URL/Domain */}
+                          <p className="text-sm text-green-700 dark:text-green-500 mb-2">
                             {item.domain}
-                          </a>
-                        </TableCell>
-                        <TableCell className="text-right">{item.pageAS}</TableCell>
-                        <TableCell className="text-right">{item.refDomains}</TableCell>
-                        <TableCell className="text-right">{item.backlinks}</TableCell>
-                        <TableCell className="text-right">{item.searchTraffic.toLocaleString()}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          </p>
+
+                          {/* Rating & Price */}
+                          {(item.rating || item.price) && (
+                            <div className="flex items-center gap-4 mb-2">
+                              {item.rating && (
+                                <div className="flex items-center gap-1">
+                                  <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                                  <span className="text-sm font-medium">{item.rating.toFixed(1)}</span>
+                                  {item.ratingCount && (
+                                    <span className="text-sm text-muted-foreground">
+                                      ({item.ratingCount.toLocaleString()})
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                              {item.price && (
+                                <Badge variant="secondary" className="font-semibold">
+                                  {item.price}
+                                </Badge>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Snippet */}
+                          <p className="text-sm text-muted-foreground line-clamp-2">
+                            {item.snippet}
+                          </p>
+
+                          {/* Sitelinks */}
+                          {item.sitelinks && item.sitelinks.length > 0 && (
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {item.sitelinks.slice(0, 4).map((link: any, idx: number) => (
+                                <a
+                                  key={idx}
+                                  href={link.link}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-xs text-blue-600 hover:underline bg-blue-50 dark:bg-blue-950 px-2 py-1 rounded"
+                                >
+                                  {link.title}
+                                </a>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </div>
