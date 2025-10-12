@@ -63,12 +63,12 @@ function KeywordOverviewContent() {
   const [gscResults, setGscResults] = useState<GSCRow[] | null>(null);
   const [serpResults, setSerpResults] = useState<SerpApiResponse | null>(null);
 
-  // Google Ads API mutation
+  // Google Keyword Ideas API mutation
   const googleAdsMutation = useMutation({
     mutationFn: async (keywordInput: string) => {
       if (!toolId) throw new Error("Tool ID not found");
 
-      return executeWithToken(toolId, 1, async () => {
+      const result = await executeWithToken(toolId, 1, async () => {
         const response = await fetch("/api/keyword-ideas", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -83,22 +83,30 @@ function KeywordOverviewContent() {
 
         if (!response.ok) {
           const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to fetch Google Ads data");
+          throw new Error(errorData.error || "Failed to fetch Google Keyword Ideas data");
         }
 
         return response.json();
       });
+
+      if (result === null) {
+        throw new Error("Authentication failed or insufficient tokens");
+      }
+
+      return result;
     },
     onSuccess: (data) => {
-      setGoogleAdsResults(data);
-      toast({
-        title: "Google Ads API Success",
-        description: `Fetched ${data.length} keyword ideas`,
-      });
+      if (data && Array.isArray(data)) {
+        setGoogleAdsResults(data);
+        toast({
+          title: "Google Keyword Ideas Success",
+          description: `Fetched ${data.length} keyword ideas`,
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
-        title: "Google Ads API Error",
+        title: "Google Keyword Ideas Error",
         description: error.message,
         variant: "destructive",
       });
@@ -110,7 +118,7 @@ function KeywordOverviewContent() {
     mutationFn: async (keywordInput: string) => {
       if (!toolId) throw new Error("Tool ID not found");
 
-      return executeWithToken(toolId, 1, async () => {
+      const result = await executeWithToken(toolId, 1, async () => {
         const response = await fetch("/api/search-intent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -128,13 +136,21 @@ function KeywordOverviewContent() {
 
         return response.json();
       });
+
+      if (result === null) {
+        throw new Error("Authentication failed or insufficient tokens");
+      }
+
+      return result;
     },
     onSuccess: (data) => {
-      setSearchIntentResults(data);
-      toast({
-        title: "Search Intent API Success",
-        description: `Fetched metrics for ${data.length} keywords`,
-      });
+      if (data && Array.isArray(data)) {
+        setSearchIntentResults(data);
+        toast({
+          title: "Search Intent API Success",
+          description: `Fetched metrics for ${data.length} keywords`,
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -150,7 +166,7 @@ function KeywordOverviewContent() {
     mutationFn: async (keywordInput: string) => {
       if (!toolId) throw new Error("Tool ID not found");
 
-      return executeWithToken(toolId, 1, async () => {
+      const result = await executeWithToken(toolId, 1, async () => {
         const response = await fetch("/api/gsc-insights", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -171,13 +187,21 @@ function KeywordOverviewContent() {
 
         return response.json();
       });
+
+      if (result === null) {
+        throw new Error("Authentication failed or insufficient tokens");
+      }
+
+      return result;
     },
     onSuccess: (data) => {
-      setGscResults(data.rows || []);
-      toast({
-        title: "GSC API Success",
-        description: `Fetched ${data.rows?.length || 0} page results`,
-      });
+      if (data && data.rows) {
+        setGscResults(data.rows || []);
+        toast({
+          title: "GSC API Success",
+          description: `Fetched ${data.rows?.length || 0} page results`,
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -193,7 +217,7 @@ function KeywordOverviewContent() {
     mutationFn: async (keywordInput: string) => {
       if (!toolId) throw new Error("Tool ID not found");
 
-      return executeWithToken(toolId, 1, async () => {
+      const result = await executeWithToken(toolId, 1, async () => {
         const response = await fetch("/api/proxy/serper/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -211,13 +235,21 @@ function KeywordOverviewContent() {
 
         return response.json();
       });
+
+      if (result === null) {
+        throw new Error("Authentication failed or insufficient tokens");
+      }
+
+      return result;
     },
     onSuccess: (data) => {
-      setSerpResults(data);
-      toast({
-        title: "SerpAPI Success",
-        description: `Fetched ${data.organic?.length || 0} organic results`,
-      });
+      if (data && data.organic) {
+        setSerpResults(data);
+        toast({
+          title: "SerpAPI Success",
+          description: `Fetched ${data.organic?.length || 0} organic results`,
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -329,7 +361,7 @@ function KeywordOverviewContent() {
                 ) : (
                   <>
                     <Search className="mr-2 h-4 w-4" />
-                    Test Google Ads
+                    Test Google Keyword Ideas
                   </>
                 )}
               </Button>
@@ -396,12 +428,12 @@ function KeywordOverviewContent() {
 
         {/* Results Section */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Google Ads Results */}
+          {/* Google Keyword Ideas Results */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Search className="h-5 w-5 text-blue-600" />
-                Google Ads API Results
+                Google Keyword Ideas API Results
               </CardTitle>
               <CardDescription>Keyword ideas with search volume and competition</CardDescription>
             </CardHeader>
@@ -418,7 +450,7 @@ function KeywordOverviewContent() {
                   </div>
                 </div>
               ) : (
-                <p className="text-sm text-muted-foreground">No data yet. Click "Test Google Ads" to fetch.</p>
+                <p className="text-sm text-muted-foreground">No data yet. Click "Test Google Keyword Ideas" to fetch.</p>
               )}
             </CardContent>
           </Card>
