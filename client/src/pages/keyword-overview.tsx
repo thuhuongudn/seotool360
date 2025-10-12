@@ -53,13 +53,11 @@ interface GSCMetrics {
 interface KeywordMetrics {
   keyword: string;
   volume: number | null;
-  globalVolume: number | null;
   intent: string;
   intentScore: number | null; // 0-10 scale: 0-5 = informational, 6-10 = commercial
   cpcLow: number | null;
   cpcHigh: number | null;
   competitionLevel: number | null; // 0-100 scale for PLA competition
-  difficulty: number | null;
   monthlySearchVolumes: MonthlySearchVolume[];
   gscMetrics: GSCMetrics | null;
   clickVolumeRatio: number | null;
@@ -102,11 +100,10 @@ const formatNumber = (num: number | null | undefined): string => {
   return new Intl.NumberFormat("vi-VN").format(num);
 };
 
-// Helper function to convert USD to VND and format
-const formatVND = (usd: number | null | undefined): string => {
-  if (usd === null || usd === undefined) return "N/A";
-  const vnd = usd * 25000; // Approximate conversion rate
-  return new Intl.NumberFormat("vi-VN").format(Math.round(vnd));
+// Helper function to format VND currency
+const formatVND = (amount: number | null | undefined): string => {
+  if (amount === null || amount === undefined) return "N/A";
+  return new Intl.NumberFormat("vi-VN").format(Math.round(amount));
 };
 
 // Helper function to get competition level label and color
@@ -346,12 +343,12 @@ function KeywordOverviewContent() {
             language: DEFAULT_LANG,
           }),
 
-          // 3. GSC Insights
+          // 3. GSC Insights - Get keyword metrics (pages-for-keyword also returns timeSeriesData)
           apiRequest("POST", "/api/gsc-insights", {
             siteUrl: "https://nhathuocvietnhat.vn",
             mode: "pages-for-keyword",
             value: keywordInput.trim(),
-            startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+            startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
             endDate: new Date().toISOString().split("T")[0],
           }),
 
@@ -373,10 +370,10 @@ function KeywordOverviewContent() {
 
         console.log("All API responses:", { keywordData, intentData, gscData, serpData });
 
-        // Calculate GSC metrics
-        const gscRows = gscData.rows || [];
-        const gscMetrics = gscRows.length > 0
-          ? gscRows.reduce((acc: GSCMetrics, row: any) => ({
+        // Calculate GSC metrics from timeSeriesData (aggregate all days)
+        const timeSeriesData = gscData.timeSeriesData || [];
+        const gscMetrics = timeSeriesData.length > 0
+          ? timeSeriesData.reduce((acc: GSCMetrics, row: any) => ({
               clicks: acc.clicks + (row.clicks || 0),
               impressions: acc.impressions + (row.impressions || 0),
               ctr: acc.ctr + (row.ctr || 0),
@@ -384,10 +381,10 @@ function KeywordOverviewContent() {
             }), { clicks: 0, impressions: 0, ctr: 0, position: 0 })
           : null;
 
-        // Average position if we have data
-        if (gscMetrics && gscRows.length > 0) {
-          gscMetrics.ctr = gscMetrics.ctr / gscRows.length;
-          gscMetrics.position = gscMetrics.position / gscRows.length;
+        // Average CTR and position across all days
+        if (gscMetrics && timeSeriesData.length > 0) {
+          gscMetrics.ctr = gscMetrics.ctr / timeSeriesData.length;
+          gscMetrics.position = gscMetrics.position / timeSeriesData.length;
         }
 
         const volume = intentData.rows?.[0]?.avgMonthlySearches || null;
@@ -425,13 +422,11 @@ function KeywordOverviewContent() {
           mainMetrics: {
             keyword: keywordInput,
             volume,
-            globalVolume: keywordData.rows?.reduce((sum: number, item: any) => sum + (item.avgMonthlySearches || 0), 0) || null,
             intent: intentAnalysis.intent,
             intentScore: intentAnalysis.score,
             cpcLow: intentData.rows?.[0]?.lowTopBid || null,
             cpcHigh: intentData.rows?.[0]?.highTopBid || null,
             competitionLevel: intentData.rows?.[0]?.competitionIndex || null, // Already 0-100 scale
-            difficulty: 22, // TODO: Calculate based on SERP data
             monthlySearchVolumes: intentData.rows?.[0]?.monthlySearchVolumes || [],
             gscMetrics,
             clickVolumeRatio,
@@ -534,7 +529,7 @@ function KeywordOverviewContent() {
         {data && (
           <div className="space-y-8">
             {/* Main Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {/* Volume */}
               <Card>
                 <CardHeader className="pb-3">
@@ -581,23 +576,6 @@ function KeywordOverviewContent() {
                       </div>
                     </div>
                   )}
-                </CardContent>
-              </Card>
-
-              {/* Global Volume */}
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardDescription>Global Volume</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-3xl font-bold">
-                    {formatNumber(data.mainMetrics?.globalVolume)}
-                  </div>
-                  <div className="mt-4">
-                    <p className="text-sm font-medium text-muted-foreground">Keyword Difficulty</p>
-                    <p className="text-2xl font-bold">{data.mainMetrics?.difficulty || 0}%</p>
-                    <Badge variant="outline" className="mt-2">Easy</Badge>
-                  </div>
                 </CardContent>
               </Card>
 
@@ -703,7 +681,7 @@ function KeywordOverviewContent() {
                   <div>
                     <CardTitle>Keyword Ideas</CardTitle>
                     <CardDescription>
-                      {data.keywordVariations.length} keywords - Total Volume: {data.mainMetrics?.globalVolume?.toLocaleString() || 0}
+                      {data.keywordVariations.length} related keywords found
                     </CardDescription>
                   </div>
                   <Button
