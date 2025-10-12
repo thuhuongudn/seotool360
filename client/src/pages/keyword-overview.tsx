@@ -75,10 +75,10 @@ function KeywordOverviewContent() {
         console.log("Google Keyword Ideas - Inside executeWithToken");
 
         const payload = {
-          keywordPlanNetwork: "GOOGLE_SEARCH_AND_PARTNERS",
-          keywordSeed: { keywords: [keywordInput.trim()] },
-          geoTargetConstants: [DEFAULT_GEO],
+          keywords: [keywordInput.trim()],
           language: DEFAULT_LANG,
+          geoTargets: [DEFAULT_GEO],
+          network: "GOOGLE_SEARCH_AND_PARTNERS" as const,
           pageSize: 1000,
         };
 
