@@ -428,14 +428,39 @@ function KeywordOverviewContent() {
         // GPT Analysis: Generate Q&A from question keywords
         const questionKeywords = await generateQuestionAnswers(keywordVariations);
 
-        // Extract related URLs from GSC data (pages ranking for this keyword)
-        const relatedURLs: RelatedURL[] = (gscData.rows || []).slice(0, 10).map((row: any) => ({
-          url: row.page || row.keys?.[0] || "",
-          clicks: row.clicks || 0,
-          impressions: row.impressions || 0,
-          ctr: row.ctr || 0,
-          position: row.position || 0,
-        }));
+        // Extract and group related URLs from GSC data (pages ranking for this keyword)
+        // Group URLs by removing hash/fragment to consolidate similar URLs
+        const urlGroups = new Map<string, RelatedURL>();
+
+        (gscData.rows || []).forEach((row: any) => {
+          const fullUrl = row.page || row.keys?.[0] || "";
+          // Remove hash/fragment from URL (everything after #)
+          const cleanUrl = fullUrl.split('#')[0];
+
+          if (cleanUrl) {
+            const existing = urlGroups.get(cleanUrl);
+            if (existing) {
+              // Aggregate metrics for same base URL
+              existing.clicks += row.clicks || 0;
+              existing.impressions += row.impressions || 0;
+              existing.ctr = (existing.ctr + (row.ctr || 0)) / 2; // Average CTR
+              existing.position = (existing.position + (row.position || 0)) / 2; // Average position
+            } else {
+              urlGroups.set(cleanUrl, {
+                url: cleanUrl,
+                clicks: row.clicks || 0,
+                impressions: row.impressions || 0,
+                ctr: row.ctr || 0,
+                position: row.position || 0,
+              });
+            }
+          }
+        });
+
+        // Convert to array and sort by clicks descending
+        const relatedURLs: RelatedURL[] = Array.from(urlGroups.values())
+          .sort((a, b) => b.clicks - a.clicks)
+          .slice(0, 10);
 
         // Transform data into UI structure
         const combinedData: CombinedData = {
