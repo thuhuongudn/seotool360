@@ -528,6 +528,13 @@ function KeywordOverviewContent() {
 
     setIsGeneratingTA(true);
 
+    // Show progress notification
+    toast({
+      title: "Generating Topical Authority...",
+      description: `Analyzing ${data.keywordVariations.length} keywords. This may take 30-60 seconds...`,
+      duration: 60000, // 60 seconds
+    });
+
     try {
       const systemPrompt = `<?xml version="1.0" encoding="UTF-8"?>
 <system_prompt>
@@ -905,14 +912,53 @@ function KeywordOverviewContent() {
   </final_instructions>
 </system_prompt>`;
 
+      // Limit to top 50 keywords by volume to avoid timeout
+      const topKeywords = data.keywordVariations
+        .sort((a, b) => (b.volume || 0) - (a.volume || 0))
+        .slice(0, 50);
+
       const userPrompt = `Phân tích keyword seed và keyword ideas sau để tạo Topical Authority Map:
 
 **Keyword Seed**: ${data.mainMetrics.keyword}
 
-**Keyword Ideas** (${data.keywordVariations.length} keywords):
-${data.keywordVariations.map(kw => `- ${kw.keyword} (Volume: ${kw.volume || 0})`).join('\n')}
+**Keyword Ideas** (Top ${topKeywords.length} keywords by volume):
+${topKeywords.map(kw => `- ${kw.keyword} (Volume: ${kw.volume || 0})`).join('\n')}
 
-Hãy trả về JSON theo cấu trúc topical_authority_map với đầy đủ silos, clusters, pillar pages, và supporting pages.`;
+QUAN TRỌNG:
+1. Phân bổ TẤT CẢ ${topKeywords.length} keywords vào các Pillar Pages và Supporting Pages
+2. Keywords có volume cao (>500) → Pillar Pages (ít nhất 3-5 pages)
+3. Keywords có volume trung bình (100-500) → Supporting Pages chính (5-10 pages)
+4. Keywords có volume thấp (<100) → Supporting Pages phụ (10-15 pages)
+5. Tạo 2-4 Silos (core và peripheral)
+6. Mỗi Silo có 2-3 Topic Clusters
+7. Mỗi Cluster có 1 Pillar Page và 3-7 Supporting Pages
+8. Trả về ONLY valid JSON, không có markdown wrapper
+
+Output format (must be valid JSON):
+{
+  "topical_authority_map": {
+    "meta": { "keyword_seed": "...", "central_entity": "...", "primary_search_intent": "..." },
+    "silos": [
+      {
+        "silo_name": "...",
+        "silo_type": "core",
+        "topic_clusters": [
+          {
+            "cluster_name": "...",
+            "pillar_page": { "page_title": "...", "primary_keyword": "...", "search_volume": 0 },
+            "supporting_pages": [
+              { "page_title": "...", "primary_keyword": "...", "search_volume": 0 }
+            ]
+          }
+        ]
+      }
+    ],
+    "keyword_mapping": [],
+    "internal_linking_graph": [],
+    "content_gap_analysis": { "missing_topics": [] },
+    "implementation_roadmap": { "phase_1_priority_pages": [] }
+  }
+}`;
 
       const response = await openaiCompletion({
         model: "openai/gpt-4.1-mini",
@@ -920,7 +966,7 @@ Hãy trả về JSON theo cấu trúc topical_authority_map với đầy đủ s
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
         ],
-        max_tokens: 8000,
+        max_tokens: 6000, // Reduced from 8000 to prevent timeout
         temperature: 0.7,
       });
 
