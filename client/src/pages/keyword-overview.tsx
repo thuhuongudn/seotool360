@@ -91,11 +91,20 @@ function KeywordOverviewContent() {
       // executeWithToken can return null if auth fails - don't process
       if (!data) return;
 
+      console.log("Google Keyword Ideas API Response:", data);
+
       if (Array.isArray(data)) {
         setGoogleAdsResults(data);
         toast({
           title: "Google Keyword Ideas Success",
           description: `Fetched ${data.length} keyword ideas`,
+        });
+      } else {
+        // Show data anyway even if structure unexpected
+        setGoogleAdsResults([data]);
+        toast({
+          title: "Google Keyword Ideas Success",
+          description: "Received data (check console for structure)",
         });
       }
     },
@@ -133,11 +142,20 @@ function KeywordOverviewContent() {
       // executeWithToken can return null if auth fails - don't process
       if (!data) return;
 
+      console.log("Search Intent API Response:", data);
+
       if (Array.isArray(data)) {
         setSearchIntentResults(data);
         toast({
           title: "Search Intent API Success",
           description: `Fetched metrics for ${data.length} keywords`,
+        });
+      } else {
+        // Show data anyway even if structure unexpected
+        setSearchIntentResults([data]);
+        toast({
+          title: "Search Intent API Success",
+          description: "Received data (check console for structure)",
         });
       }
     },
@@ -158,11 +176,10 @@ function KeywordOverviewContent() {
       return executeWithToken(toolId, 1, async () => {
         const response = await apiRequest("POST", "/api/gsc-insights", {
           siteUrl: "https://nhathuocvietnhat.vn",
-          analysisMode: "pages-for-keyword",
-          query: keywordInput,
+          mode: "pages-for-keyword",
+          keyword: keywordInput,
           startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
           endDate: new Date().toISOString().split("T")[0],
-          dimension: "page",
         });
 
         if (!response.ok) {
@@ -178,11 +195,20 @@ function KeywordOverviewContent() {
       // executeWithToken can return null if auth fails - don't process
       if (!data) return;
 
+      console.log("GSC API Response:", data);
+
       if (data.rows) {
         setGscResults(data.rows || []);
         toast({
           title: "GSC API Success",
           description: `Fetched ${data.rows?.length || 0} page results`,
+        });
+      } else {
+        // Show data anyway even if structure unexpected
+        setGscResults([data]);
+        toast({
+          title: "GSC API Success",
+          description: "Received data (check console for structure)",
         });
       }
     },
@@ -220,11 +246,20 @@ function KeywordOverviewContent() {
       // executeWithToken can return null if auth fails - don't process
       if (!data) return;
 
+      console.log("SerpAPI Response:", data);
+
       if (data.organic) {
         setSerpResults(data);
         toast({
           title: "SerpAPI Success",
           description: `Fetched ${data.organic?.length || 0} organic results`,
+        });
+      } else {
+        // Show data anyway even if structure unexpected
+        setSerpResults(data);
+        toast({
+          title: "SerpAPI Success",
+          description: "Received data (check console for structure)",
         });
       }
     },
