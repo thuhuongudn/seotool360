@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Loader2, PlusCircle, Trash2, Copy, CheckCircle2, Search } from "lucide-react";
 import { useLocation } from "wouter";
@@ -126,6 +126,52 @@ function KeywordPlannerContent() {
       });
     },
   });
+
+  // Parse query params and auto-populate + submit
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const queryKeyword = searchParams.get('q');
+    const queryLanguage = searchParams.get('lang');
+    const queryGeo = searchParams.get('geo');
+    const queryNetwork = searchParams.get('network');
+
+    // Set language and geo from query params if provided
+    if (queryLanguage && LANGUAGE_CONSTANTS.find(lang => lang.value === queryLanguage)) {
+      setLanguage(queryLanguage);
+    }
+    if (queryGeo && GEO_TARGET_CONSTANTS.find(geo => geo.value === queryGeo)) {
+      setGeoTarget(queryGeo);
+    }
+    if (queryNetwork && (queryNetwork === "GOOGLE_SEARCH" || queryNetwork === "GOOGLE_SEARCH_AND_PARTNERS")) {
+      setNetwork(queryNetwork as KeywordPlanNetwork);
+    }
+
+    if (queryKeyword && toolId) {
+      const decodedKeyword = decodeURIComponent(queryKeyword);
+
+      // Set keyword input
+      setKeywordsInput(decodedKeyword);
+
+      // Auto-submit if keyword is valid WITH TOKEN CONSUMPTION
+      if (decodedKeyword.trim().length > 0) {
+        const finalLanguage = queryLanguage && LANGUAGE_CONSTANTS.find(lang => lang.value === queryLanguage) ? queryLanguage : language;
+        const finalGeo = queryGeo && GEO_TARGET_CONSTANTS.find(geo => geo.value === queryGeo) ? queryGeo : geoTarget;
+        const finalNetwork = queryNetwork && (queryNetwork === "GOOGLE_SEARCH" || queryNetwork === "GOOGLE_SEARCH_AND_PARTNERS") ? queryNetwork as KeywordPlanNetwork : network;
+
+        const payload: KeywordPlannerRequestPayload = {
+          keywords: [decodedKeyword.trim()],
+          language: finalLanguage,
+          geoTargets: [finalGeo],
+          network: finalNetwork,
+        };
+
+        // Execute with token management
+        executeWithToken(toolId, 1, async () => {
+          return mutation.mutateAsync(payload);
+        });
+      }
+    }
+  }, [toolId]); // Only run once when toolId is available
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

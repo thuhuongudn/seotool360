@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
-import { Loader2, Target, Search, ExternalLink, Star } from "lucide-react";
+import { Loader2, Target, Search, ExternalLink, Star, ArrowRight } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
+import { useLocation } from "wouter";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import ToolPermissionGuard from "@/components/tool-permission-guard";
@@ -195,6 +196,7 @@ function KeywordOverviewContent() {
   const toolId = useToolId("keyword-overview");
   const { toast } = useToast();
   const { executeWithToken } = useTokenManagement();
+  const [, setLocation] = useLocation();
 
   // Form state
   const [keyword, setKeyword] = useState("");
@@ -548,10 +550,25 @@ function KeywordOverviewContent() {
             {/* Keyword Ideas */}
             <Card>
               <CardHeader>
-                <CardTitle>Keyword Ideas</CardTitle>
-                <CardDescription>
-                  {data.keywordVariations.length} Total Volume: {data.mainMetrics?.globalVolume?.toLocaleString() || 0}
-                </CardDescription>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Keyword Ideas</CardTitle>
+                    <CardDescription>
+                      {data.keywordVariations.length} keywords - Total Volume: {data.mainMetrics?.globalVolume?.toLocaleString() || 0}
+                    </CardDescription>
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const encodedKeyword = encodeURIComponent(data.mainMetrics?.keyword || "");
+                      setLocation(`/keyword-planner?q=${encodedKeyword}`);
+                    }}
+                    className="flex items-center gap-2"
+                  >
+                    View all {data.keywordVariations.length} keywords
+                    <ArrowRight className="h-4 w-4" />
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent>
                 <Table>
