@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_LANG, DEFAULT_GEO } from "@/constants/google-ads-constants";
 import { apiRequest } from "@/lib/queryClient";
+import { openaiCompletion } from "@/lib/secure-api-client";
 import {
   Table,
   TableBody,
@@ -54,6 +55,7 @@ interface KeywordMetrics {
   volume: number | null;
   globalVolume: number | null;
   intent: string;
+  intentScore: number | null; // 0-10 scale: 0-5 = informational, 6-10 = commercial
   cpcLow: number | null;
   cpcHigh: number | null;
   competitionLevel: number | null; // 0-100 scale for PLA competition
@@ -61,6 +63,12 @@ interface KeywordMetrics {
   monthlySearchVolumes: MonthlySearchVolume[];
   gscMetrics: GSCMetrics | null;
   clickVolumeRatio: number | null;
+}
+
+interface QuestionKeyword {
+  keyword: string;
+  volume: number | null;
+  answer: string;
 }
 
 interface KeywordVariation {
@@ -85,6 +93,7 @@ interface CombinedData {
   mainMetrics: KeywordMetrics | null;
   keywordVariations: KeywordVariation[];
   serpResults: SerpResult[];
+  questionKeywords: QuestionKeyword[];
 }
 
 // Helper function to format numbers
@@ -107,6 +116,115 @@ const getCompetitionLevel = (level: number | null): { label: string; color: stri
   if (level < 67) return { label: "Medium", color: "yellow" };
   return { label: "High", color: "red" };
 };
+
+// GPT Helper: Analyze SERP intent (commercial vs informational)
+async function analyzeSearchIntent(serpResults: SerpResult[], keyword: string): Promise<{ intent: string; score: number }> {
+  try {
+    const serpSummary = serpResults.slice(0, 10).map((result, idx) => {
+      const indicators = [];
+      if (result.price) indicators.push("has_price");
+      if (result.rating) indicators.push("has_rating");
+      if (result.domain.includes("shop") || result.domain.includes("store")) indicators.push("ecommerce_domain");
+
+      return `${idx + 1}. ${result.domain} - ${result.title.substring(0, 60)} [${indicators.join(", ") || "informational"}]`;
+    }).join("\n");
+
+    const prompt = `Analyze the search intent for the keyword: "${keyword}"
+
+Based on these top 10 SERP results:
+${serpSummary}
+
+Determine if the intent is COMMERCIAL or INFORMATIONAL:
+- COMMERCIAL: Users want to buy products/services (e-commerce sites, product pages, prices, ratings)
+- INFORMATIONAL: Users want to learn/read information (blogs, articles, guides, wikis)
+
+Respond with JSON only:
+{
+  "intent": "Commercial" or "Informational",
+  "score": <0-10 number where 0-5=informational, 6-10=commercial>,
+  "reasoning": "<brief explanation in Vietnamese>"
+}`;
+
+    const data = await openaiCompletion({
+      model: "openai/gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 200,
+      temperature: 0.3,
+    });
+
+    const resultText = data.choices[0].message.content;
+    const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const result = JSON.parse(jsonMatch[0]);
+      return { intent: result.intent, score: result.score };
+    }
+
+    return { intent: "Unknown", score: 5 };
+  } catch (error) {
+    console.error("Intent analysis failed:", error);
+    return { intent: "Unknown", score: 5 };
+  }
+}
+
+// GPT Helper: Generate Q&A from question keywords
+async function generateQuestionAnswers(keywords: KeywordVariation[]): Promise<QuestionKeyword[]> {
+  try {
+    // Filter question keywords (contains ?, what, how, why, when, where, etc.)
+    const questionKeywords = keywords.filter(kw => {
+      const lower = kw.keyword.toLowerCase();
+      return lower.includes("?") ||
+             lower.startsWith("cách") ||
+             lower.startsWith("làm sao") ||
+             lower.startsWith("tại sao") ||
+             lower.startsWith("khi nào") ||
+             lower.startsWith("ở đâu") ||
+             lower.includes("là gì") ||
+             lower.includes("như thế nào");
+    }).slice(0, 5); // Limit to top 5 questions
+
+    if (questionKeywords.length === 0) {
+      return [];
+    }
+
+    const keywordList = questionKeywords.map((kw, idx) => `${idx + 1}. ${kw.keyword}`).join("\n");
+
+    const prompt = `Given these Vietnamese question keywords, provide brief answers (1-2 sentences each):
+
+${keywordList}
+
+Respond with JSON array only:
+[
+  {
+    "keyword": "<question keyword>",
+    "answer": "<brief answer in Vietnamese>"
+  },
+  ...
+]`;
+
+    const data = await openaiCompletion({
+      model: "openai/gpt-4o-mini",
+      messages: [{ role: "user", content: prompt }],
+      max_tokens: 500,
+      temperature: 0.7,
+    });
+
+    const resultText = data.choices[0].message.content;
+    const jsonMatch = resultText.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      const answers = JSON.parse(jsonMatch[0]);
+      return questionKeywords.map((kw, idx) => ({
+        keyword: kw.keyword,
+        volume: kw.volume,
+        answer: answers[idx]?.answer || "Không có câu trả lời",
+      }));
+    }
+
+    return [];
+  } catch (error) {
+    console.error("Question generation failed:", error);
+    return [];
+  }
+}
 
 // MonthlyTrendsChart Component
 interface MonthlyTrendsChartProps {
@@ -276,13 +394,40 @@ function KeywordOverviewContent() {
         const clicks = gscMetrics?.clicks || 0;
         const clickVolumeRatio = volume && clicks > 0 ? (clicks / volume) * 100 : null;
 
+        // Transform SERP results
+        const serpResults = (serpData.organic || []).slice(0, 10).map((item: any, index: number) => ({
+          position: index + 1,
+          title: item.title || "No title",
+          url: item.link,
+          domain: new URL(item.link).hostname,
+          snippet: item.snippet || "",
+          price: item.price || undefined,
+          rating: item.rating || undefined,
+          ratingCount: item.ratingCount || undefined,
+          sitelinks: item.sitelinks || [],
+        }));
+
+        // Transform keyword variations
+        const keywordVariations = (keywordData.rows || []).slice(0, 82).map((item: any) => ({
+          keyword: item.keyword,
+          volume: item.avgMonthlySearches,
+          kdPercent: item.competitionIndex ? Math.round(item.competitionIndex) : null,
+        }));
+
+        // GPT Analysis: Intent detection from SERP data
+        const intentAnalysis = await analyzeSearchIntent(serpResults, keywordInput);
+
+        // GPT Analysis: Generate Q&A from question keywords
+        const questionKeywords = await generateQuestionAnswers(keywordVariations);
+
         // Transform data into UI structure
         const combinedData: CombinedData = {
           mainMetrics: {
             keyword: keywordInput,
             volume,
             globalVolume: keywordData.rows?.reduce((sum: number, item: any) => sum + (item.avgMonthlySearches || 0), 0) || null,
-            intent: "Informational", // TODO: Implement AI intent detection
+            intent: intentAnalysis.intent,
+            intentScore: intentAnalysis.score,
             cpcLow: intentData.rows?.[0]?.lowTopBid || null,
             cpcHigh: intentData.rows?.[0]?.highTopBid || null,
             competitionLevel: intentData.rows?.[0]?.competitionIndex || null, // Already 0-100 scale
@@ -291,22 +436,9 @@ function KeywordOverviewContent() {
             gscMetrics,
             clickVolumeRatio,
           },
-          keywordVariations: (keywordData.rows || []).slice(0, 82).map((item: any) => ({
-            keyword: item.keyword,
-            volume: item.avgMonthlySearches,
-            kdPercent: item.competitionIndex ? Math.round(item.competitionIndex) : null,
-          })),
-          serpResults: (serpData.organic || []).slice(0, 10).map((item: any, index: number) => ({
-            position: index + 1,
-            title: item.title || "No title",
-            url: item.link,
-            domain: new URL(item.link).hostname,
-            snippet: item.snippet || "",
-            price: item.price || undefined,
-            rating: item.rating || undefined,
-            ratingCount: item.ratingCount || undefined,
-            sitelinks: item.sitelinks || [],
-          })),
+          keywordVariations,
+          serpResults,
+          questionKeywords,
         };
 
         return combinedData;
@@ -472,12 +604,29 @@ function KeywordOverviewContent() {
               {/* Intent */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardDescription>Intent</CardDescription>
+                  <CardDescription>Intent (AI-Powered)</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Badge className="bg-blue-500 text-lg px-4 py-2">
+                  <Badge
+                    className={`text-lg px-4 py-2 ${
+                      data.mainMetrics?.intent === "Commercial"
+                        ? "bg-green-500"
+                        : data.mainMetrics?.intent === "Informational"
+                        ? "bg-blue-500"
+                        : "bg-gray-500"
+                    }`}
+                  >
                     {data.mainMetrics?.intent || "Unknown"}
                   </Badge>
+                  {data.mainMetrics?.intentScore !== null && (
+                    <div className="mt-3">
+                      <p className="text-xs text-muted-foreground">Intent Score</p>
+                      <p className="text-2xl font-bold">{data.mainMetrics.intentScore}/10</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {data.mainMetrics.intentScore <= 5 ? "Người dùng muốn tìm hiểu" : "Người dùng muốn mua"}
+                      </p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -597,6 +746,33 @@ function KeywordOverviewContent() {
                 </Table>
               </CardContent>
             </Card>
+
+            {/* Questions & Answers (AI-Generated) */}
+            {data.questionKeywords && data.questionKeywords.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Question Keywords & Answers</CardTitle>
+                  <CardDescription>AI-generated answers for question-based keywords</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {data.questionKeywords.map((item, index) => (
+                      <div key={index} className="border-l-4 border-blue-500 pl-4 py-2">
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="font-semibold text-base">{item.keyword}</h4>
+                          {item.volume && (
+                            <Badge variant="secondary" className="ml-2">
+                              {formatNumber(item.volume)} searches
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{item.answer}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
             {/* SERP Analysis */}
             <Card>
