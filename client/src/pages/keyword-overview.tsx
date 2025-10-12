@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_LANG, DEFAULT_GEO } from "@/constants/google-ads-constants";
+import { apiRequest } from "@/lib/queryClient";
 
 // Types for API responses
 interface KeywordIdeaRow {
@@ -69,16 +70,12 @@ function KeywordOverviewContent() {
       if (!toolId) throw new Error("Tool ID not found");
 
       return executeWithToken(toolId, 1, async () => {
-        const response = await fetch("/api/keyword-ideas", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            keywordPlanNetwork: "GOOGLE_SEARCH_AND_PARTNERS",
-            keywordSeed: { keywords: [keywordInput] },
-            geoTargetConstants: [DEFAULT_GEO],
-            language: DEFAULT_LANG,
-            pageSize: 1000,
-          }),
+        const response = await apiRequest("POST", "/api/keyword-ideas", {
+          keywordPlanNetwork: "GOOGLE_SEARCH_AND_PARTNERS",
+          keywordSeed: { keywords: [keywordInput] },
+          geoTargetConstants: [DEFAULT_GEO],
+          language: DEFAULT_LANG,
+          pageSize: 1000,
         });
 
         if (!response.ok) {
@@ -117,14 +114,10 @@ function KeywordOverviewContent() {
       if (!toolId) throw new Error("Tool ID not found");
 
       return executeWithToken(toolId, 1, async () => {
-        const response = await fetch("/api/search-intent", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            keywords: [keywordInput],
-            geoTargetConstants: [DEFAULT_GEO],
-            language: DEFAULT_LANG,
-          }),
+        const response = await apiRequest("POST", "/api/search-intent", {
+          keywords: [keywordInput],
+          geoTargetConstants: [DEFAULT_GEO],
+          language: DEFAULT_LANG,
         });
 
         if (!response.ok) {
@@ -163,17 +156,13 @@ function KeywordOverviewContent() {
       if (!toolId) throw new Error("Tool ID not found");
 
       return executeWithToken(toolId, 1, async () => {
-        const response = await fetch("/api/gsc-insights", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            siteUrl: "https://nhathuocvietnhat.vn",
-            analysisMode: "pages-for-keyword",
-            query: keywordInput,
-            startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-            endDate: new Date().toISOString().split("T")[0],
-            dimension: "page",
-          }),
+        const response = await apiRequest("POST", "/api/gsc-insights", {
+          siteUrl: "https://nhathuocvietnhat.vn",
+          analysisMode: "pages-for-keyword",
+          query: keywordInput,
+          startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+          endDate: new Date().toISOString().split("T")[0],
+          dimension: "page",
         });
 
         if (!response.ok) {
@@ -212,14 +201,10 @@ function KeywordOverviewContent() {
       if (!toolId) throw new Error("Tool ID not found");
 
       return executeWithToken(toolId, 1, async () => {
-        const response = await fetch("/api/proxy/serper/search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            q: keywordInput,
-            gl: "vn",
-            num: 100,
-          }),
+        const response = await apiRequest("POST", "/api/proxy/serper/search", {
+          q: keywordInput,
+          gl: "vn",
+          num: 100,
         });
 
         if (!response.ok) {
