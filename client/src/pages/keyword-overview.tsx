@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Loader2, Target, Search, ExternalLink, Star, ArrowRight } from "lucide-react";
+import { Loader2, Target, Search, ExternalLink, Star, ArrowRight, Network } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import Header from "@/components/header";
@@ -87,11 +87,20 @@ interface SerpResult {
   sitelinks?: any[];
 }
 
+interface RelatedURL {
+  url: string;
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
+
 interface CombinedData {
   mainMetrics: KeywordMetrics | null;
   keywordVariations: KeywordVariation[];
   serpResults: SerpResult[];
   questionKeywords: QuestionKeyword[];
+  relatedURLs: RelatedURL[];
 }
 
 // Helper function to format numbers
@@ -316,6 +325,8 @@ function KeywordOverviewContent() {
   // Form state
   const [keyword, setKeyword] = useState("");
   const [data, setData] = useState<CombinedData | null>(null);
+  const [topicalAuthority, setTopicalAuthority] = useState<any>(null);
+  const [isGeneratingTA, setIsGeneratingTA] = useState(false);
 
   // Combined mutation that calls all 4 APIs
   const analysisMutation = useMutation({
@@ -417,6 +428,15 @@ function KeywordOverviewContent() {
         // GPT Analysis: Generate Q&A from question keywords
         const questionKeywords = await generateQuestionAnswers(keywordVariations);
 
+        // Extract related URLs from GSC data (pages ranking for this keyword)
+        const relatedURLs: RelatedURL[] = (gscData.rows || []).slice(0, 10).map((row: any) => ({
+          url: row.page || row.keys?.[0] || "",
+          clicks: row.clicks || 0,
+          impressions: row.impressions || 0,
+          ctr: row.ctr || 0,
+          position: row.position || 0,
+        }));
+
         // Transform data into UI structure
         const combinedData: CombinedData = {
           mainMetrics: {
@@ -434,6 +454,7 @@ function KeywordOverviewContent() {
           keywordVariations,
           serpResults,
           questionKeywords,
+          relatedURLs,
         };
 
         return combinedData;
@@ -468,6 +489,94 @@ function KeywordOverviewContent() {
     }
 
     analysisMutation.mutate(keyword);
+  };
+
+  const handleGenerateTopicalAuthority = async () => {
+    if (!data?.mainMetrics?.keyword || !data.keywordVariations.length) {
+      toast({
+        title: "Error",
+        description: "Please analyze a keyword first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsGeneratingTA(true);
+
+    try {
+      const systemPrompt = `<?xml version="1.0" encoding="UTF-8"?>
+<system_prompt>
+  <role>
+    <title>Topical Authority Map Architect</title>
+    <description>
+      Bạn là chuyên gia phân tích SEO chuyên sâu về Topical Authority và Content Architecture.
+      Nhiệm vụ của bạn là phân tích keyword seed và keyword ideas để xây dựng bản đồ chủ đề
+      SEO ngữ nghĩa hoàn chỉnh theo phương pháp Silo-Cluster-Pillar-Hub.
+    </description>
+  </role>
+
+  <inputs>
+    <input name="keyword_seed" type="string" required="true">
+      <description>Từ khóa gốc chính (seed keyword) - đại diện cho chủ đề trung tâm</description>
+    </input>
+
+    <input name="keyword_ideas" type="array" required="true">
+      <description>Danh sách keyword ideas từ công cụ nghiên cứu từ khóa</description>
+      <structure>
+        <field name="keyword" type="string" description="Cụm từ khóa"/>
+        <field name="avgMonthlySearches" type="integer" description="Lượng tìm kiếm trung bình/tháng"/>
+      </structure>
+    </input>
+  </inputs>
+
+  <final_instructions>
+    <instruction>Output phải là valid JSON có thể parse và sử dụng trực tiếp</instruction>
+    <instruction>Bao gồm đầy đủ: silos, topic_clusters, pillar_pages, supporting_pages, internal_linking_graph</instruction>
+  </final_instructions>
+</system_prompt>`;
+
+      const userPrompt = `Phân tích keyword seed và keyword ideas sau để tạo Topical Authority Map:
+
+**Keyword Seed**: ${data.mainMetrics.keyword}
+
+**Keyword Ideas** (${data.keywordVariations.length} keywords):
+${data.keywordVariations.map(kw => `- ${kw.keyword} (Volume: ${kw.volume || 0})`).join('\n')}
+
+Hãy trả về JSON theo cấu trúc topical_authority_map với đầy đủ silos, clusters, pillar pages, và supporting pages.`;
+
+      const response = await openaiCompletion({
+        model: "openai/gpt-4.1-mini",
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt }
+        ],
+        max_tokens: 4000,
+        temperature: 0.7,
+      });
+
+      const resultText = response.choices[0].message.content;
+      const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+
+      if (jsonMatch) {
+        const taMap = JSON.parse(jsonMatch[0]);
+        setTopicalAuthority(taMap);
+        toast({
+          title: "Topical Authority Generated",
+          description: "Successfully generated topical authority map",
+        });
+      } else {
+        throw new Error("Invalid JSON response");
+      }
+    } catch (error) {
+      console.error("Topical Authority generation failed:", error);
+      toast({
+        title: "Generation Failed",
+        description: error instanceof Error ? error.message : "Failed to generate topical authority map",
+        variant: "destructive",
+      });
+    } finally {
+      setIsGeneratingTA(false);
+    }
   };
 
   return (
@@ -520,8 +629,8 @@ function KeywordOverviewContent() {
           <div className="flex gap-4 mt-4 text-sm text-muted-foreground">
             <span>🇻🇳 Vietnam</span>
             <span>💻 Desktop</span>
-            <span>📅 Oct 11, 2025</span>
-            <span>💵 USD</span>
+            <span>📅 {new Date().toLocaleDateString("vi-VN", { year: "numeric", month: "short", day: "numeric" })}</span>
+            <span>💵 VND</span>
           </div>
         </div>
 
@@ -674,54 +783,221 @@ function KeywordOverviewContent() {
               </Card>
             )}
 
-            {/* Keyword Ideas */}
+            {/* Keyword Ideas & Related URLs - Split 50/50 */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Keyword Ideas */}
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Keyword Ideas</CardTitle>
+                      <CardDescription>
+                        {data.keywordVariations.length} related keywords found
+                      </CardDescription>
+                    </div>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        const encodedKeyword = encodeURIComponent(data.mainMetrics?.keyword || "");
+                        setLocation(`/keyword-planner?q=${encodedKeyword}`);
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      View all
+                      <ArrowRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Keyword</TableHead>
+                        <TableHead className="text-right">Volume</TableHead>
+                        <TableHead className="text-right">KD %</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.keywordVariations.slice(0, 10).map((item, index) => (
+                        <TableRow key={index}>
+                          <TableCell className="font-medium">{item.keyword}</TableCell>
+                          <TableCell className="text-right">{item.volume?.toLocaleString() || "N/A"}</TableCell>
+                          <TableCell className="text-right">
+                            {item.kdPercent ? (
+                              <Badge variant={item.kdPercent < 30 ? "outline" : "default"}>
+                                {item.kdPercent}
+                              </Badge>
+                            ) : "N/A"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+
+              {/* Related URLs from GSC */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Related URLs (GSC)</CardTitle>
+                  <CardDescription>
+                    Pages ranking for "{data.mainMetrics?.keyword}" on your site
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {data.relatedURLs && data.relatedURLs.length > 0 ? (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>URL</TableHead>
+                          <TableHead className="text-right">Clicks</TableHead>
+                          <TableHead className="text-right">Position</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {data.relatedURLs.slice(0, 10).map((item, index) => (
+                          <TableRow key={index}>
+                            <TableCell className="font-medium text-xs max-w-xs truncate">
+                              <a
+                                href={item.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-600 hover:underline"
+                              >
+                                {item.url}
+                              </a>
+                            </TableCell>
+                            <TableCell className="text-right">{item.clicks}</TableCell>
+                            <TableCell className="text-right">{item.position.toFixed(1)}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <p className="text-sm text-muted-foreground text-center py-8">
+                      No URLs found for this keyword on your site
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Topical Authority Generator */}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle>Keyword Ideas</CardTitle>
+                    <CardTitle>Topical Authority Map</CardTitle>
                     <CardDescription>
-                      {data.keywordVariations.length} related keywords found
+                      AI-powered content architecture based on {data.keywordVariations.length} keywords
                     </CardDescription>
                   </div>
                   <Button
-                    variant="outline"
-                    onClick={() => {
-                      const encodedKeyword = encodeURIComponent(data.mainMetrics?.keyword || "");
-                      setLocation(`/keyword-planner?q=${encodedKeyword}`);
-                    }}
+                    onClick={handleGenerateTopicalAuthority}
+                    disabled={isGeneratingTA}
+                    variant="default"
                     className="flex items-center gap-2"
                   >
-                    View all {data.keywordVariations.length} keywords
-                    <ArrowRight className="h-4 w-4" />
+                    {isGeneratingTA ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Generating...
+                      </>
+                    ) : (
+                      <>
+                        <Network className="h-4 w-4" />
+                        Generate Topical Authority
+                      </>
+                    )}
                   </Button>
                 </div>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Keyword</TableHead>
-                      <TableHead className="text-right">Volume</TableHead>
-                      <TableHead className="text-right">KD %</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.keywordVariations.slice(0, 10).map((item, index) => (
-                      <TableRow key={index}>
-                        <TableCell className="font-medium">{item.keyword}</TableCell>
-                        <TableCell className="text-right">{item.volume?.toLocaleString() || "N/A"}</TableCell>
-                        <TableCell className="text-right">
-                          {item.kdPercent ? (
-                            <Badge variant={item.kdPercent < 30 ? "outline" : "default"}>
-                              {item.kdPercent}
+                {topicalAuthority ? (
+                  <div className="space-y-4">
+                    <div className="bg-muted p-4 rounded-lg">
+                      <h3 className="font-semibold mb-2">
+                        Central Entity: {topicalAuthority.topical_authority_map?.meta?.central_entity || "N/A"}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mb-4">
+                        {topicalAuthority.topical_authority_map?.meta?.primary_search_intent || ""}
+                      </p>
+
+                      {/* Silos */}
+                      {topicalAuthority.topical_authority_map?.silos?.map((silo: any, siloIdx: number) => (
+                        <div key={siloIdx} className="mt-4 border-l-4 border-blue-500 pl-4">
+                          <h4 className="font-semibold text-lg mb-2">
+                            {silo.silo_name}
+                            <Badge variant={silo.silo_type === "core" ? "default" : "secondary"} className="ml-2">
+                              {silo.silo_type}
                             </Badge>
-                          ) : "N/A"}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                          </h4>
+                          <p className="text-sm text-muted-foreground mb-3">{silo.silo_description}</p>
+
+                          {/* Topic Clusters */}
+                          {silo.topic_clusters?.map((cluster: any, clusterIdx: number) => (
+                            <div key={clusterIdx} className="ml-4 mt-3 border-l-2 border-green-500 pl-3">
+                              <h5 className="font-semibold mb-2">{cluster.cluster_name}</h5>
+                              <p className="text-xs text-muted-foreground mb-2">{cluster.cluster_description}</p>
+
+                              {/* Pillar Page */}
+                              {cluster.pillar_page && (
+                                <div className="bg-background p-3 rounded border mb-2">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Badge variant="outline">Pillar</Badge>
+                                    <span className="font-medium text-sm">{cluster.pillar_page.page_title}</span>
+                                  </div>
+                                  <p className="text-xs text-muted-foreground">
+                                    Primary: {cluster.pillar_page.primary_keyword} ({cluster.pillar_page.search_volume?.toLocaleString() || 0} searches)
+                                  </p>
+                                </div>
+                              )}
+
+                              {/* Supporting Pages */}
+                              {cluster.supporting_pages && cluster.supporting_pages.length > 0 && (
+                                <div className="ml-3 space-y-1">
+                                  {cluster.supporting_pages.slice(0, 5).map((page: any, pageIdx: number) => (
+                                    <div key={pageIdx} className="text-xs bg-muted/50 p-2 rounded">
+                                      <span className="font-medium">{page.page_title}</span>
+                                      <span className="text-muted-foreground ml-2">
+                                        ({page.search_volume?.toLocaleString() || 0} searches)
+                                      </span>
+                                    </div>
+                                  ))}
+                                  {cluster.supporting_pages.length > 5 && (
+                                    <p className="text-xs text-muted-foreground ml-2">
+                                      +{cluster.supporting_pages.length - 5} more pages
+                                    </p>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Download JSON */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const blob = new Blob([JSON.stringify(topicalAuthority, null, 2)], { type: "application/json" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `topical-authority-${data.mainMetrics?.keyword}.json`;
+                        a.click();
+                      }}
+                    >
+                      Download JSON
+                    </Button>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground text-center py-8">
+                    Click "Generate Topical Authority" to create a comprehensive content architecture map
+                  </p>
+                )}
               </CardContent>
             </Card>
 
