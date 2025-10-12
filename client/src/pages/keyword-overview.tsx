@@ -85,7 +85,7 @@ function KeywordOverviewContent() {
         console.log("Google Keyword Ideas - Payload:", payload);
         console.log("Google Keyword Ideas - Calling API...");
 
-        const response = await apiRequest("POST", "/api/keyword-ideas", payload);
+        const response = await apiRequest("POST", "/api/keyword-planner", payload);
 
         console.log("Google Keyword Ideas - Response status:", response.status);
 
