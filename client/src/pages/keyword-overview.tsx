@@ -69,14 +69,25 @@ function KeywordOverviewContent() {
     mutationFn: async (keywordInput: string) => {
       if (!toolId) throw new Error("Tool ID not found");
 
+      console.log("Google Keyword Ideas - Start request for:", keywordInput);
+
       return executeWithToken(toolId, 1, async () => {
-        const response = await apiRequest("POST", "/api/keyword-ideas", {
+        console.log("Google Keyword Ideas - Inside executeWithToken");
+
+        const payload = {
           keywordPlanNetwork: "GOOGLE_SEARCH_AND_PARTNERS",
-          keywordSeed: { keywords: [keywordInput] },
+          keywordSeed: { keywords: [keywordInput.trim()] },
           geoTargetConstants: [DEFAULT_GEO],
           language: DEFAULT_LANG,
           pageSize: 1000,
-        });
+        };
+
+        console.log("Google Keyword Ideas - Payload:", payload);
+        console.log("Google Keyword Ideas - Calling API...");
+
+        const response = await apiRequest("POST", "/api/keyword-ideas", payload);
+
+        console.log("Google Keyword Ideas - Response status:", response.status);
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: response.statusText }));
@@ -84,7 +95,10 @@ function KeywordOverviewContent() {
           throw new Error(errorData.error || errorData.message || `API Error: ${response.status}`);
         }
 
-        return response.json();
+        console.log("Google Keyword Ideas - Parsing JSON...");
+        const data = await response.json();
+        console.log("Google Keyword Ideas - Data received:", data);
+        return data;
       });
     },
     onSuccess: (data) => {
@@ -173,14 +187,20 @@ function KeywordOverviewContent() {
     mutationFn: async (keywordInput: string) => {
       if (!toolId) throw new Error("Tool ID not found");
 
+      console.log("GSC API Request - keyword:", keywordInput);
+
       return executeWithToken(toolId, 1, async () => {
-        const response = await apiRequest("POST", "/api/gsc-insights", {
+        const payload = {
           siteUrl: "https://nhathuocvietnhat.vn",
-          mode: "pages-for-keyword",
-          keyword: keywordInput,
+          mode: "pages-for-keyword" as const,
+          keyword: keywordInput.trim(),
           startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
           endDate: new Date().toISOString().split("T")[0],
-        });
+        };
+
+        console.log("GSC API Payload:", payload);
+
+        const response = await apiRequest("POST", "/api/gsc-insights", payload);
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => ({ error: response.statusText }));
