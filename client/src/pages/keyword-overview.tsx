@@ -68,7 +68,7 @@ function KeywordOverviewContent() {
     mutationFn: async (keywordInput: string) => {
       if (!toolId) throw new Error("Tool ID not found");
 
-      const result = await executeWithToken(toolId, 1, async () => {
+      return executeWithToken(toolId, 1, async () => {
         const response = await fetch("/api/keyword-ideas", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -82,21 +82,19 @@ function KeywordOverviewContent() {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to fetch Google Keyword Ideas data");
+          const errorData = await response.json().catch(() => ({ error: response.statusText }));
+          console.error("Google Keyword Ideas API Error:", response.status, errorData);
+          throw new Error(errorData.error || errorData.message || `API Error: ${response.status}`);
         }
 
         return response.json();
       });
-
-      if (result === null) {
-        throw new Error("Authentication failed or insufficient tokens");
-      }
-
-      return result;
     },
     onSuccess: (data) => {
-      if (data && Array.isArray(data)) {
+      // executeWithToken can return null if auth fails - don't process
+      if (!data) return;
+
+      if (Array.isArray(data)) {
         setGoogleAdsResults(data);
         toast({
           title: "Google Keyword Ideas Success",
@@ -118,7 +116,7 @@ function KeywordOverviewContent() {
     mutationFn: async (keywordInput: string) => {
       if (!toolId) throw new Error("Tool ID not found");
 
-      const result = await executeWithToken(toolId, 1, async () => {
+      return executeWithToken(toolId, 1, async () => {
         const response = await fetch("/api/search-intent", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -130,21 +128,19 @@ function KeywordOverviewContent() {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to fetch Search Intent data");
+          const errorData = await response.json().catch(() => ({ error: response.statusText }));
+          console.error("Search Intent API Error:", response.status, errorData);
+          throw new Error(errorData.error || errorData.message || `API Error: ${response.status}`);
         }
 
         return response.json();
       });
-
-      if (result === null) {
-        throw new Error("Authentication failed or insufficient tokens");
-      }
-
-      return result;
     },
     onSuccess: (data) => {
-      if (data && Array.isArray(data)) {
+      // executeWithToken can return null if auth fails - don't process
+      if (!data) return;
+
+      if (Array.isArray(data)) {
         setSearchIntentResults(data);
         toast({
           title: "Search Intent API Success",
@@ -166,7 +162,7 @@ function KeywordOverviewContent() {
     mutationFn: async (keywordInput: string) => {
       if (!toolId) throw new Error("Tool ID not found");
 
-      const result = await executeWithToken(toolId, 1, async () => {
+      return executeWithToken(toolId, 1, async () => {
         const response = await fetch("/api/gsc-insights", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -181,21 +177,19 @@ function KeywordOverviewContent() {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.error || "Failed to fetch GSC data");
+          const errorData = await response.json().catch(() => ({ error: response.statusText }));
+          console.error("GSC API Error:", response.status, errorData);
+          throw new Error(errorData.error || errorData.message || `API Error: ${response.status}`);
         }
 
         return response.json();
       });
-
-      if (result === null) {
-        throw new Error("Authentication failed or insufficient tokens");
-      }
-
-      return result;
     },
     onSuccess: (data) => {
-      if (data && data.rows) {
+      // executeWithToken can return null if auth fails - don't process
+      if (!data) return;
+
+      if (data.rows) {
         setGscResults(data.rows || []);
         toast({
           title: "GSC API Success",
@@ -217,7 +211,7 @@ function KeywordOverviewContent() {
     mutationFn: async (keywordInput: string) => {
       if (!toolId) throw new Error("Tool ID not found");
 
-      const result = await executeWithToken(toolId, 1, async () => {
+      return executeWithToken(toolId, 1, async () => {
         const response = await fetch("/api/proxy/serper/search", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -229,21 +223,19 @@ function KeywordOverviewContent() {
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || "Failed to fetch SERP data");
+          const errorData = await response.json().catch(() => ({ error: response.statusText }));
+          console.error("SerpAPI Error:", response.status, errorData);
+          throw new Error(errorData.message || errorData.error || `API Error: ${response.status}`);
         }
 
         return response.json();
       });
-
-      if (result === null) {
-        throw new Error("Authentication failed or insufficient tokens");
-      }
-
-      return result;
     },
     onSuccess: (data) => {
-      if (data && data.organic) {
+      // executeWithToken can return null if auth fails - don't process
+      if (!data) return;
+
+      if (data.organic) {
         setSerpResults(data);
         toast({
           title: "SerpAPI Success",
