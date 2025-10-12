@@ -53,8 +53,9 @@ interface KeywordMetrics {
   volume: number | null;
   globalVolume: number | null;
   intent: string;
-  cpc: number | null;
-  competitiveDensity: number | null;
+  cpcLow: number | null;
+  cpcHigh: number | null;
+  competitionLevel: number | null; // 0-100 scale for PLA competition
   difficulty: number | null;
   monthlySearchVolumes: MonthlySearchVolume[];
   gscMetrics: GSCMetrics | null;
@@ -89,6 +90,21 @@ interface CombinedData {
 const formatNumber = (num: number | null | undefined): string => {
   if (num === null || num === undefined) return "0";
   return new Intl.NumberFormat("vi-VN").format(num);
+};
+
+// Helper function to convert USD to VND and format
+const formatVND = (usd: number | null | undefined): string => {
+  if (usd === null || usd === undefined) return "N/A";
+  const vnd = usd * 25000; // Approximate conversion rate
+  return new Intl.NumberFormat("vi-VN").format(Math.round(vnd));
+};
+
+// Helper function to get competition level label and color
+const getCompetitionLevel = (level: number | null): { label: string; color: string } => {
+  if (level === null) return { label: "Unknown", color: "gray" };
+  if (level < 33) return { label: "Low", color: "green" };
+  if (level < 67) return { label: "Medium", color: "yellow" };
+  return { label: "High", color: "red" };
 };
 
 // MonthlyTrendsChart Component
@@ -265,8 +281,9 @@ function KeywordOverviewContent() {
             volume,
             globalVolume: keywordData.rows?.reduce((sum: number, item: any) => sum + (item.avgMonthlySearches || 0), 0) || null,
             intent: "Informational", // TODO: Implement AI intent detection
-            cpc: intentData.rows?.[0]?.highTopBid || null,
-            competitiveDensity: intentData.rows?.[0]?.competitionIndex ? intentData.rows[0].competitionIndex / 100 : null,
+            cpcLow: intentData.rows?.[0]?.lowTopBid || null,
+            cpcHigh: intentData.rows?.[0]?.highTopBid || null,
+            competitionLevel: intentData.rows?.[0]?.competitionIndex || null, // Already 0-100 scale
             difficulty: 22, // TODO: Calculate based on SERP data
             monthlySearchVolumes: intentData.rows?.[0]?.monthlySearchVolumes || [],
             gscMetrics,
@@ -383,7 +400,7 @@ function KeywordOverviewContent() {
         {data && (
           <div className="space-y-8">
             {/* Main Metrics Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               {/* Volume */}
               <Card>
                 <CardHeader className="pb-3">
@@ -465,16 +482,52 @@ function KeywordOverviewContent() {
               {/* CPC */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardDescription>CPC</CardDescription>
+                  <CardDescription>CPC (VND)</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">
-                    ${data.mainMetrics?.cpc?.toFixed(2) || "0.00"}
+                  {data.mainMetrics?.cpcLow !== null && data.mainMetrics?.cpcHigh !== null ? (
+                    <>
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Low</p>
+                          <p className="text-xl font-bold">{formatVND(data.mainMetrics.cpcLow)}₫</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">High</p>
+                          <p className="text-xl font-bold">{formatVND(data.mainMetrics.cpcHigh)}₫</p>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-2xl font-bold text-muted-foreground">N/A</div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* Competition Level */}
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardDescription>Competition (PLA)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold mb-2">
+                    {data.mainMetrics?.competitionLevel ?? "N/A"}
+                    {data.mainMetrics?.competitionLevel !== null && "/100"}
                   </div>
-                  <div className="mt-4">
-                    <p className="text-sm font-medium text-muted-foreground">Competitive Density</p>
-                    <p className="text-2xl font-bold">{data.mainMetrics?.competitiveDensity?.toFixed(2) || "0.00"}</p>
-                  </div>
+                  {data.mainMetrics?.competitionLevel !== null && (
+                    <Badge
+                      variant="outline"
+                      className={
+                        getCompetitionLevel(data.mainMetrics.competitionLevel).color === "green"
+                          ? "bg-green-100 text-green-800 border-green-300"
+                          : getCompetitionLevel(data.mainMetrics.competitionLevel).color === "yellow"
+                          ? "bg-yellow-100 text-yellow-800 border-yellow-300"
+                          : "bg-red-100 text-red-800 border-red-300"
+                      }
+                    >
+                      {getCompetitionLevel(data.mainMetrics.competitionLevel).label}
+                    </Badge>
+                  )}
                 </CardContent>
               </Card>
             </div>
