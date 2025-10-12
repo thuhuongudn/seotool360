@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Loader2, Target, Search, ExternalLink, Star } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import Header from "@/components/header";
@@ -21,6 +21,31 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+
+// Monthly search volume interface
+interface MonthlySearchVolume {
+  month: string;
+  year: string;
+  monthlySearches: string;
+}
+
+// GSC metrics interface
+interface GSCMetrics {
+  clicks: number;
+  impressions: number;
+  ctr: number;
+  position: number;
+}
 
 // Types for combined API response
 interface KeywordMetrics {
@@ -31,7 +56,9 @@ interface KeywordMetrics {
   cpc: number | null;
   competitiveDensity: number | null;
   difficulty: number | null;
-  trend: number[];
+  monthlySearchVolumes: MonthlySearchVolume[];
+  gscMetrics: GSCMetrics | null;
+  clickVolumeRatio: number | null;
 }
 
 interface KeywordVariation {
@@ -56,6 +83,96 @@ interface CombinedData {
   mainMetrics: KeywordMetrics | null;
   keywordVariations: KeywordVariation[];
   serpResults: SerpResult[];
+}
+
+// Helper function to format numbers
+const formatNumber = (num: number | null | undefined): string => {
+  if (num === null || num === undefined) return "0";
+  return new Intl.NumberFormat("vi-VN").format(num);
+};
+
+// MonthlyTrendsChart Component
+interface MonthlyTrendsChartProps {
+  monthlyVolumes: MonthlySearchVolume[];
+}
+
+function MonthlyTrendsChart({ monthlyVolumes }: MonthlyTrendsChartProps) {
+  const chartData = useMemo(() => {
+    if (!monthlyVolumes || monthlyVolumes.length === 0) return [];
+
+    const monthNames = {
+      'JANUARY': 'Tháng 1',
+      'FEBRUARY': 'Tháng 2',
+      'MARCH': 'Tháng 3',
+      'APRIL': 'Tháng 4',
+      'MAY': 'Tháng 5',
+      'JUNE': 'Tháng 6',
+      'JULY': 'Tháng 7',
+      'AUGUST': 'Tháng 8',
+      'SEPTEMBER': 'Tháng 9',
+      'OCTOBER': 'Tháng 10',
+      'NOVEMBER': 'Tháng 11',
+      'DECEMBER': 'Tháng 12'
+    } as const;
+
+    return monthlyVolumes.map((volume) => {
+      const searches = parseInt(volume.monthlySearches) || 0;
+      return {
+        month: monthNames[volume.month as keyof typeof monthNames] || volume.month,
+        searches,
+        period: `${monthNames[volume.month as keyof typeof monthNames]} ${volume.year}`,
+        fullDate: `${volume.year}-${String(Object.keys(monthNames).indexOf(volume.month) + 1).padStart(2, '0')}`
+      };
+    }).sort((a, b) => a.fullDate.localeCompare(b.fullDate)).slice(-12); // Last 12 months
+  }, [monthlyVolumes]);
+
+  if (chartData.length === 0) return null;
+
+  const maxValue = Math.max(...chartData.map(d => d.searches));
+
+  return (
+    <div className="w-full h-64">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 20 }}>
+          <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+          <XAxis
+            dataKey="month"
+            fontSize={11}
+            angle={-45}
+            textAnchor="end"
+            height={60}
+            className="text-muted-foreground"
+          />
+          <YAxis
+            fontSize={11}
+            tickFormatter={(value) => formatNumber(value)}
+            className="text-muted-foreground"
+          />
+          <Tooltip
+            formatter={(value: any) => [formatNumber(value), "Lượt tìm kiếm"]}
+            labelFormatter={(label, payload) => {
+              if (payload && payload[0]) {
+                return payload[0].payload.period;
+              }
+              return label;
+            }}
+            contentStyle={{
+              backgroundColor: 'hsl(var(--background))',
+              border: '1px solid hsl(var(--border))',
+              borderRadius: '8px',
+            }}
+          />
+          <Bar dataKey="searches" radius={[4, 4, 0, 0]}>
+            {chartData.map((entry, index) => {
+              const intensity = entry.searches / maxValue;
+              const color = `hsl(217, 91%, ${70 - intensity * 20}%)`;
+              return <Cell key={`cell-${index}`} fill={color} />;
+            })}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
 }
 
 function KeywordOverviewContent() {
@@ -120,17 +237,40 @@ function KeywordOverviewContent() {
 
         console.log("All API responses:", { keywordData, intentData, gscData, serpData });
 
+        // Calculate GSC metrics
+        const gscRows = gscData.rows || [];
+        const gscMetrics = gscRows.length > 0
+          ? gscRows.reduce((acc: GSCMetrics, row: any) => ({
+              clicks: acc.clicks + (row.clicks || 0),
+              impressions: acc.impressions + (row.impressions || 0),
+              ctr: acc.ctr + (row.ctr || 0),
+              position: acc.position + (row.position || 0),
+            }), { clicks: 0, impressions: 0, ctr: 0, position: 0 })
+          : null;
+
+        // Average position if we have data
+        if (gscMetrics && gscRows.length > 0) {
+          gscMetrics.ctr = gscMetrics.ctr / gscRows.length;
+          gscMetrics.position = gscMetrics.position / gscRows.length;
+        }
+
+        const volume = intentData.rows?.[0]?.avgMonthlySearches || null;
+        const clicks = gscMetrics?.clicks || 0;
+        const clickVolumeRatio = volume && clicks > 0 ? (clicks / volume) * 100 : null;
+
         // Transform data into UI structure
         const combinedData: CombinedData = {
           mainMetrics: {
             keyword: keywordInput,
-            volume: intentData.rows?.[0]?.avgMonthlySearches || null,
+            volume,
             globalVolume: keywordData.rows?.reduce((sum: number, item: any) => sum + (item.avgMonthlySearches || 0), 0) || null,
             intent: "Informational", // TODO: Implement AI intent detection
             cpc: intentData.rows?.[0]?.highTopBid || null,
             competitiveDensity: intentData.rows?.[0]?.competitionIndex ? intentData.rows[0].competitionIndex / 100 : null,
             difficulty: 22, // TODO: Calculate based on SERP data
-            trend: intentData.rows?.[0]?.monthlySearchVolumes?.map((m: any) => m.monthlySearches) || [],
+            monthlySearchVolumes: intentData.rows?.[0]?.monthlySearchVolumes || [],
+            gscMetrics,
+            clickVolumeRatio,
           },
           keywordVariations: (keywordData.rows || []).slice(0, 82).map((item: any) => ({
             keyword: item.keyword,
@@ -247,17 +387,49 @@ function KeywordOverviewContent() {
               {/* Volume */}
               <Card>
                 <CardHeader className="pb-3">
-                  <CardDescription>Volume</CardDescription>
+                  <CardDescription>Volume (VN)</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">
-                    {data.mainMetrics?.volume ? `${(data.mainMetrics.volume / 1000).toFixed(1)}K` : "N/A"}
+                  <div className="text-3xl font-bold mb-4">
+                    {formatNumber(data.mainMetrics?.volume)}
                   </div>
-                  <div className="mt-4">
-                    <p className="text-sm font-medium">Keyword Difficulty</p>
-                    <p className="text-2xl font-bold">{data.mainMetrics?.difficulty || 0}%</p>
-                    <Badge variant="outline" className="mt-2">Easy</Badge>
-                  </div>
+
+                  {/* GSC Metrics for 30 days */}
+                  {data.mainMetrics?.gscMetrics && (
+                    <div className="space-y-2 text-sm border-t pt-3">
+                      <p className="font-medium text-muted-foreground">GSC Data (30 days)</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <p className="text-xs text-muted-foreground">Clicks</p>
+                          <p className="font-semibold">{formatNumber(data.mainMetrics.gscMetrics.clicks)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Impressions</p>
+                          <p className="font-semibold">{formatNumber(data.mainMetrics.gscMetrics.impressions)}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">CTR</p>
+                          <p className="font-semibold">{(data.mainMetrics.gscMetrics.ctr * 100).toFixed(2)}%</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-muted-foreground">Position</p>
+                          <p className="font-semibold">{data.mainMetrics.gscMetrics.position.toFixed(1)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Click/Volume Ratio */}
+                  {data.mainMetrics?.clickVolumeRatio !== null && (
+                    <div className="mt-3 pt-3 border-t">
+                      <p className="text-xs text-muted-foreground mb-1">Click/Volume Ratio</p>
+                      <div className="flex items-baseline gap-2">
+                        <p className="text-2xl font-bold text-green-600">
+                          {data.mainMetrics.clickVolumeRatio.toFixed(2)}%
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
@@ -268,7 +440,12 @@ function KeywordOverviewContent() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold">
-                    {data.mainMetrics?.globalVolume ? `${(data.mainMetrics.globalVolume / 1000).toFixed(1)}K` : "N/A"}
+                    {formatNumber(data.mainMetrics?.globalVolume)}
+                  </div>
+                  <div className="mt-4">
+                    <p className="text-sm font-medium text-muted-foreground">Keyword Difficulty</p>
+                    <p className="text-2xl font-bold">{data.mainMetrics?.difficulty || 0}%</p>
+                    <Badge variant="outline" className="mt-2">Easy</Badge>
                   </div>
                 </CardContent>
               </Card>
@@ -279,7 +456,7 @@ function KeywordOverviewContent() {
                   <CardDescription>Intent</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Badge className="bg-blue-500">
+                  <Badge className="bg-blue-500 text-lg px-4 py-2">
                     {data.mainMetrics?.intent || "Unknown"}
                   </Badge>
                 </CardContent>
@@ -295,12 +472,25 @@ function KeywordOverviewContent() {
                     ${data.mainMetrics?.cpc?.toFixed(2) || "0.00"}
                   </div>
                   <div className="mt-4">
-                    <p className="text-sm font-medium">Competitive Density</p>
+                    <p className="text-sm font-medium text-muted-foreground">Competitive Density</p>
                     <p className="text-2xl font-bold">{data.mainMetrics?.competitiveDensity?.toFixed(2) || "0.00"}</p>
                   </div>
                 </CardContent>
               </Card>
             </div>
+
+            {/* Trend Chart */}
+            {data.mainMetrics?.monthlySearchVolumes && data.mainMetrics.monthlySearchVolumes.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Search Trend</CardTitle>
+                  <CardDescription>Monthly search volume for the last 12 months</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <MonthlyTrendsChart monthlyVolumes={data.mainMetrics.monthlySearchVolumes} />
+                </CardContent>
+              </Card>
+            )}
 
             {/* Keyword Ideas */}
             <Card>
