@@ -158,7 +158,14 @@ function KeywordOverviewContent() {
 
       console.log("Search Intent API Response:", data);
 
-      if (Array.isArray(data)) {
+      // Search Intent returns {rows: [], keywords: [], mode: '', meta: {}}
+      if (data.rows && Array.isArray(data.rows)) {
+        setSearchIntentResults(data.rows);
+        toast({
+          title: "Search Intent API Success",
+          description: `Fetched metrics for ${data.rows.length} keywords`,
+        });
+      } else if (Array.isArray(data)) {
         setSearchIntentResults(data);
         toast({
           title: "Search Intent API Success",
@@ -193,7 +200,7 @@ function KeywordOverviewContent() {
         const payload = {
           siteUrl: "https://nhathuocvietnhat.vn",
           mode: "pages-for-keyword" as const,
-          keyword: keywordInput.trim(),
+          value: keywordInput.trim(), // Server expects 'value' field for pages-for-keyword mode
           startDate: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
           endDate: new Date().toISOString().split("T")[0],
         };
