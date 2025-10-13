@@ -526,13 +526,6 @@ function KeywordOverviewContent() {
     const margin = 14;
     let startY = 20;
 
-    // Helper to convert Vietnamese to ASCII approximation for basic display
-    const normalizeText = (text: string): string => {
-      return text
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, ""); // Remove diacritics
-    };
-
     // Title
     doc.setFontSize(18);
     doc.text("Topical Authority Map", margin, startY);
@@ -545,16 +538,14 @@ function KeywordOverviewContent() {
         startY: startY,
         head: [['Metadata', 'Value']],
         body: [
-          ['Keyword Seed', normalizeText(meta.keyword_seed || "N/A")],
-          ['Central Entity', normalizeText(meta.central_entity || "N/A")],
+          ['Keyword Seed', meta.keyword_seed || "N/A"],
+          ['Central Entity', meta.central_entity || "N/A"],
           ['Total Keywords', String(meta.total_keywords_analyzed || 0)],
         ],
         theme: 'grid',
         styles: {
-          font: 'times',
           fontSize: 9,
           cellPadding: 3,
-          fontStyle: 'normal'
         },
         headStyles: {
           fillColor: [66, 139, 202],
@@ -570,22 +561,29 @@ function KeywordOverviewContent() {
     const silos = topicalAuthority.topical_authority_map?.silos || [];
 
     silos.forEach((silo: any, siloIdx: number) => {
-      // Silo header
-      doc.setFontSize(14);
-      doc.setFont("times", "bold");
-
       // Check if need new page
       if (startY > pageHeight - 40) {
         doc.addPage();
         startY = 20;
       }
 
-      doc.text(
-        normalizeText(`${siloIdx + 1}. ${silo.silo_name} (${silo.silo_type})`),
-        margin,
-        startY
-      );
-      startY += 8;
+      // Silo as a table row for better UTF-8 support
+      autoTable(doc, {
+        startY: startY,
+        head: [[`Silo ${siloIdx + 1}: ${silo.silo_name} (${silo.silo_type})`]],
+        body: [],
+        theme: 'plain',
+        styles: {
+          fontSize: 12,
+          fontStyle: 'bold',
+          textColor: [0, 0, 0]
+        },
+        headStyles: {
+          fillColor: [240, 240, 240],
+        },
+        margin: { left: margin, right: margin },
+      });
+      startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 5 : startY + 10;
 
       // Topic Clusters
       (silo.topic_clusters || []).forEach((cluster: any, clusterIdx: number) => {
@@ -594,13 +592,9 @@ function KeywordOverviewContent() {
           startY = 20;
         }
 
+        // Cluster header
         doc.setFontSize(11);
-        doc.text(
-          normalizeText(`  ${siloIdx + 1}.${clusterIdx + 1} ${cluster.cluster_name}`),
-          margin + 3,
-          startY
-        );
-        startY += 6;
+        doc.setFont("helvetica", "bold");
 
         // Build table data
         const tableData: any[] = [];
@@ -608,9 +602,9 @@ function KeywordOverviewContent() {
         // Pillar Page
         if (cluster.pillar_page) {
           tableData.push([
-            'Pillar Page',
-            normalizeText(cluster.pillar_page.page_title || ''),
-            normalizeText(cluster.pillar_page.primary_keyword || ''),
+            'Pillar',
+            cluster.pillar_page.page_title || '',
+            cluster.pillar_page.primary_keyword || '',
             String(cluster.pillar_page.search_volume || 0)
           ]);
         }
@@ -619,9 +613,9 @@ function KeywordOverviewContent() {
         const supportingPages = cluster.supporting_pages || [];
         supportingPages.slice(0, 10).forEach((page: any, idx: number) => {
           tableData.push([
-            `Supporting ${idx + 1}`,
-            normalizeText(page.page_title || ''),
-            normalizeText(page.primary_keyword || ''),
+            `Support ${idx + 1}`,
+            page.page_title || '',
+            page.primary_keyword || '',
             String(page.search_volume || 0)
           ]);
         });
@@ -635,40 +629,39 @@ function KeywordOverviewContent() {
           ]);
         }
 
-        // Render table
+        // Render cluster table with UTF-8 text
         if (tableData.length > 0) {
           autoTable(doc, {
             startY: startY,
-            head: [['Type', 'Page Title', 'Keyword', 'Volume']],
+            head: [[`${siloIdx + 1}.${clusterIdx + 1} ${cluster.cluster_name}`, '', '', '']],
             body: tableData,
             theme: 'striped',
             styles: {
-              font: 'times',
               fontSize: 8,
               cellPadding: 2,
               overflow: 'linebreak',
               cellWidth: 'wrap',
-              fontStyle: 'normal'
             },
             headStyles: {
               fillColor: [52, 152, 219],
               textColor: 255,
               fontStyle: 'bold',
-              fontSize: 8
+              fontSize: 9,
+              halign: 'left'
             },
             columnStyles: {
-              0: { cellWidth: 25 },
+              0: { cellWidth: 22, fontStyle: 'bold' },
               1: { cellWidth: 70 },
-              2: { cellWidth: 50 },
-              3: { cellWidth: 20, halign: 'right' }
+              2: { cellWidth: 52 },
+              3: { cellWidth: 18, halign: 'right' }
             },
             margin: { left: margin + 5, right: margin },
           });
-          startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : startY + 30;
+          startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 6 : startY + 30;
         }
       });
 
-      startY += 5;
+      startY += 3;
     });
 
     // Footer on all pages
@@ -686,7 +679,7 @@ function KeywordOverviewContent() {
     }
 
     // Save PDF with proper filename
-    const filename = `topical-authority-${normalizeText(data.mainMetrics?.keyword || 'export')}.pdf`;
+    const filename = `topical-authority-${data.mainMetrics?.keyword || 'export'}.pdf`;
     doc.save(filename);
   };
 
@@ -743,10 +736,11 @@ function KeywordOverviewContent() {
           // Send webhook to N8N for further processing
           try {
             const webhookUrl = "https://n8n.nhathuocvietnhat.vn/webhook/seotool-360-topical-authority-2025-10-13";
-            const n8nApiKey = import.meta.env.VITE_N8N_API_KEY;
+            const n8nApiKey = import.meta.env.N8N_API_KEY;
 
             console.log("[Webhook] Preparing to send to N8N...");
             console.log("[Webhook] API Key configured:", !!n8nApiKey);
+            console.log("[Webhook] API Key value:", n8nApiKey ? `${n8nApiKey.substring(0, 10)}...` : 'undefined');
 
             if (!n8nApiKey) {
               console.warn("[Webhook] N8N_API_KEY not configured, skipping webhook");
