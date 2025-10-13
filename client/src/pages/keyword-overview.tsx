@@ -526,6 +526,13 @@ function KeywordOverviewContent() {
     const margin = 14;
     let startY = 20;
 
+    // Helper to convert Vietnamese to ASCII approximation for basic display
+    const normalizeText = (text: string): string => {
+      return text
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, ""); // Remove diacritics
+    };
+
     // Title
     doc.setFontSize(18);
     doc.text("Topical Authority Map", margin, startY);
@@ -538,13 +545,22 @@ function KeywordOverviewContent() {
         startY: startY,
         head: [['Metadata', 'Value']],
         body: [
-          ['Keyword Seed', meta.keyword_seed || "N/A"],
-          ['Central Entity', meta.central_entity || "N/A"],
+          ['Keyword Seed', normalizeText(meta.keyword_seed || "N/A")],
+          ['Central Entity', normalizeText(meta.central_entity || "N/A")],
           ['Total Keywords', String(meta.total_keywords_analyzed || 0)],
         ],
         theme: 'grid',
-        styles: { font: 'helvetica', fontSize: 9, cellPadding: 3 },
-        headStyles: { fillColor: [66, 139, 202], textColor: 255, fontStyle: 'bold' },
+        styles: {
+          font: 'times',
+          fontSize: 9,
+          cellPadding: 3,
+          fontStyle: 'normal'
+        },
+        headStyles: {
+          fillColor: [66, 139, 202],
+          textColor: 255,
+          fontStyle: 'bold'
+        },
         margin: { left: margin, right: margin },
       });
       startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : startY + 30;
@@ -556,7 +572,7 @@ function KeywordOverviewContent() {
     silos.forEach((silo: any, siloIdx: number) => {
       // Silo header
       doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
+      doc.setFont("times", "bold");
 
       // Check if need new page
       if (startY > pageHeight - 40) {
@@ -564,7 +580,11 @@ function KeywordOverviewContent() {
         startY = 20;
       }
 
-      doc.text(`${siloIdx + 1}. ${silo.silo_name} (${silo.silo_type})`, margin, startY);
+      doc.text(
+        normalizeText(`${siloIdx + 1}. ${silo.silo_name} (${silo.silo_type})`),
+        margin,
+        startY
+      );
       startY += 8;
 
       // Topic Clusters
@@ -575,7 +595,11 @@ function KeywordOverviewContent() {
         }
 
         doc.setFontSize(11);
-        doc.text(`  ${siloIdx + 1}.${clusterIdx + 1} ${cluster.cluster_name}`, margin + 3, startY);
+        doc.text(
+          normalizeText(`  ${siloIdx + 1}.${clusterIdx + 1} ${cluster.cluster_name}`),
+          margin + 3,
+          startY
+        );
         startY += 6;
 
         // Build table data
@@ -585,8 +609,8 @@ function KeywordOverviewContent() {
         if (cluster.pillar_page) {
           tableData.push([
             'Pillar Page',
-            cluster.pillar_page.page_title || '',
-            cluster.pillar_page.primary_keyword || '',
+            normalizeText(cluster.pillar_page.page_title || ''),
+            normalizeText(cluster.pillar_page.primary_keyword || ''),
             String(cluster.pillar_page.search_volume || 0)
           ]);
         }
@@ -596,8 +620,8 @@ function KeywordOverviewContent() {
         supportingPages.slice(0, 10).forEach((page: any, idx: number) => {
           tableData.push([
             `Supporting ${idx + 1}`,
-            page.page_title || '',
-            page.primary_keyword || '',
+            normalizeText(page.page_title || ''),
+            normalizeText(page.primary_keyword || ''),
             String(page.search_volume || 0)
           ]);
         });
@@ -619,11 +643,12 @@ function KeywordOverviewContent() {
             body: tableData,
             theme: 'striped',
             styles: {
-              font: 'helvetica',
+              font: 'times',
               fontSize: 8,
               cellPadding: 2,
               overflow: 'linebreak',
-              cellWidth: 'wrap'
+              cellWidth: 'wrap',
+              fontStyle: 'normal'
             },
             headStyles: {
               fillColor: [52, 152, 219],
@@ -661,7 +686,7 @@ function KeywordOverviewContent() {
     }
 
     // Save PDF with proper filename
-    const filename = `topical-authority-${data.mainMetrics.keyword}.pdf`;
+    const filename = `topical-authority-${normalizeText(data.mainMetrics?.keyword || 'export')}.pdf`;
     doc.save(filename);
   };
 
@@ -720,26 +745,46 @@ function KeywordOverviewContent() {
             const webhookUrl = "https://n8n.nhathuocvietnhat.vn/webhook/seotool-360-topical-authority-2025-10-13";
             const n8nApiKey = import.meta.env.VITE_N8N_API_KEY;
 
+            console.log("[Webhook] Preparing to send to N8N...");
+            console.log("[Webhook] API Key configured:", !!n8nApiKey);
+
             if (!n8nApiKey) {
-              console.warn("N8N_API_KEY not configured, skipping webhook");
+              console.warn("[Webhook] N8N_API_KEY not configured, skipping webhook");
               return;
             }
 
-            await fetch(webhookUrl, {
+            const payload = {
+              keyword_seed: data.mainMetrics?.keyword || "",
+              topical_authority_map: result,
+              generated_at: new Date().toISOString(),
+              duration_seconds: Math.round(duration / 1000),
+            };
+
+            console.log("[Webhook] Payload size:", JSON.stringify(payload).length, "bytes");
+            console.log("[Webhook] Sending to:", webhookUrl);
+
+            const webhookResponse = await fetch(webhookUrl, {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
                 "Authorization": `Bearer ${n8nApiKey}`,
               },
-              body: JSON.stringify({
-                keyword_seed: data.mainMetrics?.keyword || "",
-                topical_authority_map: result,
-                generated_at: new Date().toISOString(),
-                duration_seconds: Math.round(duration / 1000),
-              }),
+              body: JSON.stringify(payload),
             });
+
+            console.log("[Webhook] Response status:", webhookResponse.status, webhookResponse.statusText);
+            console.log("[Webhook] Response headers:", Object.fromEntries(webhookResponse.headers.entries()));
+
+            const responseText = await webhookResponse.text();
+            console.log("[Webhook] Response body:", responseText);
+
+            if (!webhookResponse.ok) {
+              console.error("[Webhook] Failed with status:", webhookResponse.status);
+            } else {
+              console.log("[Webhook] Successfully sent to N8N");
+            }
           } catch (webhookError) {
-            console.warn("Failed to send webhook:", webhookError);
+            console.error("[Webhook] Error sending webhook:", webhookError);
             // Don't show error to user - webhook is optional
           }
         },
