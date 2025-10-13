@@ -554,7 +554,7 @@ def get_verdict(total_score, has_critical_error):
 - ✅ Làm rõ T10 chỉ đánh giá năm trích dẫn, không đánh giá ngày cập nhật bài
 - ✅ Thêm mức ưu tiên cho từng tiêu chí
 
-### v1.0 (2025-10-07)
+### v2.0 (2025-10-07)
 - Phiên bản đầu tiên
 - 10 tiêu chí cơ bản
 - Tổng điểm sai: 15 điểm (đã sửa thành 30)

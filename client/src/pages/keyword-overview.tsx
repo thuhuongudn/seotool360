@@ -3,6 +3,7 @@ import { Loader2, Target, Search, ExternalLink, Star, ArrowRight, Network, Downl
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { jsPDF } from "jspdf";
+import autoTable from "jspdf-autotable";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import ToolPermissionGuard from "@/components/tool-permission-guard";
@@ -519,121 +520,138 @@ function KeywordOverviewContent() {
   const handleDownloadPDF = () => {
     if (!topicalAuthority || !data?.mainMetrics?.keyword) return;
 
-    const doc = new jsPDF();
+    const doc = new jsPDF() as jsPDF & { lastAutoTable?: { finalY: number } };
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    let yPosition = 20;
-    const lineHeight = 7;
-    const margin = 20;
+    const margin = 14;
+    let startY = 20;
 
     // Title
     doc.setFontSize(18);
-    doc.setFont("helvetica", "bold");
-    doc.text("Topical Authority Map", margin, yPosition);
-    yPosition += lineHeight * 1.5;
+    doc.text("Topical Authority Map", margin, startY);
+    startY += 12;
 
-    // Metadata
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
+    // Metadata table
     const meta = topicalAuthority.topical_authority_map?.meta;
     if (meta) {
-      doc.text(`Keyword Seed: ${meta.keyword_seed || "N/A"}`, margin, yPosition);
-      yPosition += lineHeight;
-      doc.text(`Central Entity: ${meta.central_entity || "N/A"}`, margin, yPosition);
-      yPosition += lineHeight;
-      doc.text(`Total Keywords: ${meta.total_keywords_analyzed || 0}`, margin, yPosition);
-      yPosition += lineHeight * 2;
+      autoTable(doc, {
+        startY: startY,
+        head: [['Metadata', 'Value']],
+        body: [
+          ['Keyword Seed', meta.keyword_seed || "N/A"],
+          ['Central Entity', meta.central_entity || "N/A"],
+          ['Total Keywords', String(meta.total_keywords_analyzed || 0)],
+        ],
+        theme: 'grid',
+        styles: { font: 'helvetica', fontSize: 9, cellPadding: 3 },
+        headStyles: { fillColor: [66, 139, 202], textColor: 255, fontStyle: 'bold' },
+        margin: { left: margin, right: margin },
+      });
+      startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 10 : startY + 30;
     }
 
-    // Silos
+    // Silos & Content Structure
     const silos = topicalAuthority.topical_authority_map?.silos || [];
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("Silos & Content Structure", margin, yPosition);
-    yPosition += lineHeight * 1.5;
 
     silos.forEach((silo: any, siloIdx: number) => {
+      // Silo header
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+
       // Check if need new page
-      if (yPosition > pageHeight - 40) {
+      if (startY > pageHeight - 40) {
         doc.addPage();
-        yPosition = 20;
+        startY = 20;
       }
 
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      doc.text(`${siloIdx + 1}. ${silo.silo_name} (${silo.silo_type})`, margin, yPosition);
-      yPosition += lineHeight;
-
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      const description = silo.silo_description || "";
-      const descLines = doc.splitTextToSize(description, pageWidth - margin * 2);
-      doc.text(descLines, margin + 5, yPosition);
-      yPosition += lineHeight * descLines.length;
-      yPosition += lineHeight * 0.5;
+      doc.text(`${siloIdx + 1}. ${silo.silo_name} (${silo.silo_type})`, margin, startY);
+      startY += 8;
 
       // Topic Clusters
       (silo.topic_clusters || []).forEach((cluster: any, clusterIdx: number) => {
-        if (yPosition > pageHeight - 60) {
+        if (startY > pageHeight - 50) {
           doc.addPage();
-          yPosition = 20;
+          startY = 20;
         }
 
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "bold");
-        doc.text(`  ${siloIdx + 1}.${clusterIdx + 1} ${cluster.cluster_name}`, margin + 5, yPosition);
-        yPosition += lineHeight;
+        doc.setFontSize(11);
+        doc.text(`  ${siloIdx + 1}.${clusterIdx + 1} ${cluster.cluster_name}`, margin + 3, startY);
+        startY += 6;
+
+        // Build table data
+        const tableData: any[] = [];
 
         // Pillar Page
         if (cluster.pillar_page) {
-          doc.setFontSize(9);
-          doc.setFont("helvetica", "bold");
-          doc.text(`    Pillar: ${cluster.pillar_page.page_title}`, margin + 10, yPosition);
-          yPosition += lineHeight;
-
-          doc.setFont("helvetica", "normal");
-          doc.text(`    Keyword: ${cluster.pillar_page.primary_keyword} (${cluster.pillar_page.search_volume || 0} searches)`, margin + 10, yPosition);
-          yPosition += lineHeight;
+          tableData.push([
+            'Pillar Page',
+            cluster.pillar_page.page_title || '',
+            cluster.pillar_page.primary_keyword || '',
+            String(cluster.pillar_page.search_volume || 0)
+          ]);
         }
 
-        // Supporting Pages
+        // Supporting Pages (limit to 10 for PDF)
         const supportingPages = cluster.supporting_pages || [];
-        if (supportingPages.length > 0) {
-          doc.setFont("helvetica", "italic");
-          doc.text(`    Supporting Pages (${supportingPages.length}):`, margin + 10, yPosition);
-          yPosition += lineHeight;
+        supportingPages.slice(0, 10).forEach((page: any, idx: number) => {
+          tableData.push([
+            `Supporting ${idx + 1}`,
+            page.page_title || '',
+            page.primary_keyword || '',
+            String(page.search_volume || 0)
+          ]);
+        });
 
-          supportingPages.slice(0, 5).forEach((page: any) => {
-            if (yPosition > pageHeight - 20) {
-              doc.addPage();
-              yPosition = 20;
-            }
-
-            doc.setFont("helvetica", "normal");
-            const pageText = `      - ${page.page_title} (${page.search_volume || 0} searches)`;
-            doc.text(pageText, margin + 10, yPosition);
-            yPosition += lineHeight;
-          });
-
-          if (supportingPages.length > 5) {
-            doc.setFont("helvetica", "italic");
-            doc.text(`      ... +${supportingPages.length - 5} more pages`, margin + 10, yPosition);
-            yPosition += lineHeight;
-          }
+        if (supportingPages.length > 10) {
+          tableData.push([
+            '...',
+            `+${supportingPages.length - 10} more pages`,
+            '',
+            ''
+          ]);
         }
 
-        yPosition += lineHeight * 0.5;
+        // Render table
+        if (tableData.length > 0) {
+          autoTable(doc, {
+            startY: startY,
+            head: [['Type', 'Page Title', 'Keyword', 'Volume']],
+            body: tableData,
+            theme: 'striped',
+            styles: {
+              font: 'helvetica',
+              fontSize: 8,
+              cellPadding: 2,
+              overflow: 'linebreak',
+              cellWidth: 'wrap'
+            },
+            headStyles: {
+              fillColor: [52, 152, 219],
+              textColor: 255,
+              fontStyle: 'bold',
+              fontSize: 8
+            },
+            columnStyles: {
+              0: { cellWidth: 25 },
+              1: { cellWidth: 70 },
+              2: { cellWidth: 50 },
+              3: { cellWidth: 20, halign: 'right' }
+            },
+            margin: { left: margin + 5, right: margin },
+          });
+          startY = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : startY + 30;
+        }
       });
 
-      yPosition += lineHeight;
+      startY += 5;
     });
 
-    // Footer
+    // Footer on all pages
     const totalPages = doc.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
       doc.setFontSize(8);
-      doc.setFont("helvetica", "normal");
+      doc.setTextColor(128, 128, 128);
       doc.text(
         `Generated by N8N Toolkit - Page ${i} of ${totalPages}`,
         pageWidth / 2,
@@ -642,8 +660,9 @@ function KeywordOverviewContent() {
       );
     }
 
-    // Save PDF
-    doc.save(`topical-authority-${data.mainMetrics.keyword}.pdf`);
+    // Save PDF with proper filename
+    const filename = `topical-authority-${data.mainMetrics.keyword}.pdf`;
+    doc.save(filename);
   };
 
   const handleGenerateTopicalAuthority = async () => {
@@ -687,7 +706,7 @@ function KeywordOverviewContent() {
         onProgress: () => {
           // Silent progress tracking
         },
-        onComplete: (result, duration) => {
+        onComplete: async (result, duration) => {
           setTopicalAuthority(result);
           setIsGeneratingTA(false);
 
@@ -695,6 +714,34 @@ function KeywordOverviewContent() {
             title: "Topical Authority Generated",
             description: `Successfully generated topical authority map in ${Math.round(duration / 1000)}s`,
           });
+
+          // Send webhook to N8N for further processing
+          try {
+            const webhookUrl = "https://n8n.nhathuocvietnhat.vn/webhook/seotool-360-topical-authority-2025-10-13";
+            const n8nApiKey = import.meta.env.VITE_N8N_API_KEY;
+
+            if (!n8nApiKey) {
+              console.warn("N8N_API_KEY not configured, skipping webhook");
+              return;
+            }
+
+            await fetch(webhookUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${n8nApiKey}`,
+              },
+              body: JSON.stringify({
+                keyword_seed: data.mainMetrics?.keyword || "",
+                topical_authority_map: result,
+                generated_at: new Date().toISOString(),
+                duration_seconds: Math.round(duration / 1000),
+              }),
+            });
+          } catch (webhookError) {
+            console.warn("Failed to send webhook:", webhookError);
+            // Don't show error to user - webhook is optional
+          }
         },
         onError: (error) => {
           console.error(`Topical Authority job ${jobId} failed:`, error);

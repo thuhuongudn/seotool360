@@ -66,6 +66,7 @@
     "input-otp": "^1.4.2",
     "jose": "^6.1.0",
     "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.453.0",
     "memorystore": "^1.6.7",
