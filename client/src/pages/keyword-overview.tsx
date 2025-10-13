@@ -1,7 +1,8 @@
 import { useState, useMemo } from "react";
-import { Loader2, Target, Search, ExternalLink, Star, ArrowRight, Network } from "lucide-react";
+import { Loader2, Target, Search, ExternalLink, Star, ArrowRight, Network, Download, FileJson } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { jsPDF } from "jspdf";
 import Header from "@/components/header";
 import PageNavigation from "@/components/page-navigation";
 import ToolPermissionGuard from "@/components/tool-permission-guard";
@@ -13,7 +14,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_LANG, DEFAULT_GEO } from "@/constants/google-ads-constants";
 import { apiRequest } from "@/lib/queryClient";
-import { openaiCompletion } from "@/lib/secure-api-client";
+import { openaiCompletion, generateTopicalAuthority } from "@/lib/secure-api-client";
+import { pollN8NJobStatus } from "@/lib/n8n-job-polling";
 import {
   Table,
   TableBody,
@@ -334,7 +336,6 @@ function KeywordOverviewContent() {
       if (!toolId) throw new Error("Tool ID not found");
 
       return executeWithToken(toolId, 4, async () => {
-        console.log("Starting combined analysis for:", keywordInput);
 
         // Call all 4 APIs in parallel
         const [keywordPlannerRes, searchIntentRes, gscRes, serpRes] = await Promise.all([
@@ -379,7 +380,6 @@ function KeywordOverviewContent() {
           serpRes.json(),
         ]);
 
-        console.log("All API responses:", { keywordData, intentData, gscData, serpData });
 
         // Calculate GSC metrics from timeSeriesData (aggregate all days)
         const timeSeriesData = gscData.timeSeriesData || [];
@@ -516,6 +516,136 @@ function KeywordOverviewContent() {
     analysisMutation.mutate(keyword);
   };
 
+  const handleDownloadPDF = () => {
+    if (!topicalAuthority || !data?.mainMetrics?.keyword) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    let yPosition = 20;
+    const lineHeight = 7;
+    const margin = 20;
+
+    // Title
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("Topical Authority Map", margin, yPosition);
+    yPosition += lineHeight * 1.5;
+
+    // Metadata
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    const meta = topicalAuthority.topical_authority_map?.meta;
+    if (meta) {
+      doc.text(`Keyword Seed: ${meta.keyword_seed || "N/A"}`, margin, yPosition);
+      yPosition += lineHeight;
+      doc.text(`Central Entity: ${meta.central_entity || "N/A"}`, margin, yPosition);
+      yPosition += lineHeight;
+      doc.text(`Total Keywords: ${meta.total_keywords_analyzed || 0}`, margin, yPosition);
+      yPosition += lineHeight * 2;
+    }
+
+    // Silos
+    const silos = topicalAuthority.topical_authority_map?.silos || [];
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("Silos & Content Structure", margin, yPosition);
+    yPosition += lineHeight * 1.5;
+
+    silos.forEach((silo: any, siloIdx: number) => {
+      // Check if need new page
+      if (yPosition > pageHeight - 40) {
+        doc.addPage();
+        yPosition = 20;
+      }
+
+      doc.setFontSize(12);
+      doc.setFont("helvetica", "bold");
+      doc.text(`${siloIdx + 1}. ${silo.silo_name} (${silo.silo_type})`, margin, yPosition);
+      yPosition += lineHeight;
+
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
+      const description = silo.silo_description || "";
+      const descLines = doc.splitTextToSize(description, pageWidth - margin * 2);
+      doc.text(descLines, margin + 5, yPosition);
+      yPosition += lineHeight * descLines.length;
+      yPosition += lineHeight * 0.5;
+
+      // Topic Clusters
+      (silo.topic_clusters || []).forEach((cluster: any, clusterIdx: number) => {
+        if (yPosition > pageHeight - 60) {
+          doc.addPage();
+          yPosition = 20;
+        }
+
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text(`  ${siloIdx + 1}.${clusterIdx + 1} ${cluster.cluster_name}`, margin + 5, yPosition);
+        yPosition += lineHeight;
+
+        // Pillar Page
+        if (cluster.pillar_page) {
+          doc.setFontSize(9);
+          doc.setFont("helvetica", "bold");
+          doc.text(`    Pillar: ${cluster.pillar_page.page_title}`, margin + 10, yPosition);
+          yPosition += lineHeight;
+
+          doc.setFont("helvetica", "normal");
+          doc.text(`    Keyword: ${cluster.pillar_page.primary_keyword} (${cluster.pillar_page.search_volume || 0} searches)`, margin + 10, yPosition);
+          yPosition += lineHeight;
+        }
+
+        // Supporting Pages
+        const supportingPages = cluster.supporting_pages || [];
+        if (supportingPages.length > 0) {
+          doc.setFont("helvetica", "italic");
+          doc.text(`    Supporting Pages (${supportingPages.length}):`, margin + 10, yPosition);
+          yPosition += lineHeight;
+
+          supportingPages.slice(0, 5).forEach((page: any) => {
+            if (yPosition > pageHeight - 20) {
+              doc.addPage();
+              yPosition = 20;
+            }
+
+            doc.setFont("helvetica", "normal");
+            const pageText = `      - ${page.page_title} (${page.search_volume || 0} searches)`;
+            doc.text(pageText, margin + 10, yPosition);
+            yPosition += lineHeight;
+          });
+
+          if (supportingPages.length > 5) {
+            doc.setFont("helvetica", "italic");
+            doc.text(`      ... +${supportingPages.length - 5} more pages`, margin + 10, yPosition);
+            yPosition += lineHeight;
+          }
+        }
+
+        yPosition += lineHeight * 0.5;
+      });
+
+      yPosition += lineHeight;
+    });
+
+    // Footer
+    const totalPages = doc.getNumberOfPages();
+    for (let i = 1; i <= totalPages; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `Generated by N8N Toolkit - Page ${i} of ${totalPages}`,
+        pageWidth / 2,
+        pageHeight - 10,
+        { align: "center" }
+      );
+    }
+
+    // Save PDF
+    doc.save(`topical-authority-${data.mainMetrics.keyword}.pdf`);
+  };
+
   const handleGenerateTopicalAuthority = async () => {
     if (!data?.mainMetrics?.keyword || !data.keywordVariations.length) {
       toast({
@@ -528,506 +658,65 @@ function KeywordOverviewContent() {
 
     setIsGeneratingTA(true);
 
-    // Show progress notification
-    toast({
-      title: "Generating Topical Authority...",
-      description: `Analyzing ${data.keywordVariations.length} keywords. This may take 30-60 seconds...`,
-      duration: 60000, // 60 seconds
-    });
-
     try {
-      const systemPrompt = `<?xml version="1.0" encoding="UTF-8"?>
-<system_prompt>
-  <role>
-    <title>Topical Authority Map Architect</title>
-    <description>
-      Bạn là chuyên gia phân tích SEO chuyên sâu về Topical Authority và Content Architecture.
-      Nhiệm vụ của bạn là phân tích keyword seed và keyword ideas để xây dựng bản đồ chủ đề 
-      SEO ngữ nghĩa hoàn chỉnh theo phương pháp Silo-Cluster-Pillar-Hub.
-    </description>
-  </role>
-
-  <inputs>
-    <input name="keyword_seed" type="string" required="true">
-      <description>Từ khóa gốc chính (seed keyword) - đại diện cho chủ đề trung tâm</description>
-      <example>optibac tím</example>
-    </input>
-    
-    <input name="keyword_ideas" type="array" required="true">
-      <description>Danh sách keyword ideas từ công cụ nghiên cứu từ khóa</description>
-      <structure>
-        <field name="keyword" type="string" description="Cụm từ khóa"/>
-        <field name="avgMonthlySearches" type="integer" description="Lượng tìm kiếm trung bình/tháng"/>
-        <field name="competition" type="string" description="Mức độ cạnh tranh (HIGH/MEDIUM/LOW)"/>
-        <field name="competitionIndex" type="integer" description="Chỉ số cạnh tranh (0-100)"/>
-        <field name="lowTopBid" type="float" description="Giá thầu thấp nhất" nullable="true"/>
-        <field name="highTopBid" type="float" description="Giá thầu cao nhất" nullable="true"/>
-      </structure>
-    </input>
-
-    <input name="source_context" type="object" optional="true">
-      <description>Ngữ cảnh nguồn - thông tin về website/business</description>
-      <fields>
-        <field name="website_url" type="string"/>
-        <field name="business_type" type="string"/>
-        <field name="target_audience" type="string"/>
-        <field name="brand_identity" type="string"/>
-        <field name="monetization_model" type="string"/>
-      </fields>
-    </input>
-  </inputs>
-
-  <analysis_framework>
-    <step1 name="identify_central_entity">
-      <objective>Xác định Thực Thể Trung Tâm từ keyword seed</objective>
-      <method>
-        - Phân tích keyword seed để trích xuất đối tượng/khái niệm chính
-        - Xác định loại thực thể (sản phẩm, dịch vụ, giải pháp, bệnh lý, v.v.)
-        - Đặt tên chính xác cho Central Entity
-      </method>
-    </step1>
-
-    <step2 name="identify_search_intent">
-      <objective>Xác định các loại Search Intent chính</objective>
-      <intent_types>
-        <intent type="informational">Tìm hiểu thông tin (là gì, công dụng, thành phần)</intent>
-        <intent type="navigational">Tìm sản phẩm/thương hiệu cụ thể (mua, giá, chính hãng)</intent>
-        <intent type="transactional">Mua hàng/chuyển đổi (mua, đặt hàng, khuyến mãi)</intent>
-        <intent type="commercial">So sánh/đánh giá (review, so sánh, tốt không)</intent>
-        <intent type="problem_solving">Giải quyết vấn đề (cách dùng, khi nào uống, tác dụng phụ)</intent>
-      </intent_types>
-    </step2>
-
-    <step3 name="semantic_clustering">
-      <objective>Nhóm keyword ideas thành các cụm ngữ nghĩa</objective>
-      <clustering_rules>
-        <rule priority="1">Nhóm theo chủ đề chính (topic-based)</rule>
-        <rule priority="2">Nhóm theo search intent (intent-based)</rule>
-        <rule priority="3">Nhóm theo user journey stage (awareness → consideration → decision)</rule>
-        <rule priority="4">Nhóm theo commercial value (high/medium/low conversion potential)</rule>
-        <rule priority="5">Nhóm theo search volume và competition</rule>
-      </clustering_rules>
-    </step3>
-
-    <step4 name="hierarchy_building">
-      <objective>Xây dựng cấu trúc phân cấp nội dung</objective>
-      <hierarchy>
-        <level1 name="silo" description="Chủ đề lớn nhất - đại diện cho vertical/category chính"/>
-        <level2 name="topic_cluster" description="Nhóm chủ đề con - tập hợp các topic liên quan"/>
-        <level3 name="pillar_page" description="Trang trụ cột - content hub cho mỗi cluster"/>
-        <level4 name="supporting_pages" description="Trang hỗ trợ - giải quyết câu hỏi cụ thể"/>
-      </hierarchy>
-    </step4>
-
-    <step5 name="content_classification">
-      <objective>Phân loại nội dung thành Core và Peripheral</objective>
-      <core_content>
-        <criteria>
-          - Liên quan trực tiếp đến conversion/monetization
-          - Giải quyết primary search intent
-          - Trang sản phẩm/dịch vụ chính
-          - High commercial value keywords
-          - Hướng dẫn sử dụng chính
-        </criteria>
-      </core_content>
-      <peripheral_content>
-        <criteria>
-          - Mở rộng kiến thức và chuyên môn
-          - Giải quyết secondary/supporting intents
-          - Blog posts, FAQs, guides
-          - Low-medium commercial value keywords
-          - Content marketing và brand awareness
-        </criteria>
-      </peripheral_content>
-    </step5>
-
-    <step6 name="internal_linking_strategy">
-      <objective>Thiết lập chiến lược liên kết nội bộ</objective>
-      <linking_patterns>
-        <pattern type="hub_to_spoke">Pillar page → Supporting pages</pattern>
-        <pattern type="spoke_to_hub">Supporting pages → Pillar page</pattern>
-        <pattern type="lateral">Supporting page ↔ Supporting page (cùng cluster)</pattern>
-        <pattern type="cross_cluster">Cluster A ↔ Cluster B (khi có liên quan)</pattern>
-        <pattern type="peripheral_to_core">Peripheral → Core (để tăng authority)</pattern>
-      </linking_patterns>
-    </step6>
-
-    <step7 name="iqqi_k2q_application">
-      <objective>Áp dụng phương pháp IQQI và K2Q</objective>
-      <iqqi>
-        <description>Implicit Query Question Identification - Xác định câu hỏi ngầm trong query</description>
-        <method>
-          - Chuyển keyword thành câu hỏi người dùng thực sự đặt ra
-          - Ví dụ: "optibac tím công dụng" → "Optibac tím có công dụng gì?"
-          - Dùng câu hỏi này làm H1/Title
-        </method>
-      </iqqi>
-      <k2q>
-        <description>Keyword to Question - Chuyển keyword thành câu hỏi cho nội dung</description>
-        <method>
-          - Tạo danh sách câu hỏi từ related keywords
-          - Mỗi câu hỏi trở thành một section/heading
-          - Ví dụ: "cách dùng optibac tím" → H2: "Cách dùng Optibac tím đúng nhất là gì?"
-        </method>
-      </k2q>
-    </step7>
-  </analysis_framework>
-
-  <output_structure>
-    <json_schema>
-      {
-        "topical_authority_map": {
-          "meta": {
-            "keyword_seed": "string",
-            "central_entity": "string",
-            "entity_type": "string",
-            "primary_search_intent": "string",
-            "generated_at": "timestamp",
-            "total_keywords_analyzed": "integer",
-            "source_context": {
-              "website": "string",
-              "business_type": "string",
-              "target_audience": "string"
-            }
-          },
-          "silos": [
-            {
-              "silo_id": "string",
-              "silo_name": "string",
-              "silo_description": "string",
-              "silo_type": "core | peripheral",
-              "priority": "integer (1-10)",
-              "estimated_traffic_potential": "integer",
-              "topic_clusters": [
-                {
-                  "cluster_id": "string",
-                  "cluster_name": "string",
-                  "cluster_description": "string",
-                  "cluster_intent": "informational | navigational | transactional | commercial | problem_solving",
-                  "user_journey_stage": "awareness | consideration | decision | retention",
-                  "pillar_page": {
-                    "page_id": "string",
-                    "page_title": "string",
-                    "page_slug": "string",
-                    "page_type": "pillar | hub",
-                    "primary_keyword": "string",
-                    "target_keywords": ["array of strings"],
-                    "search_volume": "integer",
-                    "competition": "string",
-                    "content_brief": {
-                      "iqqi_question": "string",
-                      "target_word_count": "integer",
-                      "required_sections": ["array of section titles"],
-                      "semantic_entities": ["array of entities to cover"],
-                      "lsi_terms": ["array of LSI terms"],
-                      "internal_link_targets": ["array of page_ids to link to"]
-                    },
-                    "seo_metadata": {
-                      "meta_title": "string (55-60 chars)",
-                      "meta_description": "string (150-160 chars)",
-                      "h1": "string",
-                      "canonical_url": "string"
-                    }
-                  },
-                  "supporting_pages": [
-                    {
-                      "page_id": "string",
-                      "page_title": "string",
-                      "page_slug": "string",
-                      "page_type": "supporting | blog | faq | guide",
-                      "parent_page_id": "string (pillar_page.page_id)",
-                      "primary_keyword": "string",
-                      "target_keywords": ["array of strings"],
-                      "search_volume": "integer",
-                      "competition": "string",
-                      "content_brief": {
-                        "iqqi_question": "string",
-                        "k2q_questions": ["array of questions from keywords"],
-                        "target_word_count": "integer",
-                        "required_sections": ["array of section titles"],
-                        "semantic_entities": ["array of entities"],
-                        "lsi_terms": ["array of LSI terms"]
-                      },
-                      "internal_linking": {
-                        "link_to_pillar": "boolean",
-                        "link_to_related_supporting": ["array of page_ids"],
-                        "link_to_other_clusters": ["array of page_ids"]
-                      },
-                      "seo_metadata": {
-                        "meta_title": "string",
-                        "meta_description": "string",
-                        "h1": "string",
-                        "canonical_url": "string"
-                      }
-                    }
-                  ]
-                }
-              ]
-            }
-          ],
-          "keyword_mapping": [
-            {
-              "keyword": "string",
-              "assigned_to_page_id": "string",
-              "keyword_role": "primary | secondary | supporting",
-              "search_volume": "integer",
-              "competition": "string",
-              "intent": "string"
-            }
-          ],
-          "internal_linking_graph": [
-            {
-              "from_page_id": "string",
-              "to_page_id": "string",
-              "link_type": "hub_to_spoke | spoke_to_hub | lateral | cross_cluster | peripheral_to_core",
-              "anchor_text_suggestion": "string",
-              "link_context": "string"
-            }
-          ],
-          "content_gap_analysis": {
-            "missing_topics": ["array of topics to cover"],
-            "high_value_keywords_not_mapped": [
-              {
-                "keyword": "string",
-                "search_volume": "integer",
-                "suggested_page_type": "string"
-              }
-            ]
-          },
-          "implementation_roadmap": {
-            "phase_1_priority_pages": ["array of page_ids"],
-            "phase_2_supporting_content": ["array of page_ids"],
-            "phase_3_peripheral_content": ["array of page_ids"],
-            "estimated_timeline": "string"
-          }
-        }
-      }
-    </json_schema>
-  </output_structure>
-
-  <quality_criteria>
-    <criterion name="semantic_coherence">
-      Tất cả nội dung phải liên quan logic đến Central Entity và keyword seed
-    </criterion>
-    <criterion name="intent_coverage">
-      Bao phủ đầy đủ các loại search intent: informational, navigational, transactional, commercial, problem-solving
-    </criterion>
-    <criterion name="hierarchy_clarity">
-      Cấu trúc Silo → Cluster → Pillar → Supporting phải rõ ràng, không chồng chéo
-    </criterion>
-    <criterion name="keyword_distribution">
-      Mỗi keyword chỉ được assign cho 1 page chính (có thể supporting cho nhiều page)
-    </criterion>
-    <criterion name="commercial_balance">
-      Cân bằng giữa Core Content (conversion-focused) và Peripheral Content (authority-building)
-    </criterion>
-    <criterion name="internal_linking_logic">
-      Mọi liên kết nội bộ phải có mục đích rõ ràng (authority flow, user journey, semantic relevance)
-    </criterion>
-    <criterion name="scalability">
-      Cấu trúc phải dễ mở rộng khi có thêm keywords/topics mới
-    </criterion>
-  </quality_criteria>
-
-  <execution_guidelines>
-    <guideline priority="critical">
-      Luôn bắt đầu bằng việc phân tích keyword seed để xác định Central Entity và Primary Intent
-    </guideline>
-    <guideline priority="critical">
-      Phân loại keywords theo search volume và competition để ưu tiên Core Content
-    </guideline>
-    <guideline priority="high">
-      Nhóm keywords có search volume cao (>100/tháng) vào Pillar Pages
-    </guideline>
-    <guideline priority="high">
-      Nhóm long-tail keywords (<50/tháng) vào Supporting Pages
-    </guideline>
-    <guideline priority="medium">
-      Tạo ít nhất 1 Pillar Page cho mỗi Topic Cluster
-    </guideline>
-    <guideline priority="medium">
-      Mỗi Pillar Page nên có 3-7 Supporting Pages
-    </guideline>
-    <guideline priority="low">
-      Sử dụng keyword variations để tạo anchor text đa dạng
-    </guideline>
-  </execution_guidelines>
-
-  <examples>
-    <example>
-      <input>
-        <keyword_seed>optibac tím</keyword_seed>
-        <top_keywords>
-          [
-            {"keyword": "optibac tím", "avgMonthlySearches": 8100, "intent": "navigational"},
-            {"keyword": "cách uống optibac tím", "avgMonthlySearches": 140, "intent": "problem_solving"},
-            {"keyword": "công dụng optibac tím", "avgMonthlySearches": 90, "intent": "informational"},
-            {"keyword": "giá optibac tím", "avgMonthlySearches": 50, "intent": "commercial"}
-          ]
-        </top_keywords>
-      </input>
-      <output_excerpt>
-        {
-          "central_entity": "Optibac Tím (Optibac Probiotics For Women)",
-          "entity_type": "health_supplement_product",
-          "primary_search_intent": "Find and learn about women's probiotic supplement for gynecological health",
-          "silos": [
-            {
-              "silo_name": "Optibac Tím - Sản Phẩm & Mua Hàng",
-              "silo_type": "core",
-              "topic_clusters": [
-                {
-                  "cluster_name": "Thông Tin Sản Phẩm Chính",
-                  "cluster_intent": "navigational + transactional",
-                  "pillar_page": {
-                    "page_title": "Optibac Tím: Men Vi Sinh Phụ Khoa Số 1 Từ Anh Quốc",
-                    "primary_keyword": "optibac tím",
-                    "iqqi_question": "Optibac Tím là gì và tại sao nên chọn?"
-                  }
-                }
-              ]
-            }
-          ]
-        }
-      </output_excerpt>
-    </example>
-  </examples>
-
-  <final_instructions>
-    <instruction>
-      Phân tích toàn bộ keyword_ideas input để không bỏ sót keyword nào
-    </instruction>
-    <instruction>
-      Tạo cấu trúc JSON đầy đủ, chi tiết, và ready-to-implement
-    </instruction>
-    <instruction>
-      Đảm bảo mọi page đều có IQQI question và K2Q questions rõ ràng
-    </instruction>
-    <instruction>
-      Cung cấp internal linking graph cụ thể với anchor text suggestions
-    </instruction>
-    <instruction>
-      Output phải là valid JSON có thể parse và sử dụng trực tiếp
-    </instruction>
-  </final_instructions>
-</system_prompt>`;
-
-      // Limit to top 50 keywords by volume to avoid timeout
+      // Limit to top 50 keywords by volume
       const topKeywords = data.keywordVariations
         .sort((a, b) => (b.volume || 0) - (a.volume || 0))
         .slice(0, 50);
 
-      const userPrompt = `Phân tích keyword seed và keyword ideas sau để tạo Topical Authority Map:
-
-**Keyword Seed**: ${data.mainMetrics.keyword}
-
-**Keyword Ideas** (Top ${topKeywords.length} keywords by volume):
-${topKeywords.map(kw => `- ${kw.keyword} (Volume: ${kw.volume || 0})`).join('\n')}
-
-QUAN TRỌNG:
-1. Phân bổ TẤT CẢ ${topKeywords.length} keywords vào các Pillar Pages và Supporting Pages
-2. Keywords có volume cao (>500) → Pillar Pages (ít nhất 3-5 pages)
-3. Keywords có volume trung bình (100-500) → Supporting Pages chính (5-10 pages)
-4. Keywords có volume thấp (<100) → Supporting Pages phụ (10-15 pages)
-5. Tạo 2-4 Silos (core và peripheral)
-6. Mỗi Silo có 2-3 Topic Clusters
-7. Mỗi Cluster có 1 Pillar Page và 3-7 Supporting Pages
-8. Trả về ONLY valid JSON, không có markdown wrapper
-
-Output format (must be valid JSON):
-{
-  "topical_authority_map": {
-    "meta": { "keyword_seed": "...", "central_entity": "...", "primary_search_intent": "..." },
-    "silos": [
-      {
-        "silo_name": "...",
-        "silo_type": "core",
-        "topic_clusters": [
-          {
-            "cluster_name": "...",
-            "pillar_page": { "page_title": "...", "primary_keyword": "...", "search_volume": 0 },
-            "supporting_pages": [
-              { "page_title": "...", "primary_keyword": "...", "search_volume": 0 }
-            ]
-          }
-        ]
-      }
-    ],
-    "keyword_mapping": [],
-    "internal_linking_graph": [],
-    "content_gap_analysis": { "missing_topics": [] },
-    "implementation_roadmap": { "phase_1_priority_pages": [] }
-  }
-}`;
-
-      const response = await openaiCompletion({
-        model: "openai/gpt-4.1-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
-        max_tokens: 6000, // Reduced from 8000 to prevent timeout
-        temperature: 0.7,
+      // Start async job on backend
+      const startResponse = await generateTopicalAuthority({
+        keyword_seed: data.mainMetrics.keyword,
+        keyword_ideas: topKeywords.map(kw => ({
+          keyword: kw.keyword,
+          volume: kw.volume,
+        })),
       });
 
-      const resultText = response.choices[0].message.content;
-      console.log("Raw GPT response length:", resultText.length);
+      const jobId = startResponse.job_id;
 
-      // Strategy 1: Try to parse entire response as JSON
-      let taMap = null;
-      try {
-        taMap = JSON.parse(resultText);
-      } catch (e1) {
-        console.log("Strategy 1 failed, trying strategy 2...");
-
-        // Strategy 2: Extract JSON from markdown code blocks
-        const codeBlockMatch = resultText.match(/```json\s*([\s\S]*?)\s*```/) ||
-                              resultText.match(/```\s*([\s\S]*?)\s*```/);
-        if (codeBlockMatch) {
-          try {
-            taMap = JSON.parse(codeBlockMatch[1]);
-          } catch (e2) {
-            console.log("Strategy 2 failed, trying strategy 3...");
-
-            // Strategy 3: Find first { and last } for JSON object
-            const firstBrace = resultText.indexOf('{');
-            const lastBrace = resultText.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-              try {
-                const jsonStr = resultText.substring(firstBrace, lastBrace + 1);
-                taMap = JSON.parse(jsonStr);
-              } catch (e3) {
-                console.error("All parsing strategies failed");
-                console.error("Parse errors:", { e1, e2, e3 });
-                throw new Error(`Failed to parse JSON response. Error: ${e3 instanceof Error ? e3.message : 'Unknown error'}`);
-              }
-            } else {
-              throw new Error("No valid JSON structure found in response");
-            }
-          }
-        } else {
-          throw new Error("No JSON found in response");
-        }
-      }
-
-      if (taMap) {
-        setTopicalAuthority(taMap);
-        toast({
-          title: "Topical Authority Generated",
-          description: "Successfully generated topical authority map",
-        });
-      } else {
-        throw new Error("Failed to extract valid JSON");
-      }
-    } catch (error) {
-      console.error("Topical Authority generation failed:", error);
+      // Show progress notification
       toast({
-        title: "Generation Failed",
-        description: error instanceof Error ? error.message : "Failed to generate topical authority map",
+        title: "Generating Topical Authority...",
+        description: `Job ${jobId} started. Analyzing ${topKeywords.length} keywords. Polling every 3s...`,
+        duration: 60000, // 60 seconds
+      });
+
+      // Poll job status until complete
+      pollN8NJobStatus(jobId, {
+        onProgress: () => {
+          // Silent progress tracking
+        },
+        onComplete: (result, duration) => {
+          setTopicalAuthority(result);
+          setIsGeneratingTA(false);
+
+          toast({
+            title: "Topical Authority Generated",
+            description: `Successfully generated topical authority map in ${Math.round(duration / 1000)}s`,
+          });
+        },
+        onError: (error) => {
+          console.error(`Topical Authority job ${jobId} failed:`, error);
+          setIsGeneratingTA(false);
+
+          toast({
+            title: "Generation Failed",
+            description: error || "Failed to generate topical authority map",
+            variant: "destructive",
+          });
+        }
+      });
+
+    } catch (error) {
+      console.error("Failed to start Topical Authority generation:", error);
+      setIsGeneratingTA(false);
+
+      toast({
+        title: "Failed to Start",
+        description: error instanceof Error ? error.message : "Failed to start topical authority generation",
         variant: "destructive",
       });
-    } finally {
-      setIsGeneratingTA(false);
     }
   };
 
@@ -1127,12 +816,12 @@ Output format (must be valid JSON):
                   )}
 
                   {/* Click/Volume Ratio */}
-                  {data.mainMetrics?.clickVolumeRatio !== null && (
+                  {data.mainMetrics?.clickVolumeRatio !== null && data.mainMetrics?.clickVolumeRatio !== undefined && (
                     <div className="mt-3 pt-3 border-t">
                       <p className="text-xs text-muted-foreground mb-1">Click/Volume Ratio</p>
                       <div className="flex items-baseline gap-2">
                         <p className="text-2xl font-bold text-green-600">
-                          {data.mainMetrics.clickVolumeRatio.toFixed(2)}%
+                          {data.mainMetrics.clickVolumeRatio?.toFixed(2)}%
                         </p>
                       </div>
                     </div>
@@ -1157,7 +846,7 @@ Output format (must be valid JSON):
                   >
                     {data.mainMetrics?.intent || "Unknown"}
                   </Badge>
-                  {data.mainMetrics?.intentScore !== null && (
+                  {data.mainMetrics?.intentScore !== null && data.mainMetrics?.intentScore !== undefined && (
                     <div className="mt-3">
                       <p className="text-xs text-muted-foreground">Intent Score</p>
                       <p className="text-2xl font-bold">{data.mainMetrics.intentScore}/10</p>
@@ -1175,7 +864,7 @@ Output format (must be valid JSON):
                   <CardDescription>CPC (VND)</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {data.mainMetrics?.cpcLow !== null && data.mainMetrics?.cpcHigh !== null ? (
+                  {data.mainMetrics?.cpcLow !== null && data.mainMetrics?.cpcHigh !== null && data.mainMetrics ? (
                     <>
                       <div className="space-y-2">
                         <div>
@@ -1204,7 +893,7 @@ Output format (must be valid JSON):
                     {data.mainMetrics?.competitionLevel ?? "N/A"}
                     {data.mainMetrics?.competitionLevel !== null && "/100"}
                   </div>
-                  {data.mainMetrics?.competitionLevel !== null && (
+                  {data.mainMetrics?.competitionLevel !== null && data.mainMetrics?.competitionLevel !== undefined && (
                     <Badge
                       variant="outline"
                       className={
@@ -1429,21 +1118,32 @@ Output format (must be valid JSON):
                       ))}
                     </div>
 
-                    {/* Download JSON */}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        const blob = new Blob([JSON.stringify(topicalAuthority, null, 2)], { type: "application/json" });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement("a");
-                        a.href = url;
-                        a.download = `topical-authority-${data.mainMetrics?.keyword}.json`;
-                        a.click();
-                      }}
-                    >
-                      Download JSON
-                    </Button>
+                    {/* Download Buttons */}
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const blob = new Blob([JSON.stringify(topicalAuthority, null, 2)], { type: "application/json" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url;
+                          a.download = `topical-authority-${data.mainMetrics?.keyword}.json`;
+                          a.click();
+                        }}
+                      >
+                        <FileJson className="h-4 w-4 mr-2" />
+                        Download JSON
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownloadPDF}
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Download PDF
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground text-center py-8">
