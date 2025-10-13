@@ -195,6 +195,17 @@ export async function n8nInternalLink(params: N8NInternalLinkParams) {
   return secureRequest('/api/proxy/n8n/internal-link', params);
 }
 
+export interface N8NTopicalAuthorityParams {
+  keyword_seed: string;
+  topical_authority_map: unknown;
+  generated_at?: string;
+  duration_seconds?: number;
+}
+
+export async function n8nTopicalAuthority(params: N8NTopicalAuthorityParams) {
+  return secureRequest('/api/proxy/n8n/topical-authority', params);
+}
+
 // ============================================
 // TOPICAL AUTHORITY API
 // ============================================

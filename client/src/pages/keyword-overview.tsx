@@ -15,7 +15,8 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { DEFAULT_LANG, DEFAULT_GEO } from "@/constants/google-ads-constants";
 import { apiRequest } from "@/lib/queryClient";
-import { openaiCompletion, generateTopicalAuthority } from "@/lib/secure-api-client";
+import { openaiCompletion, generateTopicalAuthority, n8nTopicalAuthority } from "@/lib/secure-api-client";
+import { ROBOTO_REGULAR_BASE64, ROBOTO_BOLD_BASE64 } from "@/lib/fonts/roboto";
 import { pollN8NJobStatus } from "@/lib/n8n-job-polling";
 import {
   Table,
@@ -521,15 +522,24 @@ function KeywordOverviewContent() {
     if (!topicalAuthority || !data?.mainMetrics?.keyword) return;
 
     const doc = new jsPDF() as jsPDF & { lastAutoTable?: { finalY: number } };
+
+    // Register Unicode-capable Roboto font so Vietnamese characters render correctly
+    doc.addFileToVFS('Roboto-Regular.ttf', ROBOTO_REGULAR_BASE64);
+    doc.addFont('Roboto-Regular.ttf', 'Roboto', 'normal');
+    doc.addFileToVFS('Roboto-Bold.ttf', ROBOTO_BOLD_BASE64);
+    doc.addFont('Roboto-Bold.ttf', 'Roboto', 'bold');
+    doc.setFont('Roboto', 'normal');
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 14;
     let startY = 20;
 
     // Title
+    doc.setFont('Roboto', 'bold');
     doc.setFontSize(18);
     doc.text("Topical Authority Map", margin, startY);
     startY += 12;
+    doc.setFont('Roboto', 'normal');
 
     // Metadata table
     const meta = topicalAuthority.topical_authority_map?.meta;
@@ -546,11 +556,13 @@ function KeywordOverviewContent() {
         styles: {
           fontSize: 9,
           cellPadding: 3,
+          font: 'Roboto',
         },
         headStyles: {
           fillColor: [66, 139, 202],
           textColor: 255,
-          fontStyle: 'bold'
+          fontStyle: 'bold',
+          font: 'Roboto'
         },
         margin: { left: margin, right: margin },
       });
@@ -576,10 +588,12 @@ function KeywordOverviewContent() {
         styles: {
           fontSize: 12,
           fontStyle: 'bold',
+          font: 'Roboto',
           textColor: [0, 0, 0]
         },
         headStyles: {
           fillColor: [240, 240, 240],
+          font: 'Roboto',
         },
         margin: { left: margin, right: margin },
       });
@@ -593,8 +607,8 @@ function KeywordOverviewContent() {
         }
 
         // Cluster header
+        doc.setFont('Roboto', 'bold');
         doc.setFontSize(11);
-        doc.setFont("helvetica", "bold");
 
         // Build table data
         const tableData: any[] = [];
@@ -641,19 +655,21 @@ function KeywordOverviewContent() {
               cellPadding: 2,
               overflow: 'linebreak',
               cellWidth: 'wrap',
+              font: 'Roboto',
             },
             headStyles: {
               fillColor: [52, 152, 219],
               textColor: 255,
               fontStyle: 'bold',
               fontSize: 9,
-              halign: 'left'
+              halign: 'left',
+              font: 'Roboto'
             },
             columnStyles: {
-              0: { cellWidth: 22, fontStyle: 'bold' },
-              1: { cellWidth: 70 },
-              2: { cellWidth: 52 },
-              3: { cellWidth: 18, halign: 'right' }
+              0: { cellWidth: 22, fontStyle: 'bold', font: 'Roboto' },
+              1: { cellWidth: 70, font: 'Roboto' },
+              2: { cellWidth: 52, font: 'Roboto' },
+              3: { cellWidth: 18, halign: 'right', font: 'Roboto' }
             },
             margin: { left: margin + 5, right: margin },
           });
@@ -668,6 +684,7 @@ function KeywordOverviewContent() {
     const totalPages = doc.getNumberOfPages();
     for (let i = 1; i <= totalPages; i++) {
       doc.setPage(i);
+      doc.setFont('Roboto', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(128, 128, 128);
       doc.text(
@@ -733,20 +750,8 @@ function KeywordOverviewContent() {
             description: `Successfully generated topical authority map in ${Math.round(duration / 1000)}s`,
           });
 
-          // Send webhook to N8N for further processing
+          // Send webhook to N8N for further processing via secure proxy
           try {
-            const webhookUrl = "https://n8n.nhathuocvietnhat.vn/webhook/seotool-360-topical-authority-2025-10-13";
-            const n8nApiKey = import.meta.env.N8N_API_KEY;
-
-            console.log("[Webhook] Preparing to send to N8N...");
-            console.log("[Webhook] API Key configured:", !!n8nApiKey);
-            console.log("[Webhook] API Key value:", n8nApiKey ? `${n8nApiKey.substring(0, 10)}...` : 'undefined');
-
-            if (!n8nApiKey) {
-              console.warn("[Webhook] N8N_API_KEY not configured, skipping webhook");
-              return;
-            }
-
             const payload = {
               keyword_seed: data.mainMetrics?.keyword || "",
               topical_authority_map: result,
@@ -754,31 +759,11 @@ function KeywordOverviewContent() {
               duration_seconds: Math.round(duration / 1000),
             };
 
-            console.log("[Webhook] Payload size:", JSON.stringify(payload).length, "bytes");
-            console.log("[Webhook] Sending to:", webhookUrl);
-
-            const webhookResponse = await fetch(webhookUrl, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "Authorization": `Bearer ${n8nApiKey}`,
-              },
-              body: JSON.stringify(payload),
-            });
-
-            console.log("[Webhook] Response status:", webhookResponse.status, webhookResponse.statusText);
-            console.log("[Webhook] Response headers:", Object.fromEntries(webhookResponse.headers.entries()));
-
-            const responseText = await webhookResponse.text();
-            console.log("[Webhook] Response body:", responseText);
-
-            if (!webhookResponse.ok) {
-              console.error("[Webhook] Failed with status:", webhookResponse.status);
-            } else {
-              console.log("[Webhook] Successfully sent to N8N");
-            }
+            console.log("[Webhook] Forwarding Topical Authority result to N8N via server proxy...");
+            const webhookResult = await n8nTopicalAuthority(payload);
+            console.log("[Webhook] N8N response:", webhookResult);
           } catch (webhookError) {
-            console.error("[Webhook] Error sending webhook:", webhookError);
+            console.error("[Webhook] Error forwarding webhook to N8N:", webhookError);
             // Don't show error to user - webhook is optional
           }
         },

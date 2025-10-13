@@ -85,6 +85,13 @@ const topicalAuthoritySchema = z.object({
   })),
 });
 
+const topicalAuthorityWebhookSchema = z.object({
+  keyword_seed: z.string().min(1, "Keyword seed is required"),
+  topical_authority_map: z.any(),
+  generated_at: z.string().optional(),
+  duration_seconds: z.number().nonnegative().optional(),
+});
+
 export function registerApiProxyRoutes(app: Express) {
   // ============================================
   // SERPER API PROXY
@@ -1559,6 +1566,78 @@ Output format (must be valid JSON):
     } catch (error) {
       console.error("[N8N Internal Link Proxy] Unexpected error:", error);
       return res.status(500).json({ message: "Failed to start N8N internal link job" });
+    }
+  });
+
+  /**
+   * Proxy for N8N Topical Authority webhook (fire-and-forget)
+   */
+  app.post("/api/proxy/n8n/topical-authority", authMiddleware, async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      if (!req.user) {
+        return res.status(401).json({ message: "Authentication required" });
+      }
+
+      if (!N8N_API_KEY) {
+        return res.status(500).json({
+          message: "Server configuration error: N8N_API_KEY not configured"
+        });
+      }
+
+      const validation = topicalAuthorityWebhookSchema.safeParse(req.body);
+      if (!validation.success) {
+        return res.status(400).json({
+          message: "Invalid webhook payload",
+          errors: validation.error.issues,
+        });
+      }
+
+      const webhookUrl = "https://n8n.nhathuocvietnhat.vn/webhook/seotool-360-topical-authority-2025-10-13";
+      const payload = validation.data;
+
+      console.log("[N8N Topical Authority] Forwarding payload for keyword:", payload.keyword_seed);
+
+      const response = await fetch(webhookUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": N8N_API_KEY,
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const responseText = await response.text();
+      let parsedResponse: unknown = null;
+
+      try {
+        parsedResponse = responseText ? JSON.parse(responseText) : null;
+      } catch (parseError) {
+        parsedResponse = responseText;
+      }
+
+      if (!response.ok) {
+        console.error("[N8N Topical Authority] Webhook failed:", response.status, response.statusText, responseText);
+        return res.status(response.status).json({
+          message: "N8N webhook request failed",
+          status: response.status,
+          response: parsedResponse,
+        });
+      }
+
+      console.log("[N8N Topical Authority] Webhook delivered successfully with status", response.status);
+
+      return res.json({
+        message: "Webhook delivered successfully",
+        status: response.status,
+        response: parsedResponse,
+      });
+
+    } catch (error) {
+      console.error("[N8N Topical Authority] Unexpected error:", error);
+      return res.status(500).json({
+        message: "Failed to forward Topical Authority webhook",
+        error: error instanceof Error ? error.message : "Unknown error",
+      });
     }
   });
 
