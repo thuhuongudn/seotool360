@@ -101,10 +101,8 @@ export function TokenWidget() {
     100
   );
   const isLowTokens = usage.remaining <= 2;
-  const expiryDate =
-    profile.plan === 'trial'
-      ? profile.trial_ends_at
-      : profile.member_ends_at;
+  // Priority: member_ends_at if exists, otherwise fallback to trial_ends_at
+  const expiryDate = profile.member_ends_at || profile.trial_ends_at;
 
   return (
     <Card className="w-full">

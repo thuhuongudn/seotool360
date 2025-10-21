@@ -80,25 +80,9 @@ BEGIN
         );
     END IF;
 
-    -- Check if trial/member has expired
-    IF v_profile.plan = 'trial' AND v_profile.trial_ends_at < now() THEN
-        -- Auto-update status to pending
-        UPDATE public.profiles
-        SET status = 'pending'
-        WHERE user_id = p_user_id;
-
-        RETURN json_build_object(
-            'success', false,
-            'error', 'TRIAL_EXPIRED',
-            'message', 'Trial period has expired',
-            'tokens_used', 0,
-            'tokens_remaining', 0,
-            'daily_limit', 0,
-            'expired_at', v_profile.trial_ends_at
-        );
-    END IF;
-
-    IF v_profile.plan = 'member' AND v_profile.member_ends_at IS NOT NULL AND v_profile.member_ends_at < now() THEN
+    -- Check if member/trial has expired
+    -- Priority: Check member_ends_at first if exists, otherwise check trial_ends_at
+    IF v_profile.member_ends_at IS NOT NULL AND v_profile.member_ends_at < now() THEN
         -- Auto-update status to pending
         UPDATE public.profiles
         SET status = 'pending'
@@ -112,6 +96,23 @@ BEGIN
             'tokens_remaining', 0,
             'daily_limit', 0,
             'expired_at', v_profile.member_ends_at
+        );
+    END IF;
+
+    IF v_profile.trial_ends_at IS NOT NULL AND v_profile.trial_ends_at < now() THEN
+        -- Auto-update status to pending
+        UPDATE public.profiles
+        SET status = 'pending'
+        WHERE user_id = p_user_id;
+
+        RETURN json_build_object(
+            'success', false,
+            'error', 'TRIAL_EXPIRED',
+            'message', 'Trial period has expired',
+            'tokens_used', 0,
+            'tokens_remaining', 0,
+            'daily_limit', 0,
+            'expired_at', v_profile.trial_ends_at
         );
     END IF;
 

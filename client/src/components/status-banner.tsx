@@ -19,6 +19,11 @@ export function StatusBanner() {
     return null;
   }
 
+  // Admin users bypass all status banners
+  if (profile.role === 'admin') {
+    return null;
+  }
+
   // Check for pending status
   if (profile.status === 'pending') {
     const banner = STATUS_BANNERS.PENDING;
@@ -85,10 +90,8 @@ export function StatusBanner() {
 
   // Check for expiring soon (for active users)
   if (profile.status === 'active') {
-    const expiryDate =
-      profile.plan === 'trial'
-        ? profile.trial_ends_at
-        : profile.member_ends_at;
+    // Priority: member_ends_at if exists, otherwise fallback to trial_ends_at
+    const expiryDate = profile.member_ends_at || profile.trial_ends_at;
 
     if (expiryDate && isExpiringSoon(expiryDate)) {
       const days = getDaysUntilExpiry(expiryDate);

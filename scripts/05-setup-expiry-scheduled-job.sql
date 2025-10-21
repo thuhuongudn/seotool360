@@ -26,24 +26,24 @@ DECLARE
     v_expired_members integer := 0;
     v_total_expired integer := 0;
 BEGIN
-    -- Expire trial plans
+    -- Expire member plans first (priority)
     UPDATE public.profiles
     SET status = 'pending'
-    WHERE plan = 'trial'
-    AND status = 'active'
-    AND trial_ends_at < now();
-
-    GET DIAGNOSTICS v_expired_trials = ROW_COUNT;
-
-    -- Expire member plans
-    UPDATE public.profiles
-    SET status = 'pending'
-    WHERE plan = 'member'
-    AND status = 'active'
+    WHERE status = 'active'
     AND member_ends_at IS NOT NULL
     AND member_ends_at < now();
 
     GET DIAGNOSTICS v_expired_members = ROW_COUNT;
+
+    -- Expire trial plans (only if no member_ends_at or member_ends_at is in future)
+    UPDATE public.profiles
+    SET status = 'pending'
+    WHERE status = 'active'
+    AND trial_ends_at IS NOT NULL
+    AND trial_ends_at < now()
+    AND (member_ends_at IS NULL OR member_ends_at >= now());
+
+    GET DIAGNOSTICS v_expired_trials = ROW_COUNT;
 
     v_total_expired := v_expired_trials + v_expired_members;
 
