@@ -59,7 +59,15 @@ CREATE TRIGGER trigger_daily_token_usage_updated_at
 -- ============================================
 -- CREATE RPC: consume_token
 -- ============================================
+-- NOTE: This function has been DEPRECATED and replaced by the version in
+-- 11-update-consume-token-with-logging.sql which includes p_tool_id parameter
+-- and logging functionality. Do NOT uncomment this to avoid function overloading conflicts.
+--
+-- To remove the old version from database, run:
+-- DROP FUNCTION IF EXISTS public.consume_token(text, integer);
 
+-- DEPRECATED: Old 2-parameter version (kept for reference only)
+/*
 CREATE OR REPLACE FUNCTION public.consume_token(
     p_user_id text,
     p_tokens_to_consume integer DEFAULT 1
@@ -232,6 +240,7 @@ EXCEPTION
         );
 END;
 $$;
+*/
 
 -- ============================================
 -- CREATE RPC: get_user_token_usage
