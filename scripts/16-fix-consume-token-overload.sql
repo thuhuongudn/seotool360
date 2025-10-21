@@ -11,34 +11,52 @@
 -- PostgREST cannot disambiguate between these two, causing RPC calls to fail.
 
 -- ============================================
--- DROP OLD 2-PARAMETER VERSION
+-- DROP ALL OLD VERSIONS
 -- ============================================
 
 DO $$
+DECLARE
+    func_count integer;
 BEGIN
-    -- Check if the old 2-parameter version exists
-    IF EXISTS (
-        SELECT 1 FROM pg_proc
-        WHERE proname = 'consume_token'
-        AND pronargs = 2
-        AND pg_get_function_identity_arguments(oid) = 'p_user_id text, p_tokens_to_consume integer'
-    ) THEN
-        DROP FUNCTION public.consume_token(text, integer);
-        RAISE NOTICE 'Dropped old 2-parameter consume_token function';
-    ELSE
-        RAISE NOTICE 'Old 2-parameter consume_token function not found (already removed)';
+    RAISE NOTICE 'Checking for existing consume_token functions...';
+
+    -- Count all versions
+    SELECT COUNT(*) INTO func_count
+    FROM pg_proc
+    WHERE proname = 'consume_token';
+
+    RAISE NOTICE 'Found % consume_token function(s)', func_count;
+
+    -- List all existing versions before dropping
+    IF func_count > 0 THEN
+        RAISE NOTICE 'Existing versions:';
+        FOR func_count IN
+            SELECT oid::regprocedure::text
+            FROM pg_proc
+            WHERE proname = 'consume_token'
+        LOOP
+            RAISE NOTICE '  - %', func_count;
+        END LOOP;
     END IF;
 
-    -- Verify only the 3-parameter version remains
-    IF EXISTS (
-        SELECT 1 FROM pg_proc
-        WHERE proname = 'consume_token'
-        AND pronargs = 3
-    ) THEN
-        RAISE NOTICE '✓ 3-parameter consume_token function exists (correct version)';
-    ELSE
-        RAISE WARNING '⚠ 3-parameter consume_token function NOT found! You may need to run 11-update-consume-token-with-logging.sql';
-    END IF;
+    -- Drop ALL possible versions
+    RAISE NOTICE '';
+    RAISE NOTICE 'Dropping all consume_token function versions...';
+
+    -- 2-parameter version
+    DROP FUNCTION IF EXISTS public.consume_token(text, integer);
+    RAISE NOTICE '  ✓ Dropped: consume_token(text, integer)';
+
+    -- 3-parameter version with VARCHAR
+    DROP FUNCTION IF EXISTS public.consume_token(text, character varying, integer);
+    RAISE NOTICE '  ✓ Dropped: consume_token(text, character varying, integer)';
+
+    -- 3-parameter version with UUID (we'll recreate this)
+    DROP FUNCTION IF EXISTS public.consume_token(text, uuid, integer);
+    RAISE NOTICE '  ✓ Dropped: consume_token(text, uuid, integer)';
+
+    RAISE NOTICE '';
+    RAISE NOTICE 'All old versions removed. Ready to create the correct version.';
 END $$;
 
 -- ============================================
