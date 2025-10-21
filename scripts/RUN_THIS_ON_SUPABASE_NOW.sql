@@ -55,11 +55,6 @@ END $$;
 -- STEP 2: Create CORRECT version with UUID
 -- ============================================
 
-RAISE NOTICE '';
-RAISE NOTICE '========================================';
-RAISE NOTICE 'STEP 2: Creating correct consume_token function';
-RAISE NOTICE '========================================';
-
 CREATE OR REPLACE FUNCTION public.consume_token(
     p_user_id text,
     p_tool_id uuid,
@@ -250,20 +245,12 @@ EXCEPTION
 END;
 $$;
 
-RAISE NOTICE '  ✓ Created consume_token(text, uuid, integer)';
-
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION public.consume_token(text, uuid, integer) TO authenticated, service_role;
-RAISE NOTICE '  ✓ Granted permissions to authenticated & service_role';
 
 -- ============================================
 -- STEP 3: Update expiry scheduled job
 -- ============================================
-
-RAISE NOTICE '';
-RAISE NOTICE '========================================';
-RAISE NOTICE 'STEP 3: Updating expiry scheduled job';
-RAISE NOTICE '========================================';
 
 CREATE OR REPLACE FUNCTION public.expire_trial_and_member_plans()
 RETURNS json
@@ -313,8 +300,6 @@ EXCEPTION
         );
 END;
 $$;
-
-RAISE NOTICE '  ✓ Updated expire_trial_and_member_plans()';
 
 -- ============================================
 -- FINAL VERIFICATION
