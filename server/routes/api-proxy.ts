@@ -682,7 +682,7 @@ export function registerApiProxyRoutes(app: Express) {
       console.log(`[N8N Search Intent] Starting job ${jobId} for keyword: "${keyword}"`);
 
       const response = await fetch(
-        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-search-intent-2025-09-26",
+        "https://n8n.vietnhat.me/webhook/seo-tool-360-search-intent-2025-09-26",
         {
           method: "POST",
           headers: {
@@ -786,7 +786,7 @@ export function registerApiProxyRoutes(app: Express) {
       console.log(`[N8N Social Media] Starting job ${jobId}`);
 
       const response = await fetch(
-        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-product-social",
+        "https://n8n.vietnhat.me/webhook/seo-tool-360-product-social",
         {
           method: "POST",
           headers: {
@@ -1429,7 +1429,7 @@ Output format (must be valid JSON):
       console.log(`[N8N Internal Link] Starting job ${jobId}`);
 
       const response = await fetch(
-        "https://n8n.nhathuocvietnhat.vn/webhook/seo-tool-360-internal-link",
+        "https://n8n.vietnhat.me/webhook/seo-tool-360-internal-link",
         {
           method: "POST",
           headers: {
